@@ -96,3 +96,61 @@ jobs:
           name: OpenXRay-ios-smoketest-ipa
           path: misc/ios/smoketest/OpenXRay-smoketest-unsigned.ipa
           if-no-files-found: error
+
+  # Phase 2: cross-build the engine's C dependencies from source for each iOS SDK.
+  # Slice 2a wires up the superbuild and its keystone dependency, SDL2. Later slices
+  # (ogg/vorbis/theora/lzo, OpenAL, LuaJIT) extend cmake/ios/deps/CMakeLists.txt.
+  deps:
+    name: iOS deps ${{ matrix.name }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: device
+            platform: OS64
+            sdk: iphoneos
+          - name: simulator
+            platform: SIMULATORARM64
+            sdk: iphonesimulator
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          cmake --version
+
+      - name: Cross-build dependency superbuild (${{ matrix.platform }})
+        run: |
+          set -e
+          PREFIX="$PWD/build/ios-prefix-${{ matrix.sdk }}"
+          cmake -S cmake/ios/deps -B "build/ios-deps-${{ matrix.sdk }}" \
+            -DIOS_TOOLCHAIN_FILE="$PWD/cmake/toolchains/ios.toolchain.cmake" \
+            -DPLATFORM=${{ matrix.platform }} \
+            -DDEPLOYMENT_TARGET=15.0 \
+            -DENABLE_BITCODE=OFF \
+            -DCMAKE_INSTALL_PREFIX="$PREFIX"
+          cmake --build "build/ios-deps-${{ matrix.sdk }}" --parallel 4
+
+      - name: Verify SDL2 static lib is arm64
+        run: |
+          set -e
+          PREFIX="$PWD/build/ios-prefix-${{ matrix.sdk }}"
+          echo "--- installed SDL2 artifacts ---"
+          find "$PREFIX" \( -name 'libSDL2*.a' -o -name 'SDL2Config.cmake' -o -name 'sdl2.pc' \) | sort
+          LIB=$(find "$PREFIX" -name 'libSDL2.a' | head -1)
+          if [ -z "$LIB" ]; then echo "::error::libSDL2.a not found in prefix"; exit 1; fi
+          file "$LIB"
+          lipo -info "$LIB"
+          lipo -info "$LIB" | grep -qi 'arm64' || { echo "::error::libSDL2.a is not arm64"; exit 1; }
+
+      - name: Upload deps prefix
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-deps-${{ matrix.sdk }}
+          path: build/ios-prefix-${{ matrix.sdk }}
+          if-no-files-found: error
