@@ -159,6 +159,72 @@ jobs:
           path: build/ios-prefix-${{ matrix.sdk }}
           if-no-files-found: error
 
+  # Phase 2d: configure the WHOLE engine for iOS against the pre-built deps prefix.
+  # Configure only (no compile yet — that's Slice 3/4): this proves the engine's CMake
+  # finds every REQUIRED dependency and generates a build system under the iOS toolchain,
+  # static (BUILD_SHARED_LIBS=OFF) with LuaJIT in interpreter mode. Reuses the already-green
+  # deps artifact via `needs: deps` instead of rebuilding it.
+  engine-configure:
+    name: iOS engine configure ${{ matrix.name }}
+    runs-on: macos-latest
+    timeout-minutes: 25
+    needs: deps
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: device
+            platform: OS64
+            sdk: iphoneos
+          - name: simulator
+            platform: SIMULATORARM64
+            sdk: iphonesimulator
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Show toolchain versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          cmake --version
+
+      - name: Download deps prefix
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-deps-${{ matrix.sdk }}
+          path: build/ios-prefix-${{ matrix.sdk }}
+
+      - name: Configure engine (${{ matrix.platform }})
+        run: >
+          cmake -S . -B build/ios-engine-${{ matrix.sdk }} -G Xcode
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchains/ios.toolchain.cmake
+          -DPLATFORM=${{ matrix.platform }}
+          -DDEPLOYMENT_TARGET=15.0
+          -DENABLE_BITCODE=OFF
+          -DBUILD_SHARED_LIBS=OFF
+          -DLUAJIT_DISABLE_JIT=ON
+          -DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/ios-prefix-${{ matrix.sdk }}
+          -DCMAKE_FIND_ROOT_PATH=${{ github.workspace }}/build/ios-prefix-${{ matrix.sdk }}
+          --log-level=VERBOSE
+
+      - name: Verify configure results
+        run: |
+          set -e
+          DIR=build/ios-engine-${{ matrix.sdk }}
+          # The Xcode project must have been generated.
+          if [ ! -e "$DIR/OpenXRay.xcodeproj/project.pbxproj" ]; then
+            echo "::error::engine Xcode project was not generated"; exit 1
+          fi
+          # The iOS branch must have taken effect: static build, standard allocator.
+          grep -q 'BUILD_SHARED_LIBS:BOOL=OFF' "$DIR/CMakeCache.txt" \
+            || { echo "::error::BUILD_SHARED_LIBS is not OFF"; exit 1; }
+          grep -q 'MEMORY_ALLOCATOR:STRING=standard' "$DIR/CMakeCache.txt" \
+            || echo "::warning::MEMORY_ALLOCATOR is not 'standard'"
+          echo "engine configured for iOS (static, deps resolved)"
+
   # Phase 2: LuaJIT is built inside the engine's CMake (not the deps superbuild). This job
   # verifies the iOS cross-compile in isolation: native host codegen tools (minilua/buildvm)
   # generate the VM, and the target xrLuaJIT static lib is built for the iphoneos SDK.

@@ -3,6 +3,20 @@ include_guard()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# iOS: one self-contained static binary, interpreter-mode LuaJIT.
+# CMAKE_SYSTEM_NAME is defined here (this file is included after project(), unlike
+# PreProjectInit which runs before it), and before add_subdirectory(Externals)/src,
+# so XRAY_PLATFORM_IOS propagates to every engine target.
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(XRAY_PLATFORM_IOS ON)
+    # iOS cannot dlopen dylibs from arbitrary paths -> everything links into one binary.
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    # Interpreter-mode LuaJIT: without this the host buildvm emits jit.util.trace*
+    # libdefs that interpreter-mode lib_jit.c does not define (undeclared identifier
+    # lj_cf_jit_util_trace*). iOS forbids RWX pages so the JIT can't run anyway.
+    set(LUAJIT_DISABLE_JIT ON CACHE BOOL "" FORCE)
+endif()
+
 # Output all libraries and executables to one folder
 set(XRAY_COMPILE_OUTPUT_FOLDER "${CMAKE_SOURCE_DIR}/bin/${CMAKE_SYSTEM_PROCESSOR}/$<CONFIG>")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${XRAY_COMPILE_OUTPUT_FOLDER}")

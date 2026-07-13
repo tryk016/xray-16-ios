@@ -148,7 +148,11 @@ if (NOT WIN32)
     find_package(Vorbis REQUIRED)
     find_package(Theora REQUIRED)
     find_package(LZO REQUIRED)
-    find_package(mimalloc NAMES mimalloc2 mimalloc2.0 mimalloc)
+    if (NOT XRAY_PLATFORM_IOS)
+        # Skip on iOS: with FIND_ROOT_PATH_MODE_PACKAGE=BOTH a host/macOS mimalloc could
+        # match and pull a wrong-arch lib. Absent -> MEMORY_ALLOCATOR=standard (below).
+        find_package(mimalloc NAMES mimalloc2 mimalloc2.0 mimalloc)
+    endif()
 endif()
 
 # Memory allocator option

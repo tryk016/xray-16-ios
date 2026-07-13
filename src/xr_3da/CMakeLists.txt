@@ -37,6 +37,10 @@ set_target_properties(xr_3da PROPERTIES
     PREFIX ""
 )
 
-install(TARGETS xr_3da RUNTIME
-    DESTINATION "${CMAKE_INSTALL_BINDIR}"
-)
+if (NOT XRAY_PLATFORM_IOS)
+    # The iOS app target is a MACOSX_BUNDLE built later (modeled on misc/ios/smoketest),
+    # not this RUNTIME install of the desktop executable.
+    install(TARGETS xr_3da RUNTIME
+        DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    )
+endif()

@@ -12,7 +12,11 @@ add_subdirectory(ode)
 # Silence all warnings for external libraries
 add_compile_options(${XRAY_DISABLE_WARNINGS})
 
-add_subdirectory(GameSpy)
+if (NOT XRAY_PLATFORM_IOS)
+    # GameSpy is legacy multiplayer matchmaking; no iOS support and not needed for
+    # single-player Call of Pripyat. xrGame's link + src/xrGameSpy are gated to match.
+    add_subdirectory(GameSpy)
+endif()
 add_subdirectory(imgui-proj)
 
 if (NOT TARGET xrLuabind)

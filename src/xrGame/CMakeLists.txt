@@ -2493,7 +2493,7 @@ target_link_libraries(xrGame
     xrUICore
     xrSound
     xrScriptEngine
-    xrGameSpy
+    $<$<NOT:$<BOOL:${XRAY_PLATFORM_IOS}>>:xrGameSpy>
     xrCDB
     xrPhysics
     xrNetServer
