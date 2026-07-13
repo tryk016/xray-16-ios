@@ -23,10 +23,13 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
 - **Phase 2d Slice 1 ✅** — the *whole engine* configures + generates for iOS (device+sim)
   via one guard var `XRAY_PLATFORM_IOS` in `cmake/XRay.Build.cmake`; CI job `engine-build`
   (`needs: deps`, `-G Xcode`). Deps resolve from the prefix.
-- **Phase 2d Slice 3 ✅** — all six Externals static libs compile arm64 for both iOS SDKs
-  (`xrLuaJIT`/`xrLuabind`/`xrLuaFix`/`xrOPCODE`/`xrODE`/`xrImGui`). Solved LuaJIT-under-Xcode
-  (host tools single-config generator; `lj_vm.S` → `LANGUAGE ASM`). **Next: Slice 4** —
-  compile the engine static libs (xrCore … xrRender_GL, xrGame); `xr_3da` link is Phase 2e.
+- **Phase 2d Slice 3 ✅** — all six Externals static libs compile arm64 for both iOS SDKs.
+  Solved LuaJIT-under-Xcode (host tools single-config generator; `lj_vm.S` → `LANGUAGE ASM`).
+- **Phase 2d Slice 4 ✅ (COMPLETE)** — the *whole engine* compiles arm64 for both iOS SDKs:
+  12 support libs clean first try; `xrEngine`/`xrRender_GL` clean; `xrGame` needed two
+  fixes (`xr_string` via `.c_str()` in a varargs `Msg`; `system()`/xdg-open guarded on iOS).
+  **No `xr_3da` link yet.** **Next: Phase 2e** — link into one static iOS Mach-O. Watch-items:
+  OpenAL framework-vs-static-lib; `xrRender_GL` desktop-GL symbols unresolved until Phase 4.
 
 ## The deps prefix (input to the engine build)
 

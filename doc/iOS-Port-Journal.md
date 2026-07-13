@@ -63,6 +63,33 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-13 — Phase 2d Slice 4: compile the whole engine ✅ GREEN
+Commits: `c1009a75b` (4a support libs), `cf3aeac71` (4b big three),
+`58ffcd924` (xr_string varargs), `c39fb9536` (system() guards).
+Green run: `29270095192` (device + sim).
+
+- **Done:** every engine module compiles arm64 for both iOS SDKs — **no `xr_3da` link
+  yet** (Phase 2e). The CI `engine-build` job now builds Externals → 12 support libs
+  (Slice 4a) → the big three `xrEngine`/`xrRender_GL`/`xrGame` (Slice 4b), each target
+  built in a continue-past-failure loop so one round surfaces every broken module.
+- **Slice 4a:** all 12 support libs (xrMiscMath, xrCore, xrAICore, xrCDB, xrAPI,
+  xrUICore, xrMaterialSystem, xrParticles, xrNetServer, xrPhysics, xrSound,
+  xrScriptEngine) compiled **clean, first try** — the engine core is portable as-is.
+- **Slice 4b:** `xrEngine` and `xrRender_GL` compiled clean (the GL renderer's glad
+  function-pointers compile fine; runtime GLES is Phase 4). Only `xrGame` needed fixes,
+  both hidden on desktop:
+  - `xml_str_id_loader.h:173` passed an `xr_string` through variadic `Msg()` for `%s`
+    → Apple clang hard error `-Wnon-pod-varargs` (desktop skips it under
+    `#ifndef MASTER_GOLD`). Fix: `.c_str()` (`58ffcd924`).
+  - `login_manager.cpp` / `MainMenu.cpp` used `system("xdg-open …")` to open a URL
+    (GameSpy recovery / MP map download) — `system()` is unavailable on iOS. Fix: an
+    `XR_PLATFORM_APPLE_IOS` no-op branch; URL opening moves to UIApplication in Phase 3
+    (`c39fb9536`).
+- **Next: Phase 2e** — link the whole engine into one static iOS Mach-O (`xr_3da`), zero
+  unresolved symbols. Watch-items: the OpenAL framework-vs-static-lib choice, and the
+  renderer's desktop-GL symbols (`xrRender_GL` compiled but its GL entry points are
+  unresolved until the Phase 4 GLES/ANGLE port or a link-time stub).
+
 ### 2026-07-13 — Phase 2d Slice 3: compile the Externals static libs ✅ GREEN
 Commits: `24aa962b4` (compile job + ImGui ES3), `0d523bf12` (host-tool generator),
 `55bb87f4c` (lj_vm.S ASM). Green run: `29267435651` (device + sim).
