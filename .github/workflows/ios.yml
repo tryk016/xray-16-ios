@@ -18,6 +18,10 @@ on:
   push:
     branches:
       - ios-port
+    paths-ignore:
+      # Documentation-only commits don't need to spend CI minutes on a build.
+      - 'doc/**'
+      - '**/*.md'
   workflow_dispatch:
 
 jobs:

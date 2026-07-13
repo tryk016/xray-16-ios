@@ -49,6 +49,10 @@ carry `get-task-allow`, which also unlocks optional JIT (see below).
 
 ## Phased plan
 
+> **The exhaustive task-by-task checklist lives in [iOS-Port-Plan.md](iOS-Port-Plan.md)** —
+> 58 tasks across the 5 phases, each with goal, granular steps, files (with line refs),
+> acceptance criteria and risks. The table below is the summary.
+
 | Phase | Goal | Status |
 |------|------|--------|
 | **1. Toolchain + CI** | A trivial iOS target compiles/links on CI, proving the Windows→macOS-CI→iOS pipeline. | 🚧 in progress |
