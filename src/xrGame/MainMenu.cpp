@@ -879,6 +879,9 @@ void CMainMenu::OnDownloadMPMap(CUIWindow* w, void* d)
     LPCSTR params = NULL;
     STRCONCAT(params, "/C start ", url);
     ShellExecute(0, "open", "cmd.exe", params, NULL, SW_SHOW);
+#elif defined(XR_PLATFORM_APPLE_IOS)
+    // iOS has no system(); opening a URL uses UIApplication (Phase 3).
+    (void)url;
 #else
     std::string command = "xdg-open " + std::string{url};
     std::ignore = system(command.c_str());
