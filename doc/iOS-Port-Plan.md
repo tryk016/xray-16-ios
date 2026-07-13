@@ -12,11 +12,17 @@ and the device leg produces an unsigned, SideStore-ready `.ipa` artifact
 (`OpenXRay-ios-smoketest-ipa`). Only the `iOS` workflow runs on this branch — the heavy
 desktop matrix and StyleCheck are disabled here. Some task statuses below were captured
 against the branch HEAD before the final green run; treat the CI-verified device build and
-`.ipa` packaging as done. **Phase 2 in progress:** slice 2a is green — SDL2 2.32.10
-cross-builds static for both iOS SDKs via the `cmake/ios/deps` superbuild (CI job `deps`,
-artifacts `ios-deps-iphoneos` / `ios-deps-iphonesimulator`). Next: ogg/vorbis/theora/lzo,
-then OpenAL and LuaJIT, then the static engine link. Controller/touch design for Phase 5
-draws on the user's OpenGothic iOS work — see [iOS-Controller-Prior-Art.md](iOS-Controller-Prior-Art.md).
+`.ipa` packaging as done. **Phase 2 in progress** via the `cmake/ios/deps` superbuild
+(CI job `deps`, artifacts `ios-deps-iphoneos` / `ios-deps-iphonesimulator`):
+- **2a ✅** SDL2 2.32.10 (static, both SDKs).
+- **2b ✅** libogg 1.3.6 + libvorbis 1.3.7 + lzo 2.10 (static, both SDKs; all verified arm64).
+  Note: macOS runners ship CMake 4.x, which rejects `cmake_minimum_required(<3.5)`; the
+  superbuild passes `CMAKE_POLICY_VERSION_MINIMUM=3.5` for older deps (vorbis, lzo).
+- Next: **libtheora** (autotools-only → its own slice), then **OpenAL** and **LuaJIT**,
+  then the iOS engine CMake branch and the static engine link.
+
+Controller/touch design for Phase 5 draws on the user's OpenGothic iOS work — see
+[iOS-Controller-Prior-Art.md](iOS-Controller-Prior-Art.md).
 
 **Target game: Call of Pripyat 1.6.02.** OpenXRay builds one `xr_3da` binary; the game
 variant is runtime-selected via `fsgame.ltx` + gamedata, so no build-target change is
