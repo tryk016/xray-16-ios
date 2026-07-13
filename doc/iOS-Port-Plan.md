@@ -28,9 +28,17 @@ against the branch HEAD before the final green run; treat the CI-verified device
   lib targets iphoneos; interpreter mode (`LUAJIT_DISABLE_JIT=ON`) keeps the arch probe,
   host tools and target sources consistent. All iOS-guarded — no change to other platforms.
 - **7/7 deps done** (SDL2, OpenAL, ogg, vorbis, theora, lzo2, LuaJIT — all arm64, both SDKs).
-- Next (Phase 2d/2e): add the **iOS branch to the engine CMake** (find_package at the deps
-  prefix, `BUILD_SHARED_LIBS=OFF`, pthread/dl guards) and **link the whole engine** into
-  one static iOS Mach-O.
+
+**Phase 2 engine bring-up (2d/2e) — the WHOLE ENGINE COMPILES for iOS.** One guard var
+`XRAY_PLATFORM_IOS` (`cmake/XRay.Build.cmake`) forces static + LuaJIT interpreter and gates
+off GameSpy/mimalloc/packaging/install. The CI job `engine-build` (`-G Xcode`, `needs: deps`)
+configures → compiles all Externals → all 12 support libs (clean first try) → xrEngine +
+xrRender_GL (clean) → xrGame (2 fixes). New gotcha class **Xcode generator vs build tooling**
+(TESTARCH sysroot, `CMAKE_DEFAULT_BUILD_TYPE`, LuaJIT host-tool generator, `lj_vm.S`→ASM).
+**Now in progress: Phase 2e** — the empirical `xr_3da` link (2.12–2.14). Link watch-items:
+host homebrew `libjpeg.dylib` and the OpenAL SDK framework may need iOS overrides, and
+`xrRender_GL`'s desktop-GL entry points are glad runtime pointers (Phase 4), not link deps.
+Full per-slice history + every error→fix: [iOS-Port-Journal.md](iOS-Port-Journal.md).
 
 Controller/touch design for Phase 5 draws on the user's OpenGothic iOS work — see
 [iOS-Controller-Prior-Art.md](iOS-Controller-Prior-Art.md).
@@ -49,7 +57,7 @@ Every task carries: **Goal** (why it exists) · **Steps** (concrete ordered sub-
 | # | Phase | Tasks | Done | Effort focus |
 |---|-------|:-----:|:----:|--------------|
 | 1 | [iOS toolchain + CI pipeline](#phase-1) | 10 | 6/10 | mostly low/medium |
-| 2 | [Cross-build dependencies + link full engine (static)](#phase-2) | 14 | 0/14 | 4× high+ |
+| 2 | [Cross-build dependencies + link full engine (static)](#phase-2) | 14 | 10/14 | 4× high+ |
 | 3 | [Boot to a window with iOS app lifecycle](#phase-3) | 11 | 0/11 | 3× high+ |
 | 4 | [GLES 3.0 / ANGLE-on-Metal renderer + shaders + textures](#phase-4) | 13 | 0/13 | 5× high+ |
 | 5 | [Touch / controls, UI adaptation, playability](#phase-5) | 10 | 0/10 | 5× high+ |
@@ -68,20 +76,20 @@ Every task carries: **Goal** (why it exists) · **Steps** (concrete ordered sub-
   - 🟡 1.9 Document build, artifact fetch, and sideload procedure
   - ⬜ 1.10 End-to-end CI verification & branch gardening
 - **Phase 2 — Cross-build dependencies + link full engine (static)**
-  - ⬜ 2.1 Choose and implement the third-party deps acquisition/superbuild strategy for iOS
-  - ⬜ 2.2 Cross-build SDL2 for iphoneos + simulator and expose SDL2::SDL2
-  - ⬜ 2.3 Cross-build OpenAL for iOS and expose OpenAL::OpenAL
-  - ⬜ 2.4 Cross-build libogg / libvorbis / libtheora and satisfy the repo's Find modules
-  - ⬜ 2.5 Cross-build lzo2 and satisfy FindLZO (LZO::LZO)
-  - ⬜ 2.6 Optionally cross-build jpeg-turbo (JPEG::JPEG) or cleanly disable JPEG on iOS
-  - ⬜ 2.7 Force static build + standard allocator on iOS (BUILD_SHARED_LIBS=OFF, MEMORY_ALLOCATOR=standard, skip mimalloc)
-  - ⬜ 2.8 Add an iOS branch to XRay.Compiler.GNULike.cmake that finds deps from CMAKE_FIND_ROOT_PATH and applies iOS-correct flags
-  - ⬜ 2.9 Fix Externals/LuaJIT-proj for iOS cross-compile: sysroot, host-tool decoupling, arch detection, JIT-optional variant
-  - ⬜ 2.10 Apple/iOS-guard the bare pthread and dl link entries (xrCore, imgui-proj)
-  - ⬜ 2.11 Confirm AGS_SDK / GameSpy / DiscordGameSDK / RenderDoc / DX11 R4 stay out of the iOS link (Apple non-macOS audit)
-  - ⬜ 2.12 Minimal source/compile fixes to close the iOS link (PlatformApple.inl, StackTrace, entry point, GL renderer glad)
-  - ⬜ 2.13 Create the iOS application-bundle target that links the whole engine + game into one static Mach-O
-  - ⬜ 2.14 Extend ios.yml CI to build deps + full engine for both SDKs and verify the single Mach-O
+  - ✅ 2.1 Choose and implement the third-party deps acquisition/superbuild strategy for iOS
+  - ✅ 2.2 Cross-build SDL2 for iphoneos + simulator and expose SDL2::SDL2
+  - ✅ 2.3 Cross-build OpenAL for iOS and expose OpenAL::OpenAL
+  - ✅ 2.4 Cross-build libogg / libvorbis / libtheora and satisfy the repo's Find modules
+  - ✅ 2.5 Cross-build lzo2 and satisfy FindLZO (LZO::LZO)
+  - 🟡 2.6 Optionally cross-build jpeg-turbo (JPEG::JPEG) or cleanly disable JPEG on iOS — configure currently finds a host homebrew libjpeg.dylib (wrong arch); disable on iOS at link
+  - ✅ 2.7 Force static build + standard allocator on iOS (BUILD_SHARED_LIBS=OFF, MEMORY_ALLOCATOR=standard, skip mimalloc)
+  - ✅ 2.8 Add an iOS branch to XRay.Compiler.GNULike.cmake that finds deps from CMAKE_FIND_ROOT_PATH and applies iOS-correct flags
+  - ✅ 2.9 Fix Externals/LuaJIT-proj for iOS cross-compile: sysroot, host-tool decoupling, arch detection, JIT-optional variant (+ Xcode-generator: host tools single-config, lj_vm.S LANGUAGE ASM)
+  - 🟡 2.10 Apple/iOS-guard the bare pthread and dl link entries (xrCore, imgui-proj) — compiled without guards (resolve via libSystem); confirm at link
+  - ✅ 2.11 Confirm AGS_SDK / GameSpy / DiscordGameSDK / RenderDoc / DX11 R4 stay out of the iOS link (Apple non-macOS audit)
+  - 🟡 2.12 Minimal source/compile fixes to close the iOS link — whole engine COMPILES (xrGame: xr_string varargs, system()/xdg-open guards); link in progress
+  - 🟡 2.13 Create the iOS application-bundle target that links the whole engine + game into one static Mach-O — empirical xr_3da link attempt in flight (proper MACOSX_BUNDLE is Phase 3)
+  - 🟡 2.14 Extend ios.yml CI to build deps + full engine for both SDKs and verify the single Mach-O — CI builds deps + configures + compiles the whole engine both SDKs; link/verify in progress
 - **Phase 3 — Boot to a window with iOS app lifecycle**
   - ⬜ 3.1 Route the entry point through SDL2main / SDL_main on iOS
   - ⬜ 3.2 Refactor CApplication::Run's blocking loop into a per-frame tick under SDL_iPhoneSetAnimationCallback
