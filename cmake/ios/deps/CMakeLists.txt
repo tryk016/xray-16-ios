@@ -100,6 +100,11 @@ ExternalProject_Add(dep_openal
         -DALSOFT_INSTALL_AMBDEC_PRESETS=OFF
         -DALSOFT_INSTALL_EXAMPLES=OFF
         -DALSOFT_INSTALL_UTILS=OFF
+        # Xcode 26.5's clang adds -Wfunction-effects; openal-soft turns it into
+        # -Werror=function-effects (even with ALSOFT_WERROR=OFF), which fails on the
+        # CoreAudio callback. Pre-seed the compiler-flag probe to OFF so neither
+        # -Wfunction-effects nor -Werror=function-effects is added.
+        -DHAVE_WFUNCTION_EFFECTS=OFF
     BUILD_ALWAYS OFF
 )
 
