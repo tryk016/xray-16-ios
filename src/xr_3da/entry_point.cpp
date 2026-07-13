@@ -11,6 +11,14 @@
 #include <getopt.h>
 #endif
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+// iOS has no plain-main entry: UIKit must own the process. Including SDL_main.h renames
+// our main() below to SDL_main; SDL2main's real main() calls SDL_UIKitRunApp, which starts
+// UIApplicationMain and then invokes SDL_main once the app delegate is up. (Phase 3.2 will
+// move the blocking Run() loop onto SDL_iPhoneSetAnimationCallback.)
+#include <SDL_main.h>
+#endif
+
 // Always request high performance GPU
 extern "C"
 {
