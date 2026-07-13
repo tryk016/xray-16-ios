@@ -55,7 +55,9 @@ if (XRAY_PLATFORM_IOS)
     set(XR_IOS_EXECUTABLE    "xr_3da")
     set(XR_IOS_BUNDLE_ID     "io.github.tryk016.openxray")
     set(XR_IOS_DISPLAY_NAME  "OpenXRay")
-    set(XR_IOS_SHORT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
+    # Append the git build id so the version increments per build — SideStore uses
+    # CFBundleShortVersionString to detect updates (and to match the source's version).
+    set(XR_IOS_SHORT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}.${XRAY_BUILD_ID}")
     set(XR_IOS_BUILD_VERSION "${XRAY_BUILD_ID}")
     set(XR_IOS_MIN_OS        "${CMAKE_OSX_DEPLOYMENT_TARGET}")
     configure_file("${CMAKE_SOURCE_DIR}/misc/ios/Info.plist.in"

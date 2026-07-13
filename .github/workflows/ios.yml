@@ -350,7 +350,12 @@ jobs:
         run: |
           set -e
           SIZE=$(wc -c < OpenXRay.ipa)
-          VERSION="1.6.02.${{ github.run_number }}"
+          # Read the version straight from the built .ipa so the source's version ALWAYS
+          # matches what SideStore reads from the bundle (else "expected X, found Y" on install).
+          rm -rf _ipa && mkdir _ipa && (cd _ipa && unzip -qo ../OpenXRay.ipa)
+          PLIST=$(find _ipa -name Info.plist -path '*.app/*' | head -1)
+          VERSION=$(python3 -c "import plistlib; print(plistlib.load(open('$PLIST','rb'))['CFBundleShortVersionString'])")
+          echo "ipa CFBundleShortVersionString: $VERSION"
           DATE=$(date -u +%Y-%m-%d)
           REPO="${{ github.repository }}"
           OWNER="${{ github.repository_owner }}"
