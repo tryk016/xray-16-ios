@@ -136,17 +136,21 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="$PREFIX"
           cmake --build "build/ios-deps-${{ matrix.sdk }}" --parallel 4
 
-      - name: Verify SDL2 static lib is arm64
+      - name: Verify static libs are arm64
         run: |
           set -e
           PREFIX="$PWD/build/ios-prefix-${{ matrix.sdk }}"
-          echo "--- installed SDL2 artifacts ---"
-          find "$PREFIX" \( -name 'libSDL2*.a' -o -name 'SDL2Config.cmake' -o -name 'sdl2.pc' \) | sort
-          LIB=$(find "$PREFIX" -name 'libSDL2.a' | head -1)
-          if [ -z "$LIB" ]; then echo "::error::libSDL2.a not found in prefix"; exit 1; fi
-          file "$LIB"
-          lipo -info "$LIB"
-          lipo -info "$LIB" | grep -qi 'arm64' || { echo "::error::libSDL2.a is not arm64"; exit 1; }
+          echo "--- installed lib/ ---"
+          ls -la "$PREFIX/lib" || true
+          # Every dependency the engine links must be present and built for arm64.
+          for lib in libSDL2.a libogg.a libvorbis.a libvorbisfile.a liblzo2.a; do
+            path=$(find "$PREFIX" -name "$lib" | head -1)
+            if [ -z "$path" ]; then echo "::error::$lib not found in prefix"; exit 1; fi
+            info=$(lipo -info "$path")
+            echo "$info"
+            echo "$info" | grep -qi 'arm64' || { echo "::error::$lib is not arm64"; exit 1; }
+          done
+          echo "all dependency static libs present and arm64"
 
       - name: Upload deps prefix
         uses: actions/upload-artifact@v4

@@ -44,6 +44,9 @@ get_filename_component(_prefix "${CMAKE_INSTALL_PREFIX}" ABSOLUTE)
 message(STATUS "iOS deps: PLATFORM=${PLATFORM} DEPLOYMENT_TARGET=${DEPLOYMENT_TARGET} prefix=${_prefix}")
 
 # Forwarded to every dependency sub-build so all deps target the same SDK/arch/config.
+# CMAKE_FIND_ROOT_PATH lets an inter-dependent lib (e.g. vorbis) find an already-installed
+# one (ogg) inside our prefix; the leetal toolchain appends the SDK sysroot to it, and its
+# FIND_ROOT_PATH modes default to BOTH so CMAKE_PREFIX_PATH is honoured too.
 set(_dep_common_args
     -DCMAKE_TOOLCHAIN_FILE=${IOS_TOOLCHAIN_FILE}
     -DPLATFORM=${PLATFORM}
@@ -51,6 +54,7 @@ set(_dep_common_args
     -DENABLE_BITCODE=${ENABLE_BITCODE}
     -DCMAKE_INSTALL_PREFIX=${_prefix}
     -DCMAKE_PREFIX_PATH=${_prefix}
+    -DCMAKE_FIND_ROOT_PATH=${_prefix}
     -DCMAKE_BUILD_TYPE=Release
     -DBUILD_SHARED_LIBS=OFF
 )
@@ -67,5 +71,46 @@ ExternalProject_Add(dep_SDL2
         -DSDL_STATIC=ON
         -DSDL_TEST=OFF
         -DSDL2_DISABLE_INSTALL=OFF
+    BUILD_ALWAYS OFF
+)
+
+# ---- libogg ---------------------------------------------------------------------------
+# Ogg container; dependency of both vorbis and theora. Ships a proper CMake build and
+# installs an Ogg CMake package config that vorbis then consumes.
+ExternalProject_Add(dep_libogg
+    URL      https://github.com/xiph/ogg/releases/download/v1.3.6/libogg-1.3.6.tar.gz
+    URL_HASH SHA256=83e6704730683d004d20e21b8f7f55dcb3383cdf84c0daedf30bde175f774638
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    CMAKE_ARGS
+        ${_dep_common_args}
+        -DBUILD_TESTING=OFF
+        -DINSTALL_DOCS=OFF
+    BUILD_ALWAYS OFF
+)
+
+# ---- libvorbis ------------------------------------------------------------------------
+# Vorbis audio codec. find_package(Ogg) resolves to the libogg we installed above.
+ExternalProject_Add(dep_libvorbis
+    URL      https://github.com/xiph/vorbis/releases/download/v1.3.7/libvorbis-1.3.7.tar.gz
+    URL_HASH SHA256=0e982409a9c3fc82ee06e08205b1355e5c6aa4c36bca58146ef399621b0ce5ab
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    CMAKE_ARGS
+        ${_dep_common_args}
+        -DBUILD_TESTING=OFF
+    DEPENDS dep_libogg
+    BUILD_ALWAYS OFF
+)
+
+# ---- lzo2 -----------------------------------------------------------------------------
+# LZO compression (used by the VFS). lzo-2.10 ships a CMake build; installs liblzo2.a and
+# headers under include/lzo, which is exactly what the repo's cmake/FindLZO.cmake expects.
+ExternalProject_Add(dep_lzo2
+    URL      https://www.oberhumer.com/opensource/lzo/download/lzo-2.10.tar.gz
+    URL_HASH SHA256=c0f892943208266f9b6543b3ae308fab6284c5c90e627931446fb49b4221a072
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    CMAKE_ARGS
+        ${_dep_common_args}
+        -DENABLE_STATIC=ON
+        -DENABLE_SHARED=OFF
     BUILD_ALWAYS OFF
 )
