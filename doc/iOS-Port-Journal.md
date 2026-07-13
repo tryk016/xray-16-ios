@@ -63,6 +63,40 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-13 — Phase 2d Slice 3: compile the Externals static libs ✅ GREEN
+Commits: `24aa962b4` (compile job + ImGui ES3), `0d523bf12` (host-tool generator),
+`55bb87f4c` (lj_vm.S ASM). Green run: `29267435651` (device + sim).
+
+- **Done:** all six engine-side Externals compile + archive as arm64 for both iOS SDKs:
+  `xrLuaJIT`, `xrLuabind`, `xrLuaFix`, `xrOPCODE`, `xrODE`, `xrImGui`. The CI job
+  (`engine-configure` → renamed `engine-build`) now configures then compiles them and
+  verifies each `.a` is arm64. **This is the first LuaJIT build under the Xcode generator**
+  (prior validation used Makefiles in `luajit-check`) — two Xcode-specific issues fell out,
+  both the same gotcha class:
+- **Error 1:** `.../HostBuildTools/minilua/minilua: No such file or directory` (the
+  `buildvm_arch` step couldn't find `minilua`).
+  - **Root cause:** the nested host-tool builds used `-G${CMAKE_GENERATOR}`; under the
+    outer Xcode (multi-config) generator the binary nests in a per-config subdir
+    (`Release/minilua`), but the consuming custom command expects the fixed path
+    `${MINILUA_BINARY_DIR}/minilua`.
+  - **Fix (`0d523bf12`):** host codegen tools are native macOS binaries that need no
+    Xcode features → build them with a single-config generator (`Unix Makefiles`,
+    `HOST_TOOL_GENERATOR`) on iOS for a predictable output path. Desktop unchanged.
+- **Error 2:** `lj_vm.S:1:2: error: cannot use dot operator on a type`.
+  - **Root cause:** LuaJIT-proj marks the generated VM asm `LANGUAGE CXX`
+    (`LuaJIT-proj/CMakeLists.txt:478`). Under Makefiles the `.S` extension still makes
+    clang assemble it, but the Xcode generator honours `LANGUAGE` literally and parses
+    it as C++ — the leading `.` of the first Mach-O directive trips the C++ frontend.
+  - **Fix (`55bb87f4c`):** on iOS set the source `LANGUAGE ASM` (enabled via
+    `project(xrLuaJIT C CXX ASM)`); keep `CXX` for desktop. `machasm` (Mach-O) mode is
+    already selected for Apple, so the asm was correct — only the compile language was wrong.
+- **ImGui:** added `IMGUI_IMPL_OPENGL_ES3` on iOS (`Externals/imgui-proj/CMakeLists.txt`)
+  so the unconditionally-compiled `imgui_impl_opengl3.cpp` includes `<OpenGLES/ES3/gl.h>`
+  from the iOS SDK rather than a desktop-GL loader.
+- **Next:** Slice 4 — compile the engine static libs (xrCore … xrRender_GL, xrGame),
+  no `xr_3da` link (Phase 2e). `xrGame` is the likeliest to surface source-level
+  GameSpy/multiplayer references now that the lib is gated off.
+
 ### 2026-07-13 — Phase 2d Slice 1: whole-engine iOS configure ✅ GREEN
 Commits: `0c55559bf` (iOS branch + configure job), `a27bf6d39` (TESTARCH fix),
 `82b76ecfa` (CMAKE_DEFAULT_BUILD_TYPE fix). Green run: `29265825199` (device + sim).
