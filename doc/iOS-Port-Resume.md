@@ -2,6 +2,9 @@
 
 Quick-start context to continue the iOS port after a break. Full detail:
 [iOS-Port.md](iOS-Port.md) (overview) and [iOS-Port-Plan.md](iOS-Port-Plan.md) (58-task plan).
+**Per-slice history (what was done / how / every error → root cause → fix) and the
+list of authoritative references lives in [iOS-Port-Journal.md](iOS-Port-Journal.md) —
+read it to avoid re-deriving, and append an entry there after each slice.**
 
 ## Where we are (2026-07-13)
 
