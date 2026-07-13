@@ -209,6 +209,8 @@ jobs:
           -DLUAJIT_DISABLE_JIT=ON
           -DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/ios-prefix-${{ matrix.sdk }}
           -DCMAKE_FIND_ROOT_PATH=${{ github.workspace }}/build/ios-prefix-${{ matrix.sdk }}
+          -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+          -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO
           --log-level=VERBOSE
 
       - name: Verify configure results
@@ -286,7 +288,20 @@ jobs:
             echo "::endgroup::"
           done
           if [ -n "$failed" ]; then echo "::error::failed engine libs:$failed"; exit 1; fi
-          echo "whole engine compiles for iOS (no xr_3da link — Phase 2e)"
+          echo "whole engine compiles for iOS"
+
+      # Phase 2e: link the whole engine into one iOS Mach-O (xr_3da). Exit criterion is
+      # zero unresolved symbols. Renderer runtime (GLES/ANGLE) is Phase 4; SDL_main/UIKit
+      # app lifecycle is Phase 3 — this step only proves the static link closes.
+      - name: Link xr_3da (${{ matrix.platform }})
+        run: |
+          DIR=build/ios-engine-${{ matrix.sdk }}
+          cmake --build "$DIR" --config Release --target xr_3da -- -quiet
+          BIN=$(find "$DIR" bin -type f -name 'xr_3da' 2>/dev/null | head -1)
+          if [ -z "$BIN" ]; then echo "::error::xr_3da binary not produced"; find "$DIR" -name 'xr_3da*' 2>/dev/null; exit 1; fi
+          echo "linked: $BIN"; file "$BIN"; lipo -info "$BIN"
+          lipo -info "$BIN" | grep -qi 'arm64' || { echo "::error::xr_3da is not arm64"; exit 1; }
+          echo "xr_3da linked for iOS (arm64, zero unresolved symbols)"
 
   # Phase 2: LuaJIT is built inside the engine's CMake (not the deps superbuild). This job
   # verifies the iOS cross-compile in isolation: native host codegen tools (minilua/buildvm)
