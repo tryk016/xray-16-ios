@@ -159,15 +159,16 @@ jobs:
           path: build/ios-prefix-${{ matrix.sdk }}
           if-no-files-found: error
 
-  # Phase 2d: configure the WHOLE engine for iOS against the pre-built deps prefix.
-  # Configure only (no compile yet — that's Slice 3/4): this proves the engine's CMake
-  # finds every REQUIRED dependency and generates a build system under the iOS toolchain,
-  # static (BUILD_SHARED_LIBS=OFF) with LuaJIT in interpreter mode. Reuses the already-green
-  # deps artifact via `needs: deps` instead of rebuilding it.
-  engine-configure:
-    name: iOS engine configure ${{ matrix.name }}
+  # Phase 2d: configure the WHOLE engine for iOS against the pre-built deps prefix and
+  # compile it in growing slices (no final xr_3da link yet — that's Phase 2e). Reuses the
+  # already-green deps artifact via `needs: deps` instead of rebuilding it.
+  #   Slice 1: configure + generate only (static, LuaJIT interpreter mode).  [green]
+  #   Slice 3: also compile the Externals static libs.
+  #   Slice 4: also compile the engine static libs.
+  engine-build:
+    name: iOS engine ${{ matrix.name }}
     runs-on: macos-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     needs: deps
     strategy:
       fail-fast: false
@@ -224,6 +225,28 @@ jobs:
           grep -q 'MEMORY_ALLOCATOR:STRING=standard' "$DIR/CMakeCache.txt" \
             || echo "::warning::MEMORY_ALLOCATOR is not 'standard'"
           echo "engine configured for iOS (static, deps resolved)"
+
+      # Slice 3: compile the Externals static libraries. This is the first real iOS
+      # compile of LuaJIT under the Xcode generator (its build-time host codegen tools
+      # + VM generation), luabind, xrLuaFix, OPCODE, ODE, and ImGui (ES3 backend).
+      - name: Build Externals static libs (${{ matrix.platform }})
+        run: >
+          cmake --build build/ios-engine-${{ matrix.sdk }} --config Release
+          --target xrLuaJIT xrLuabind xrLuaFix xrOPCODE xrODE xrImGui
+          -- -quiet
+
+      - name: Verify Externals libs are arm64
+        run: |
+          set -e
+          # Output names vary by each target's PREFIX property (libX.a vs X.a) and land
+          # under the build tree or bin/; match a *<stem>.a glob from the repo root.
+          for stem in xrLuaJIT xrLuabind xrLuaFix xrOPCODE xrODE xrImGui; do
+            path=$(find . -name "*${stem}.a" 2>/dev/null | head -1)
+            if [ -z "$path" ]; then echo "::error::${stem} static lib not found"; find . -name '*.a' 2>/dev/null; exit 1; fi
+            info=$(lipo -info "$path"); echo "$info"
+            echo "$info" | grep -qi 'arm64' || { echo "::error::${stem} is not arm64"; exit 1; }
+          done
+          echo "all Externals static libs present and arm64"
 
   # Phase 2: LuaJIT is built inside the engine's CMake (not the deps superbuild). This job
   # verifies the iOS cross-compile in isolation: native host codegen tools (minilua/buildvm)

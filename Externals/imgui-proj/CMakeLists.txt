@@ -40,6 +40,13 @@ target_compile_definitions(xrImGui
     IMGUI_EXPORTS
 )
 
+if (XRAY_PLATFORM_IOS)
+    # imgui_impl_opengl3.cpp is compiled unconditionally. On iOS there is no desktop
+    # GL loader (gl3w/glad-desktop); this makes the backend include <OpenGLES/ES3/gl.h>
+    # from the iOS SDK instead. Runtime renderer correctness is Phase 4.
+    target_compile_definitions(xrImGui PRIVATE IMGUI_IMPL_OPENGL_ES3)
+endif()
+
 set_target_properties(xrImGui PROPERTIES
     PREFIX ""
     POSITION_INDEPENDENT_CODE ${BUILD_SHARED_LIBS}
