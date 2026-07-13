@@ -57,6 +57,10 @@ set(_dep_common_args
     -DCMAKE_FIND_ROOT_PATH=${_prefix}
     -DCMAKE_BUILD_TYPE=Release
     -DBUILD_SHARED_LIBS=OFF
+    # CMake 4.x removed compatibility with cmake_minimum_required(VERSION < 3.5).
+    # libvorbis (2.8.12) and lzo (3.0) still request older minimums; this lets them
+    # configure. Harmless for deps that already require >= 3.5 (SDL2, ogg).
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 )
 
 # ---- SDL2 -----------------------------------------------------------------------------
