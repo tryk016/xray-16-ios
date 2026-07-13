@@ -22,9 +22,15 @@ against the branch HEAD before the final green run; treat the CI-verified device
   autotools-only source — portable no-asm source set; engine links only `Theora::Theora`.
 - **OpenAL ✅** OpenAL Soft 1.25.2 static (CoreAudio backend). Xcode 26.5's clang trips
   `-Werror=function-effects`; the superbuild pre-seeds `HAVE_WFUNCTION_EFFECTS=OFF`.
-- 6/7 deps done (SDL2, OpenAL, ogg, vorbis, theora, lzo2 — all arm64, both SDKs).
-- Next: **LuaJIT** (hardest — native host tools vs iOS target; interpreter mode), then the
-  iOS engine CMake branch and the static engine link.
+- **LuaJIT ✅** cross-compiled for iOS (both SDKs) via `Externals/LuaJIT-proj` fixes +
+  the `cmake/ios/luajit-check` driver. Host codegen tools (minilua/buildvm) build natively
+  on macOS (`--target=<host>-apple-macos`, `-DCMAKE_OSX_SYSROOT=macosx`) while the target
+  lib targets iphoneos; interpreter mode (`LUAJIT_DISABLE_JIT=ON`) keeps the arch probe,
+  host tools and target sources consistent. All iOS-guarded — no change to other platforms.
+- **7/7 deps done** (SDL2, OpenAL, ogg, vorbis, theora, lzo2, LuaJIT — all arm64, both SDKs).
+- Next (Phase 2d/2e): add the **iOS branch to the engine CMake** (find_package at the deps
+  prefix, `BUILD_SHARED_LIBS=OFF`, pthread/dl guards) and **link the whole engine** into
+  one static iOS Mach-O.
 
 Controller/touch design for Phase 5 draws on the user's OpenGothic iOS work — see
 [iOS-Controller-Prior-Art.md](iOS-Controller-Prior-Art.md).
