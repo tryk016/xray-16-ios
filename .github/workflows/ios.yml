@@ -1,36 +1,45 @@
 name: iOS
 
 # iOS builds must run on macOS (the iPhoneOS SDK, clang sysroot and codesign are
-# macOS-only). This is the pipeline the whole port depends on: changes are authored
-# on any OS and compiled here on GitHub's macОS runners.
+# macOS-only). Changes are authored on any OS and compiled here on GitHub's macOS
+# runners. This is the ONLY workflow we run on the ios-port branch — the heavy
+# desktop matrix (cibuild.yml) and StyleCheck are disabled for this branch.
 #
-# Phase 1 scope: prove the cross-compile pipeline with a trivial, engine-free target
-# for both the arm64 simulator and an unsigned arm64 device build. The full engine is
-# wired in from Phase 2 onwards.
+# Output: an unsigned .ipa for the arm64 device build. Unsigned is exactly what
+# SideStore / AltStore want — they re-sign on-device with the user's Apple ID.
+# The simulator build is kept as a fast iOS compile sanity check (it is an iOS
+# build, not the desktop macOS build we dropped) and is what we'll run headless
+# in CI from Phase 3 onwards.
+#
+# Phase 1 scope: a trivial, engine-free target. The full engine is wired in from
+# Phase 2 onwards; this file grows with it.
 
 on:
   push:
     branches:
       - ios-port
-  pull_request:
   workflow_dispatch:
 
 jobs:
-  smoketest:
-    name: iOS smoke test (${{ matrix.platform }})
+  ios:
+    name: iOS ${{ matrix.name }}
     runs-on: macos-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: SIMULATORARM64
-            sdk: iphonesimulator
-          - platform: OS64
+          - name: device (.ipa)
+            platform: OS64
             sdk: iphoneos
+            package_ipa: true
+          - name: simulator (compile check)
+            platform: SIMULATORARM64
+            sdk: iphonesimulator
+            package_ipa: false
 
     steps:
-      - uses: actions/checkout@main
+      - uses: actions/checkout@v4
 
       - name: Show toolchain versions
         run: |
@@ -52,22 +61,34 @@ jobs:
         working-directory: misc/ios/smoketest
         run: cmake --build build --config Release
 
-      - name: Inspect artifact
+      - name: Inspect binary
         working-directory: misc/ios/smoketest
         run: |
           set -e
           APP=$(find build -maxdepth 4 -name 'ios_smoketest.app' | head -1)
           if [ -z "$APP" ]; then echo "::error::app bundle not found"; exit 1; fi
           BIN="$APP/ios_smoketest"
-          echo "App bundle: $APP"
           file "$BIN"
           lipo -info "$BIN"
-          echo "--- load command platform ---"
-          vtool -show-build "$BIN" 2>/dev/null || otool -l "$BIN" | grep -iA3 'LC_BUILD_VERSION\|LC_VERSION_MIN' | head -20
+          vtool -show-build "$BIN" 2>/dev/null || true
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@main
+      - name: Package unsigned .ipa
+        if: ${{ matrix.package_ipa }}
+        working-directory: misc/ios/smoketest
+        run: |
+          set -e
+          APP=$(find build -maxdepth 4 -name 'ios_smoketest.app' | head -1)
+          rm -rf Payload && mkdir Payload
+          cp -R "$APP" Payload/
+          # An .ipa is just a zip of a Payload/<App>.app tree.
+          zip -qr OpenXRay-smoketest-unsigned.ipa Payload
+          echo "--- .ipa contents ---"
+          unzip -l OpenXRay-smoketest-unsigned.ipa
+
+      - name: Upload .ipa
+        if: ${{ matrix.package_ipa }}
+        uses: actions/upload-artifact@v4
         with:
-          name: ios-smoketest-${{ matrix.platform }}
-          path: misc/ios/smoketest/build/Release-${{ matrix.sdk }}/ios_smoketest.app
+          name: OpenXRay-ios-smoketest-ipa
+          path: misc/ios/smoketest/OpenXRay-smoketest-unsigned.ipa
           if-no-files-found: error

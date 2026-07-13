@@ -4,6 +4,9 @@ on:
   push:
     branches-ignore:
       - "dependabot/*"
+      # The iOS port branch runs only .github/workflows/ios.yml — it does not need
+      # the full desktop (Windows/Linux/BSD/macOS/flatpak) build matrix on every push.
+      - "ios-port"
   pull_request:
   workflow_dispatch:
 
