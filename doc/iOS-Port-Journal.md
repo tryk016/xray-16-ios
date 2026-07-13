@@ -63,12 +63,15 @@ answer is almost always in one of these:
 
 ## Journal
 
-### 2026-07-13 — Phase 2d Slice 1: whole-engine iOS configure
-Commits: `0c55559bf` (iOS branch + configure job), `a27bf6d39` (TESTARCH fix).
+### 2026-07-13 — Phase 2d Slice 1: whole-engine iOS configure ✅ GREEN
+Commits: `0c55559bf` (iOS branch + configure job), `a27bf6d39` (TESTARCH fix),
+`82b76ecfa` (CMAKE_DEFAULT_BUILD_TYPE fix). Green run: `29265825199` (device + sim).
 
-- **Done:** the *entire* engine now configures under the leetal iOS toolchain —
-  static, LuaJIT interpreter mode, finding the pre-built deps prefix. Added an
-  `engine-configure` CI job (`needs: deps`, `-G Xcode`, configure-only, device + sim).
+- **Done:** the *entire* engine configures **and generates** under the leetal iOS
+  toolchain — static, LuaJIT interpreter mode, finding the pre-built deps prefix.
+  Added an `engine-configure` CI job (`needs: deps`, `-G Xcode`, configure-only,
+  device + sim). Config log confirms `BUILD_SHARED_LIBS: OFF`, `Using standard
+  memory allocator`, and Ogg/Vorbis/Theora/LZO resolving from our prefix.
 - **How:** one guard var `XRAY_PLATFORM_IOS`, defined once in `cmake/XRay.Build.cmake`
   (post-`project()`, before `add_subdirectory(Externals)`/`src`, so it propagates
   everywhere). It force-sets `BUILD_SHARED_LIBS=OFF` and `LUAJIT_DISABLE_JIT=ON`.
@@ -76,19 +79,33 @@ Commits: `0c55559bf` (iOS branch + configure job), `a27bf6d39` (TESTARCH fix).
   `src/CMakeLists.txt`, `xrGame`'s link list via a generator expression),
   `find_package(mimalloc)` (→ `MEMORY_ALLOCATOR=standard`), `include(XRay.Packaging)`
   (DEB/RPM+CPack), and the `xr_3da` RUNTIME `install()`.
-- **Error:** `engine-configure` red on both device+sim — LuaJIT `TESTARCH`:
-  `lj_arch.h:86:10: fatal error: 'TargetConditionals.h' file not found`.
-- **Root cause:** the toolchain bakes `-target`/`-isysroot` into `CMAKE_C_FLAGS`
-  *only for non-Xcode generators*. `Externals/LuaJIT-proj/CMakeLists.txt` runs
-  `execute_process(clang ${CMAKE_C_FLAGS} -E lj_arch.h -dM)` to probe the arch, so
-  under `-G Xcode` it had no sysroot. The standalone `luajit-check` job passes only
-  because it uses the default (Makefiles) generator.
-- **Fix (`a27bf6d39`):** on iOS, pass `--target=${CMAKE_C_COMPILER_TARGET}` and
-  `-isysroot ${CMAKE_OSX_SYSROOT}` to the TESTARCH preprocess explicitly
-  (generator-independent; redundant-but-harmless under Makefiles so `luajit-check`
-  stays green). **Note:** every `find_package` dep (SDL2/OpenAL/Ogg/Vorbis/Theora/LZO)
-  had already resolved from the prefix before this point — TESTARCH was the *only*
-  configure blocker.
+- **Error 1 (configure):** LuaJIT `TESTARCH`: `lj_arch.h:86:10: fatal error:
+  'TargetConditionals.h' file not found` on both device+sim.
+  - **Root cause:** the toolchain bakes `-target`/`-isysroot` into `CMAKE_C_FLAGS`
+    *only for non-Xcode generators* (toolchain:955-959). `Externals/LuaJIT-proj`
+    runs `execute_process(clang ${CMAKE_C_FLAGS} -E lj_arch.h -dM)` to probe the arch,
+    so under `-G Xcode` it had no sysroot. The standalone `luajit-check` job passes
+    only because it uses the default (Makefiles) generator.
+  - **Fix (`a27bf6d39`):** on iOS, pass `--target=${CMAKE_C_COMPILER_TARGET}` and
+    `-isysroot ${CMAKE_OSX_SYSROOT}` to the TESTARCH preprocess explicitly
+    (generator-independent; redundant-but-harmless under Makefiles). This is the
+    **Xcode-generator-vs-`execute_process`** gotcha class.
+- **Error 2 (generate):** `Generator Xcode does not support variable
+  CMAKE_DEFAULT_BUILD_TYPE but it has been specified.`
+  - **Root cause:** `cmake/XRay.Configurations.cmake:14` sets `CMAKE_DEFAULT_BUILD_TYPE`
+    for *any* multi-config generator, but only Ninja Multi-Config supports it; the
+    Xcode multi-config generator errors. (This file runs in `PreProjectInit`, before
+    `project()`, so `XRAY_PLATFORM_IOS` isn't defined yet — must gate on the generator.)
+  - **Fix (`82b76ecfa`):** guard the `set()` with `NOT CMAKE_GENERATOR STREQUAL "Xcode"`.
+    Desktop VS / Ninja-MC unaffected.
+- **Watch-item for Phase 2e (link):** `find_package(OpenAL)` resolved to the iOS SDK
+  `OpenAL.framework`, *not* our static `libopenal.a` in the prefix (FindOpenAL +
+  `CMAKE_FIND_FRAMEWORK=FIRST`). Harmless at configure, but the deprecated Apple
+  framework lacks openal-soft extensions the engine may use — may need to force
+  `OPENALDIR`/prefer the prefix's static lib when we actually link.
+- **Also benign noise:** LuaJIT's `execute_process(make clean)` (LuaJIT-proj:86) prints
+  `Makefile:324: *** missing: export MACOSX_DEPLOYMENT_TARGET`. Its result isn't
+  checked, so it's non-fatal (same as in the green `luajit-check` job).
 - **Next:** Slice 3 (compile Externals static libs; add `IMGUI_IMPL_OPENGL_ES3`),
   Slice 4 (compile engine static libs). `xr_3da` link stays for Phase 2e.
 

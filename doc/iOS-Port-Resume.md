@@ -8,8 +8,9 @@ read it to avoid re-deriving, and append an entry there after each slice.**
 
 ## Where we are (2026-07-13)
 
-Branch **`ios-port`** (HEAD `69fa964cd`), all green on CI (`.github/workflows/ios.yml`,
-macOS runners only — Windows can't build iOS).
+Branch **`ios-port`** (HEAD `82b76ecfa`), all green on CI (`.github/workflows/ios.yml`,
+macOS runners only — Windows can't build iOS). Per-slice history + every error→fix is
+in [iOS-Port-Journal.md](iOS-Port-Journal.md).
 
 - **Phase 1 ✅** toolchain (`cmake/toolchains/ios.toolchain.cmake`), smoke test, CI, `.ipa`.
 - **Phase 2 deps ✅ (7/7)** — every dependency cross-builds static for **both** iOS SDKs
@@ -19,6 +20,10 @@ macOS runners only — Windows can't build iOS).
   - libtheora 1.1.1 → injected CMake at `cmake/ios/theora/` (upstream is autotools-only).
   - LuaJIT → fixes in `Externals/LuaJIT-proj/CMakeLists.txt` (all `if (CMAKE_SYSTEM_NAME
     STREQUAL "iOS")`-guarded) + standalone check `cmake/ios/luajit-check/`.
+- **Phase 2d Slice 1 ✅** — the *whole engine* configures + generates for iOS (device+sim)
+  via one guard var `XRAY_PLATFORM_IOS` in `cmake/XRay.Build.cmake`; new `engine-configure`
+  CI job (`needs: deps`, `-G Xcode`). Deps resolve from the prefix. **Next: Slice 3** —
+  compile the Externals static libs (add `IMGUI_IMPL_OPENGL_ES3`), then Slice 4 (engine libs).
 
 ## The deps prefix (input to the engine build)
 
