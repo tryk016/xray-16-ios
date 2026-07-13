@@ -367,6 +367,16 @@ set(DASM_DASC "${LUAJIT_DIR}/vm_${DASM_ARCH}.dasc")
 set(DASM "${LUAJIT_DIR}/../dynasm/dynasm.lua")
 set(BUILDVM_ARCH "${CMAKE_CURRENT_BINARY_DIR}/buildvm_arch.h")
 
+# Host codegen tools run on the build machine and are consumed at a fixed path
+# (${..._BINARY_DIR}/minilua). A multi-config outer generator (Xcode, used for iOS)
+# would nest them under a per-config subdir (Release/minilua), so the consuming custom
+# command can't find them. They need no Xcode features, so build them with a single-config
+# generator on iOS for a predictable output path. Desktop keeps the outer generator.
+set(HOST_TOOL_GENERATOR "${CMAKE_GENERATOR}")
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(HOST_TOOL_GENERATOR "Unix Makefiles")
+endif()
+
 # Generate buildvm arch header
 set(MINILUA_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/HostBuildTools/minilua")
 set(MINILUA_FILE "${MINILUA_BINARY_DIR}/minilua")
@@ -375,7 +385,7 @@ add_custom_command(
     OUTPUT "${MINILUA_FILE}"
     COMMAND ${CMAKE_COMMAND}
         -B${MINILUA_BINARY_DIR}
-        -G${CMAKE_GENERATOR}
+        -G${HOST_TOOL_GENERATOR}
         -S${CMAKE_CURRENT_SOURCE_DIR}/HostBuildTools/minilua
         ${HOST_TOOL_OSX_ARGS}
         -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
@@ -409,7 +419,7 @@ add_custom_command(
     OUTPUT "${BUILDVM_FILE}"
     COMMAND ${CMAKE_COMMAND}
         -B${BUILDVM_BINARY_DIR}
-        -G${CMAKE_GENERATOR}
+        -G${HOST_TOOL_GENERATOR}
         -S${CMAKE_CURRENT_SOURCE_DIR}/HostBuildTools/buildvm
         ${HOST_TOOL_OSX_ARGS}
         -DCMAKE_VERBOSE_MAKEFILE=${CMAKE_VERBOSE_MAKEFILE}
