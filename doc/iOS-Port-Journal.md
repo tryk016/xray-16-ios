@@ -63,6 +63,39 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-13 — Phase 3 (in progress): boot + on-device test loop
+Commits: SDL_main (3.1), Info.plist/.ipa/release/SideStore source (3.9/3.10), os_log,
+Stalker app icon, SideStore v2-format + version-match fixes, fsgame.ltx seeding (3.7a).
+
+- **3.1 ✅ SDL_main entry:** on iOS `entry_point.cpp` includes `<SDL_main.h>` (main → SDL_main)
+  and xr_3da links `SDL2::SDL2main` so UIApplicationMain drives the app. App launches.
+- **3.9/3.10 ✅ installable .ipa + distribution:** custom iOS `Info.plist`
+  (`misc/ios/Info.plist.in`: bundle id, MinimumOSVersion, UIDeviceFamily,
+  CFBundleSupportedPlatforms, UIFileSharingEnabled); CI packages the device app as an
+  unsigned `.ipa` and a `release` job publishes it to a rolling `ios-dev` pre-release +
+  a **SideStore/AltStore source** (`apps.json`). App icon from the user's Stalker CoP `.ico`
+  (Pillow → opaque PNGs → `Assets.xcassets`, actool).
+- **On-device log capture:** engine `OutputDebugString` also emits `os_log` on iOS. NOTE:
+  the old `idevicesyslog` (libimobiledevice r1122) only relays legacy syslog and does NOT
+  carry app os_log / launch / crash on iOS 15+ — a captured log was 40 s of brightness-daemon
+  noise. **Working loop instead: the engine shows FATAL errors as on-screen dialogs**, so the
+  user reads the message and reports it — no USB log needed. (`idevicecrashreport` is only for
+  hard crashes with no dialog; pymobiledevice3 is the future upgrade for unified-log capture.)
+- **SideStore source gotchas (fixed):** (1) legacy flat format → rewrote to v2 (`versions[]` +
+  `minOSVersion`); (2) install refused "expected X, found Y" → the release job now reads
+  `CFBundleShortVersionString` straight from the built .ipa for the source version, and the
+  .ipa version appends `XRAY_BUILD_ID` so it increments per build (update detection).
+- **3.7a ✅ (first FS error) fsgame.ltx:** app died at FS init — on iOS the engine tried to
+  symlink fsgame.ltx from a non-existent install dir. Fix: `LocatorAPI.cpp` iOS branch copies
+  the bundled `fsgame.ltx` + base gamedata from the read-only app bundle (`SDL_GetBasePath`)
+  into writable Documents (`SDL_GetPrefPath`) on first launch, then runs from there
+  (minimal POSIX recursive copy). xr_3da POST_BUILD bundles `res/fsgame.ltx` + `res/gamedata`
+  (754 files) into the `.app`. Verified present in the .ipa at `Payload/xr_3da.app/`.
+- **Next:** relaunch on device → next on-screen error (likely missing CoP gamedata → user
+  copies legal CoP assets into Documents/gamedata via Files app; or the GL context → Phase 4).
+  Remaining Phase 3: per-frame tick (3.2), lifecycle (3.4), fullscreen window (3.5), GLES
+  context for a cleared frame (3.11).
+
 ### 2026-07-13 — Phase 2e: link the whole engine into one iOS Mach-O ✅ GREEN 🎉
 Commits: `1b5426b05` (link attempt + signing off), `5cd7aa853`→`1b5426b05` (JPEG),
 `444da52e5` (GameSpy). Green run: `29275432825` (device + sim). Output:

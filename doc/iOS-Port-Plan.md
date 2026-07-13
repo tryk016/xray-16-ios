@@ -62,7 +62,7 @@ Every task carries: **Goal** (why it exists) · **Steps** (concrete ordered sub-
 |---|-------|:-----:|:----:|--------------|
 | 1 | [iOS toolchain + CI pipeline](#phase-1) | 10 | 6/10 | mostly low/medium |
 | 2 | [Cross-build dependencies + link full engine (static)](#phase-2) | 14 | 14/14 | 4× high+ |
-| 3 | [Boot to a window with iOS app lifecycle](#phase-3) | 11 | 0/11 | 3× high+ |
+| 3 | [Boot to a window with iOS app lifecycle](#phase-3) | 11 | 1/11 | 3× high+ |
 | 4 | [GLES 3.0 / ANGLE-on-Metal renderer + shaders + textures](#phase-4) | 13 | 0/13 | 5× high+ |
 | 5 | [Touch / controls, UI adaptation, playability](#phase-5) | 10 | 0/10 | 5× high+ |
 
@@ -95,16 +95,16 @@ Every task carries: **Goal** (why it exists) · **Steps** (concrete ordered sub-
   - ✅ 2.13 Link the whole engine + game into one static Mach-O — `bin/aarch64/Release/xr_3da.app/xr_3da` is a Mach-O arm64 executable, zero unresolved symbols (proper MACOSX_BUNDLE Info.plist/entitlements/gamedata is Phase 3.9)
   - ✅ 2.14 Extend ios.yml CI to build deps + full engine for both SDKs and verify the single Mach-O — `engine-build` job: configure → Externals → support libs → core libs → link xr_3da, both SDKs
 - **Phase 3 — Boot to a window with iOS app lifecycle**
-  - ⬜ 3.1 Route the entry point through SDL2main / SDL_main on iOS
+  - ✅ 3.1 Route the entry point through SDL2main / SDL_main on iOS
   - ⬜ 3.2 Refactor CApplication::Run's blocking loop into a per-frame tick under SDL_iPhoneSetAnimationCallback
   - ⬜ 3.3 Bypass the Sleep()-based frame limiter and busy-waits on iOS
   - ⬜ 3.4 Wire iOS lifecycle (background/foreground/terminate/low-memory) via SDL_AddEventWatch into seqAppActivate/Deactivate + audio pause
   - ⬜ 3.5 Add an iOS single-fullscreen-window branch in Device_Initialize.cpp
   - ⬜ 3.6 Neutralize video-mode enumeration / windowed handling and treat SIZE_CHANGED as rotation
-  - ⬜ 3.7 Resolve sandbox paths: read-only gamedata from the bundle, writable state to SDL_GetPrefPath
+  - 🟡 3.7 Resolve sandbox paths — fsgame.ltx + base gamedata seeded from the bundle into writable Documents on first launch (LocatorAPI iOS branch); full CoP gamedata layout / split read-only vs writable still to refine
   - ⬜ 3.8 Replace the second-window software splash with a LaunchScreen storyboard
-  - ⬜ 3.9 Package xr_3da as a MACOSX_BUNDLE iOS app target with Info.plist, entitlements, embedded gamedata, and signing config
-  - ⬜ 3.10 Extend ios.yml CI to configure and build the real xr_3da app (replace the smoketest)
+  - 🟡 3.9 Package xr_3da as a MACOSX_BUNDLE iOS app — custom Info.plist (bundle id, MinimumOSVersion, UIDeviceFamily, UIFileSharingEnabled), app icon, base gamedata bundled; entitlements/launch-storyboard/full-gamedata still to add
+  - 🟡 3.10 Extend ios.yml CI to build the real xr_3da app — done: packages the real app .ipa + publishes to `ios-dev` release with a SideStore source; still to do: retire the smoketest job
   - ⬜ 3.11 Request a GLES 3.0 context on iOS so the engine presents a cleared frame (renderer seam with Phase 4)
 - **Phase 4 — GLES 3.0 / ANGLE-on-Metal renderer + shaders + textures**
   - ⬜ 4.1 Wire xrRender_GL into the iOS build (CMake target, USE_OGL, GLES loader, ANGLE libs)
