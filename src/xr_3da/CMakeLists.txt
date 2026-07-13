@@ -64,6 +64,13 @@ if (XRAY_PLATFORM_IOS)
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_BINARY_DIR}/Info.plist"
     )
+
+    # App icon: add the asset catalog as a source so Xcode's actool compiles it into the
+    # bundle and injects CFBundleIcons; APPICON_NAME selects the AppIcon set.
+    target_sources(xr_3da PRIVATE "${CMAKE_SOURCE_DIR}/misc/ios/Assets.xcassets")
+    set_target_properties(xr_3da PROPERTIES
+        XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
+    )
 endif()
 
 if (NOT XRAY_PLATFORM_IOS)

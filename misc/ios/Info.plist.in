@@ -19,6 +19,8 @@
     <string>@XR_IOS_DISPLAY_NAME@</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>CFBundleShortVersionString</key>
     <string>@XR_IOS_SHORT_VERSION@</string>
     <key>CFBundleVersion</key>

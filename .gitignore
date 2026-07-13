@@ -22,3 +22,8 @@
 
 # exclude doxygen output
 doc/doxygen/html/*
+
+# iOS device-log capture tooling (libimobiledevice) and its output
+/tools/
+/device.log
+/ios-crashes/

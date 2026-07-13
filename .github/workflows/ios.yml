@@ -369,7 +369,7 @@ jobs:
                 "versionDescription": "Dev build $VERSION (commit ${{ github.sha }}). Pre-renderer — expect a launch crash; this build is for device-log bring-up.",
                 "downloadURL": "$BASE/OpenXRay.ipa",
                 "localizedDescription": "OpenXRay (S.T.A.L.K.E.R. X-Ray engine) ported to iOS. Development builds for on-device testing. No renderer yet (Phase 4) and no bundled gamedata, so it will crash at launch until those land — the purpose is to bring up the device-log loop.",
-                "iconURL": "https://github.com/$OWNER.png",
+                "iconURL": "https://raw.githubusercontent.com/$REPO/${{ github.ref_name }}/misc/ios/openxray_icon.png",
                 "tintColor": "2e7d32",
                 "size": $SIZE
               }
