@@ -18,8 +18,9 @@ against the branch HEAD before the final green run; treat the CI-verified device
 - **2b ✅** libogg 1.3.6 + libvorbis 1.3.7 + lzo 2.10 (static, both SDKs; all verified arm64).
   Note: macOS runners ship CMake 4.x, which rejects `cmake_minimum_required(<3.5)`; the
   superbuild passes `CMAKE_POLICY_VERSION_MINIMUM=3.5` for older deps (vorbis, lzo).
-- Next: **libtheora** (autotools-only → its own slice), then **OpenAL** and **LuaJIT**,
-  then the iOS engine CMake branch and the static engine link.
+- **theora ✅** libtheora 1.1.1 via an injected CMake build (`cmake/ios/theora`) over the
+  autotools-only source — portable no-asm source set; engine links only `Theora::Theora`.
+- Next: **OpenAL**, **LuaJIT**, then the iOS engine CMake branch and the static engine link.
 
 Controller/touch design for Phase 5 draws on the user's OpenGothic iOS work — see
 [iOS-Controller-Prior-Art.md](iOS-Controller-Prior-Art.md).
