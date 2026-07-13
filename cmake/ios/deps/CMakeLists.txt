@@ -78,6 +78,31 @@ ExternalProject_Add(dep_SDL2
     BUILD_ALWAYS OFF
 )
 
+# ---- OpenAL Soft ----------------------------------------------------------------------
+# 3D audio. OpenAL Soft (not Apple's deprecated OpenAL.framework); modern CMake with a
+# built-in iOS/CoreAudio backend. Static, with utilities/examples/dlopen disabled (iOS
+# forbids dlopen, so backends must be linked in directly).
+ExternalProject_Add(dep_openal
+    URL      https://github.com/kcat/openal-soft/archive/refs/tags/1.25.2.tar.gz
+    URL_HASH SHA256=fb27e5839aa11f0e5b9d33756965291fad5d6909ab928ea1f796f4a1a6877894
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    CMAKE_ARGS
+        ${_dep_common_args}
+        -DLIBTYPE=STATIC
+        -DALSOFT_DLOPEN=OFF
+        -DALSOFT_UTILS=OFF
+        -DALSOFT_EXAMPLES=OFF
+        -DALSOFT_TESTS=OFF
+        -DALSOFT_EAX=OFF
+        -DALSOFT_UPDATE_BUILD_VERSION=OFF
+        -DALSOFT_INSTALL_CONFIG=OFF
+        -DALSOFT_INSTALL_HRTF_DATA=OFF
+        -DALSOFT_INSTALL_AMBDEC_PRESETS=OFF
+        -DALSOFT_INSTALL_EXAMPLES=OFF
+        -DALSOFT_INSTALL_UTILS=OFF
+    BUILD_ALWAYS OFF
+)
+
 # ---- libogg ---------------------------------------------------------------------------
 # Ogg container; dependency of both vorbis and theora. Ships a proper CMake build and
 # installs an Ogg CMake package config that vorbis then consumes.

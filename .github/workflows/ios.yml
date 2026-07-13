@@ -143,7 +143,7 @@ jobs:
           echo "--- installed lib/ ---"
           ls -la "$PREFIX/lib" || true
           # Every dependency the engine links must be present and built for arm64.
-          for lib in libSDL2.a libogg.a libvorbis.a libvorbisfile.a libtheora.a liblzo2.a; do
+          for lib in libSDL2.a libopenal.a libogg.a libvorbis.a libvorbisfile.a libtheora.a liblzo2.a; do
             path=$(find "$PREFIX" -name "$lib" | head -1)
             if [ -z "$path" ]; then echo "::error::$lib not found in prefix"; exit 1; fi
             info=$(lipo -info "$path")
