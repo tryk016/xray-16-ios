@@ -33,13 +33,20 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
   all resolved unchanged. CI `engine-build`: configure → Externals → support → core → link.
 - **Phase 3 (IN PROGRESS) — boots on a real device.** The app launches (SDL_main routes the
   entry through UIApplicationMain), installs + sideloads as a full iOS bundle, and the engine
-  FS runs from writable `$HOME/Documents`. **Current blocker: a hard crash on launch AFTER the
-  CoP data is in place** (no on-screen dialog — it just closes). Almost certainly desktop-GL
-  context creation (`xrRender_GL`/glad has no GLES path yet) = the Phase 4 renderer seam.
-  **NEXT STEP:** pull the backtrace — `idevicecrashreport -e -k C:\openxray\ios-crashes`
-  (iPhone via USB, unlocked, Trust), then read `C:\openxray\ios-crashes/xr_3da-*.ips` to
-  confirm exactly where it dies. Then either stub/guard the GL context on iOS to reach the
-  next stage, or start the Phase 4 GLES/ANGLE renderer bring-up.
+  FS runs from writable `$HOME/Documents`.
+- **Phase 4 (STARTED) — Slice 4.1: GLES 3.0 context.** The launch SIGKILL was diagnosed from
+  `ios-crashes/xr_3da-2026-07-13-2307/2311.ips`: `EXC_BAD_ACCESS`, `pc=0` (NULL func-ptr call)
+  inside `xrRender_test_hw()` → `CHW::CreateDevice`, because `SetPrimaryAttributes` requested
+  desktop **GL 4.1 CORE** and `CreateDevice` called desktop **`gladLoadGL`** on the ES context
+  iOS actually hands back. Fixed in `src/Layers/xrRenderGL/glHW.cpp` (3 iOS-guarded hunks):
+  request `SDL_GL_CONTEXT_PROFILE_ES` 3.0, skip the desktop 4.1 override on iOS, and call
+  **`gladLoadGLES2`** (the vendored glad is a *merged* gl+gles2=3.2 loader — `gladLoadGLES2`
+  was already in `sdk/include/glad/gl.c`). This is Plan 3.11 / 4.2.
+  **NEXT STEP:** update via SideStore, relaunch on device. Expected: the null-call SIGKILL is
+  gone and boot advances into real renderer creation. The **next seam is GLSL** — ~286
+  `#version 410` desktop shaders don't compile under ES 3.0 (Plan 4.3+: emit `#version 300 es`
+  + precision + monolithic program path). If it still dies, pull a fresh `xr_3da-*.ips` and
+  read the new top frame — that tells us the next stop (shader compile, FBO, or texture).
 
 ## On-device testing (the loop)
 

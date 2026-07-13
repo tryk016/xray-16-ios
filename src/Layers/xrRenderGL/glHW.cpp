@@ -107,7 +107,13 @@ void CHW::CreateDevice(SDL_Window* hWnd)
     int version;
     {
         ZoneScopedN("gladLoadGL");
+#if defined(XR_PLATFORM_APPLE_IOS)
+        // iOS provides OpenGL ES only; load the GLES2/3 entry points from the
+        // merged glad loader instead of the desktop GL table.
+        version = gladLoadGLES2(reinterpret_cast<GLADloadfunc>(SDL_GL_GetProcAddress));
+#else
         version = gladLoadGL(reinterpret_cast<GLADloadfunc>(SDL_GL_GetProcAddress));
+#endif
     }
     if (version == 0)
     {
@@ -180,7 +186,16 @@ void CHW::SetPrimaryAttributes(u32& windowFlags)
 {
     windowFlags |= SDL_WINDOW_OPENGL;
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // iOS only exposes OpenGL ES through SDL's UIKit/EAGL backend. Requesting a
+    // desktop core profile makes SDL hand back an ES context that mismatches the
+    // desktop glad table, so ask for ES 3.0 explicitly here.
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#else
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+#endif
 
     SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
@@ -191,11 +206,13 @@ void CHW::SetPrimaryAttributes(u32& windowFlags)
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 
+#if !defined(XR_PLATFORM_APPLE_IOS)
     if (!strstr(Core.Params, "-no_gl_context"))
     {
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
     }
+#endif
 }
 
 IRender::RenderContext CHW::GetCurrentContext() const

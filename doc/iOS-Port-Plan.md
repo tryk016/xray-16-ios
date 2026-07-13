@@ -63,7 +63,7 @@ Every task carries: **Goal** (why it exists) · **Steps** (concrete ordered sub-
 | 1 | [iOS toolchain + CI pipeline](#phase-1) | 10 | 6/10 | mostly low/medium |
 | 2 | [Cross-build dependencies + link full engine (static)](#phase-2) | 14 | 14/14 | 4× high+ |
 | 3 | [Boot to a window with iOS app lifecycle](#phase-3) | 11 | 1/11 | 3× high+ |
-| 4 | [GLES 3.0 / ANGLE-on-Metal renderer + shaders + textures](#phase-4) | 13 | 0/13 | 5× high+ |
+| 4 | [GLES 3.0 / ANGLE-on-Metal renderer + shaders + textures](#phase-4) | 13 | 1/13 | 5× high+ |
 | 5 | [Touch / controls, UI adaptation, playability](#phase-5) | 10 | 0/10 | 5× high+ |
 
 ## Contents
@@ -105,10 +105,10 @@ Every task carries: **Goal** (why it exists) · **Steps** (concrete ordered sub-
   - ⬜ 3.8 Replace the second-window software splash with a LaunchScreen storyboard
   - 🟡 3.9 Package xr_3da as a MACOSX_BUNDLE iOS app — custom Info.plist (bundle id, MinimumOSVersion, UIDeviceFamily, UIFileSharingEnabled), app icon, base gamedata bundled; entitlements/launch-storyboard/full-gamedata still to add
   - 🟡 3.10 Extend ios.yml CI to build the real xr_3da app — done: packages the real app .ipa + publishes to `ios-dev` release with a SideStore source; still to do: retire the smoketest job
-  - ⬜ 3.11 Request a GLES 3.0 context on iOS so the engine presents a cleared frame (renderer seam with Phase 4)
+  - 🟡 3.11 Request a GLES 3.0 context on iOS so the engine presents a cleared frame (renderer seam with Phase 4) — context request flipped to ES 3.0 + gladLoadGLES2 (Slice 4.1); cleared-frame proof pending
 - **Phase 4 — GLES 3.0 / ANGLE-on-Metal renderer + shaders + textures**
-  - ⬜ 4.1 Wire xrRender_GL into the iOS build (CMake target, USE_OGL, GLES loader, ANGLE libs)
-  - ⬜ 4.2 Create a GLES 3.0 context: SetPrimaryAttributes ES profile + ANGLE/EAGL selection + fallback
+  - ✅ 4.1 Wire xrRender_GL into the iOS build — target links from Phase 2 (USE_OGL); GLES loader (gladLoadGLES2, merged glad) wired in glHW.cpp; native EAGL for now, ANGLE deferred
+  - 🟡 4.2 Create a GLES 3.0 context: SetPrimaryAttributes ES profile + gladLoadGLES2 done (fixes the launch SIGKILL in xrRender_test_hw); ANGLE/EAGL selection + fallback still to add
   - ⬜ 4.3 Central shader front-end: emit '#version 300 es' + precision, force the monolithic non-separable path
   - ⬜ 4.4 Rewrite the shared shims common.h and common_samplers.h for GLSL ES 3.00
   - ⬜ 4.5 Regenerate the 81 iostructs/ headers: name-matched varyings, drop gl_PerVertex, layout(location) fragment outputs

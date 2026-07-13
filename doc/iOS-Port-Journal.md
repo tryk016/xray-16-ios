@@ -63,6 +63,45 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-13 — Phase 4 Slice 4.1: GLES 3.0 context request on iOS (renderer seam)
+
+- **Trigger (device crash `xr_3da-2026-07-13-2307/2311.ips`):** the app boots all the
+  way through `CApplication` → `CEngine::Initialize` → `CEngineAPI::CreateRendererList`
+  → `RGLRendererModule::ObtainSupportedModes` → **`xrRender_test_hw()`** and then dies
+  with `EXC_BAD_ACCESS (SIGKILL)`, `KERN_PROTECTION_FAILURE at 0x0`, **pc = 0** —
+  a call through a NULL function pointer (Instruction Abort / Translation fault). This
+  is the silent, no-dialog crash we'd been chasing; it's the Phase-4 renderer seam,
+  confirmed to the line.
+- **Root cause:** `xrRender_test_hw()` ([r2_test_hw.cpp:42](../src/Layers/xrRenderPC_GL/r2_test_hw.cpp))
+  spins up a hidden test window and calls `CHW::CreateDevice`. `SetPrimaryAttributes`
+  ([glHW.cpp:179](../src/Layers/xrRenderGL/glHW.cpp)) asked SDL for a **desktop GL 4.1
+  CORE** context, which iOS cannot provide — SDL's UIKit/EAGL backend hands back an ES
+  context instead. `CreateDevice` then called **`gladLoadGL`** (the *desktop* glad
+  table), which mismatches the ES context, so the first desktop-only `glXXX` entry it
+  invokes is NULL → jump to 0 → SIGKILL. (Not jetsam: the adjacent `JetsamEvent*.ips`
+  is unrelated OS memory-pressure noise.)
+- **Fix (3 iOS-guarded hunks in `glHW.cpp`, all `#if defined(XR_PLATFORM_APPLE_IOS)`):**
+  1. `SetPrimaryAttributes`: request `SDL_GL_CONTEXT_PROFILE_ES` + MAJOR=3/MINOR=0
+     instead of `PROFILE_CORE`.
+  2. Skip the later desktop `MAJOR=4/MINOR=1` override block on iOS (it would clobber
+     the ES version set above).
+  3. `CreateDevice`: load `gladLoadGLES2(...)` instead of `gladLoadGL(...)`.
+- **Why this is enough (and why no stub is needed):** the vendored glad
+  ([sdk/include/glad/gl.h](../sdk/include/glad/gl.h)) is a **merged** loader generated
+  with `gl:compatibility=4.6, gles1, gles2=3.2` — the *same* header/`gl.c` already
+  defines **`gladLoadGLES2`** (`gl.c:13277`) sharing one function-pointer table. So the
+  ES loader was already available; we just weren't calling it. This is exactly what
+  Plan tasks 3.11 / 4.2 specified, done the clean way (real ES pointers, not a stub).
+- **Expected on-device result:** `test_hw` now creates a genuine ES 3.0 context and
+  populates the GLES function table (`glGetIntegerv`/`glGetString`/`glGenFramebuffers`
+  all exist in ES 3.0), so the null-call SIGKILL is gone. Boot proceeds into real
+  renderer creation; the **next** seam is GLSL — the ~286 `#version 410` desktop shaders
+  won't compile under ES 3.0 (Slice 4.3+). Worst case the context still can't be made,
+  but then `CreateDevice` logs + returns gracefully → readable FATAL, not a silent kill.
+- **CI risk:** none for the build — both `gladLoadGL` and `gladLoadGLES2` are defined in
+  `gl.c`, changes are iOS-only, desktop path byte-for-byte unchanged. CI validates
+  compile+link on macOS; on-device behaviour is verified via SideStore + crash reports.
+
 ### 2026-07-13 — Phase 3 (in progress): boot + on-device test loop
 Commits: SDL_main (3.1), Info.plist/.ipa/release/SideStore source (3.9/3.10), os_log,
 Stalker app icon, SideStore v2-format + version-match fixes, fsgame.ltx seeding (3.7a).
