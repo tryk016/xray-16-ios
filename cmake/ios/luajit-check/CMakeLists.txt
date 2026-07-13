@@ -22,4 +22,10 @@ get_filename_component(_repo_root "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUT
 set(LUAJIT_DIR "${_repo_root}/Externals/LuaJIT/src" CACHE PATH "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
+# iOS runs LuaJIT in interpreter mode (lj_arch.h already forces LJ_HASJIT=0 on iOS; the
+# JIT can't allocate RWX without a SideStore/debug entitlement anyway). Disable the JIT
+# explicitly so the host codegen tools and the target sources agree — otherwise buildvm
+# emits jit.util.trace* libdefs that interpreter-mode lib_jit.c does not define.
+set(LUAJIT_DISABLE_JIT ON CACHE BOOL "" FORCE)
+
 add_subdirectory("${_repo_root}/Externals/LuaJIT-proj" luajit-build)
