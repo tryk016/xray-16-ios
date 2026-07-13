@@ -15,7 +15,12 @@ set(RELVER 5)
 set(ABIVER 5.1)
 set(NODOTABIVER 51)
 
-set(CMAKE_OSX_SYSROOT "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk")
+# On a macOS host targeting macOS, pin the host SDK. When cross-compiling to iOS the
+# toolchain already set CMAKE_OSX_SYSROOT to the iphoneos SDK for the target library, so
+# do not clobber it here; the host codegen tools get the macOS SDK explicitly below.
+if (APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(CMAKE_OSX_SYSROOT "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk")
+endif()
 set(LUAJIT_DIR ${CMAKE_SOURCE_DIR}/Externals/LuaJIT/src CACHE PATH "Location of luajit sources")
 
 option(BUILD_SHARED_LIBS "Build as shared library" ON)
@@ -62,9 +67,19 @@ set(LUA_PATH "LUA_PATH" CACHE STRING "Environment variable to use as package.pat
 set(LUA_CPATH "LUA_CPATH" CACHE STRING "Environment variable to use as package.cpath")
 set(LUA_INIT "LUA_INIT" CACHE STRING "Environment variable for initial script")
 
-if (APPLE)
+# Exporting SDKROOT/MACOSX_DEPLOYMENT_TARGET is for a macOS-host->macOS-target build.
+# On iOS these would leak the iphoneos SDK into the native host codegen tools, which must
+# run on the build machine (they get -DCMAKE_OSX_SYSROOT=macosx explicitly instead).
+if (APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set(ENV{SDKROOT} ${CMAKE_OSX_SYSROOT})
     set(ENV{MACOSX_DEPLOYMENT_TARGET} ${CMAKE_OSX_DEPLOYMENT_TARGET})
+endif()
+
+# Host codegen tools (minilua/buildvm) always run on the build machine. When the target
+# is iOS, force them onto the macOS SDK instead of inheriting the target's iphoneos one.
+set(HOST_TOOL_OSX_ARGS "")
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(HOST_TOOL_OSX_ARGS -DCMAKE_OSX_SYSROOT=macosx)
 endif()
 
 # Clean unnecessary files in LuaJIT source directory
@@ -335,6 +350,7 @@ add_custom_command(
         -B${MINILUA_BINARY_DIR}
         -G${CMAKE_GENERATOR}
         -S${CMAKE_CURRENT_SOURCE_DIR}/HostBuildTools/minilua
+        ${HOST_TOOL_OSX_ARGS}
         -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
         -DCMAKE_VERBOSE_MAKEFILE=${CMAKE_VERBOSE_MAKEFILE}
         -DCMAKE_BUILD_TYPE=Release
@@ -368,6 +384,7 @@ add_custom_command(
         -B${BUILDVM_BINARY_DIR}
         -G${CMAKE_GENERATOR}
         -S${CMAKE_CURRENT_SOURCE_DIR}/HostBuildTools/buildvm
+        ${HOST_TOOL_OSX_ARGS}
         -DCMAKE_VERBOSE_MAKEFILE=${CMAKE_VERBOSE_MAKEFILE}
         -DCMAKE_BUILD_TYPE=Release
         -DLUAJIT_DIR=${LUAJIT_DIR}
@@ -562,7 +579,7 @@ endif()
 
 target_include_directories(xrLuaJIT
     PUBLIC
-    "${CMAKE_SOURCE_DIR}/Externals/LuaJIT/src"
+    "${LUAJIT_DIR}"
 
     PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}"

@@ -158,3 +158,58 @@ jobs:
           name: ios-deps-${{ matrix.sdk }}
           path: build/ios-prefix-${{ matrix.sdk }}
           if-no-files-found: error
+
+  # Phase 2: LuaJIT is built inside the engine's CMake (not the deps superbuild). This job
+  # verifies the iOS cross-compile in isolation: native host codegen tools (minilua/buildvm)
+  # generate the VM, and the target xrLuaJIT static lib is built for the iphoneos SDK.
+  luajit:
+    name: iOS LuaJIT ${{ matrix.name }}
+    runs-on: macos-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: device
+            platform: OS64
+          - name: simulator
+            platform: SIMULATORARM64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Init LuaJIT submodule
+        run: git submodule update --init Externals/LuaJIT
+
+      - name: Show toolchain versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          cmake --version
+
+      - name: Configure (${{ matrix.platform }})
+        run: >
+          cmake -S cmake/ios/luajit-check -B build/luajit-${{ matrix.platform }}
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchains/ios.toolchain.cmake
+          -DPLATFORM=${{ matrix.platform }}
+          -DDEPLOYMENT_TARGET=15.0
+          -DENABLE_BITCODE=OFF
+          --log-level=VERBOSE
+
+      - name: Build
+        run: cmake --build build/luajit-${{ matrix.platform }} --parallel 4
+
+      - name: Verify xrLuaJIT static lib is arm64
+        run: |
+          set -e
+          LIB=$(find build/luajit-${{ matrix.platform }} \( -name 'xrLuaJIT.a' -o -name 'libxrLuaJIT.a' \) | head -1)
+          if [ -z "$LIB" ]; then
+            echo "::error::xrLuaJIT static lib not found"; find build/luajit-${{ matrix.platform }} -name '*.a'; exit 1
+          fi
+          echo "lib: $LIB"
+          file "$LIB"
+          lipo -info "$LIB"
+          lipo -info "$LIB" | grep -qi 'arm64' || { echo "::error::xrLuaJIT is not arm64"; exit 1; }
+          # The host codegen tools must have run and produced the VM assembly.
+          VM=$(find build/luajit-${{ matrix.platform }} -name 'lj_vm.S' | head -1)
+          echo "generated VM: ${VM:-<none>}"
