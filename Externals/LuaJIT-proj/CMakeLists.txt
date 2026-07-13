@@ -475,7 +475,15 @@ if (WIN32)
 else()
     add_buildvm_target(lj_vm.S ${LJVM_MODE})
     set(LJ_VM_SRC "${CMAKE_CURRENT_BINARY_DIR}/lj_vm.S")
-    set_source_files_properties("${LJ_VM_SRC}" PROPERTIES LANGUAGE CXX)
+    # Upstream marks the generated VM asm as CXX. Under the Makefiles generator the .S
+    # extension still makes clang assemble it, but the Xcode generator honours LANGUAGE
+    # literally and parses it as C++ ("cannot use dot operator on a type"). ASM is enabled
+    # for this project (project(... ASM) above), so use it on iOS/Xcode.
+    if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        set_source_files_properties("${LJ_VM_SRC}" PROPERTIES LANGUAGE ASM)
+    else()
+        set_source_files_properties("${LJ_VM_SRC}" PROPERTIES LANGUAGE CXX)
+    endif()
 endif()
 
 add_buildvm_target("lj_bcdef.h" "bcdef" ${LJLIB_C})
