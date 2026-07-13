@@ -105,6 +105,21 @@ ExternalProject_Add(dep_libvorbis
     BUILD_ALWAYS OFF
 )
 
+# ---- libtheora ------------------------------------------------------------------------
+# Theora video (menu/intro .ogv playback). Upstream is autotools-only and does not
+# cross-compile cleanly for iOS, so we inject our own CMake build (cmake/ios/theora)
+# over the source tree and build the portable, no-asm source set. Needs ogg headers.
+ExternalProject_Add(dep_theora
+    URL      https://downloads.xiph.org/releases/theora/libtheora-1.1.1.tar.gz
+    URL_HASH SHA256=40952956c47811928d1e7922cda3bc1f427eb75680c3c37249c91e949054916b
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    PATCH_COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_CURRENT_SOURCE_DIR}/../theora/CMakeLists.txt <SOURCE_DIR>/CMakeLists.txt
+    CMAKE_ARGS ${_dep_common_args}
+    DEPENDS dep_libogg
+    BUILD_ALWAYS OFF
+)
+
 # ---- lzo2 -----------------------------------------------------------------------------
 # LZO compression (used by the VFS). lzo-2.10 ships a CMake build; installs liblzo2.a and
 # headers under include/lzo, which is exactly what the repo's cmake/FindLZO.cmake expects.
