@@ -207,6 +207,7 @@ jobs:
           -DENABLE_BITCODE=OFF
           -DBUILD_SHARED_LIBS=OFF
           -DLUAJIT_DISABLE_JIT=ON
+          -DXR_IOS_BUILD_NUMBER=${{ github.run_number }}
           -DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/ios-prefix-${{ matrix.sdk }}
           -DCMAKE_FIND_ROOT_PATH=${{ github.workspace }}/build/ios-prefix-${{ matrix.sdk }}
           -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO

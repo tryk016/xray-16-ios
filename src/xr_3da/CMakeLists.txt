@@ -55,10 +55,23 @@ if (XRAY_PLATFORM_IOS)
     set(XR_IOS_EXECUTABLE    "xr_3da")
     set(XR_IOS_BUNDLE_ID     "io.github.tryk016.openxray")
     set(XR_IOS_DISPLAY_NAME  "OpenXRay")
-    # Append the git build id so the version increments per build — SideStore uses
-    # CFBundleShortVersionString to detect updates (and to match the source's version).
-    set(XR_IOS_SHORT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}.${XRAY_BUILD_ID}")
-    set(XR_IOS_BUILD_VERSION "${XRAY_BUILD_ID}")
+    # Version code: SideStore decides "is there an update?" purely from
+    # CFBundleShortVersionString, so it MUST strictly increase every build. XRAY_BUILD_ID
+    # alone is date-derived (it only changes once per calendar day), so two builds on the
+    # same day produce the SAME version and SideStore shows no update. When CI passes its
+    # monotonic run number (-DXR_IOS_BUILD_NUMBER=${github.run_number}), fold it in:
+    #   code = XRAY_BUILD_ID * 1000 + run_number
+    # Both terms are non-decreasing over time and run_number strictly increases every run,
+    # so the sum strictly increases per build; the *1000 base keeps it well above any
+    # date-only build we shipped before (e.g. 10018 -> 10018034), so updates are always
+    # detected as newer. Local dev builds (no CI number) fall back to the raw build id.
+    if (DEFINED XR_IOS_BUILD_NUMBER AND NOT "${XR_IOS_BUILD_NUMBER}" STREQUAL "")
+        math(EXPR XR_IOS_VERSION_CODE "${XRAY_BUILD_ID} * 1000 + ${XR_IOS_BUILD_NUMBER}")
+    else()
+        set(XR_IOS_VERSION_CODE "${XRAY_BUILD_ID}")
+    endif()
+    set(XR_IOS_SHORT_VERSION "1.6.02.${XR_IOS_VERSION_CODE}")
+    set(XR_IOS_BUILD_VERSION "${XR_IOS_VERSION_CODE}")
     set(XR_IOS_MIN_OS        "${CMAKE_OSX_DEPLOYMENT_TARGET}")
     configure_file("${CMAKE_SOURCE_DIR}/misc/ios/Info.plist.in"
                    "${CMAKE_CURRENT_BINARY_DIR}/Info.plist" @ONLY)

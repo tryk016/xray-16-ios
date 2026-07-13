@@ -63,6 +63,32 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-13 — Fix: SideStore never shows an update (per-day, not per-build, version)
+
+- **Symptom (user):** after pushing a new build, SideStore offered no update; removing +
+  re-adding the source is not an acceptable workaround.
+- **Root cause:** SideStore decides "is there an update?" from `CFBundleShortVersionString`
+  (the source's `version` is read straight from the .ipa). Ours was
+  `…​.${XRAY_BUILD_ID}`, and `XRAY_BUILD_ID` ([cmake/utils.cmake:48](../cmake/utils.cmake)
+  `calculate_xray_build_id`) is **date-derived** — `(year-1999)*365 + day-of-year` — so it
+  only changes **once per calendar day**. Two builds the same day both produced
+  `1.6.02.10018` (confirmed: both crash reports were `1.6.02.10018`), so SideStore saw the
+  same version and showed nothing.
+- **Fix:** fold CI's monotonic run number into the version. CI passes
+  `-DXR_IOS_BUILD_NUMBER=${{ github.run_number }}` ([.github/workflows/ios.yml](../.github/workflows/ios.yml)
+  configure step) and [src/xr_3da/CMakeLists.txt](../src/xr_3da/CMakeLists.txt) computes
+  `XR_IOS_VERSION_CODE = XRAY_BUILD_ID * 1000 + run_number` for both
+  `CFBundleShortVersionString` (`1.6.02.<code>`) and `CFBundleVersion`. This matches the
+  proven scheme from the user's OpenGothic-iOS project (`1.0.<github.run_number>`).
+- **Why the formula:** `run_number` strictly increases every run and `XRAY_BUILD_ID` is
+  non-decreasing, so the sum strictly increases **per build** (not per day). The `*1000`
+  base keeps every new code far above any date-only build already installed
+  (`10018` → `10018034`), so the update always reads as *newer* — no downgrade/no-op.
+  Local dev builds (no `XR_IOS_BUILD_NUMBER`) fall back to the raw build id.
+- **No release-job change:** it already reads `CFBundleShortVersionString` from the .ipa
+  into `apps.json` `versions[].version`, so source and bundle stay in lockstep (avoids the
+  earlier "expected X, found Y" mismatch). Docs-only + CI-config; verified on next CI run.
+
 ### 2026-07-13 — Phase 4 Slice 4.1: GLES 3.0 context request on iOS (renderer seam)
 
 - **Trigger (device crash `xr_3da-2026-07-13-2307/2311.ips`):** the app boots all the
