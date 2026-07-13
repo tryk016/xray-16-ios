@@ -63,6 +63,36 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-13 — Phase 2e: link the whole engine into one iOS Mach-O ✅ GREEN 🎉
+Commits: `1b5426b05` (link attempt + signing off), `5cd7aa853`→`1b5426b05` (JPEG),
+`444da52e5` (GameSpy). Green run: `29275432825` (device + sim). Output:
+`bin/aarch64/Release/xr_3da.app/xr_3da` — **Mach-O 64-bit executable arm64, zero
+unresolved symbols**. **Phase 2 COMPLETE.**
+
+- **Done:** the entire engine (deps + all Externals + all engine libs + xrGame +
+  xrGameSpy) links into one static iOS Mach-O for both SDKs. CI `engine-build` now:
+  configure → Externals → support libs → core libs → **Link xr_3da**. Code signing
+  disabled at configure (`CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED/REQUIRED=NO`);
+  Windows resources gated off the iOS xr_3da target. `entry_point.cpp`'s `main()` is
+  the entry symbol (SDL_main/UIKit lifecycle is Phase 3; runtime GLES is Phase 4).
+- **Empirical link — the linker was the map.** Only two blockers surfaced, both flagged
+  as watch-items:
+  - **JPEG:** `find_package(JPEG)` matched the runner's host homebrew `libjpeg.dylib`
+    (macOS) → `ld: building for 'iOS', but linking in dylib built for 'macOS'`. Fix
+    (`1b5426b05`): skip `find_package(JPEG)` on iOS → `JPEG_FOUND` false → xrCore drops
+    `JPEG::JPEG` and `ImageJPEG.cpp`'s `__has_include(<jpeglib.h>)` takes the no-JPEG path.
+  - **GameSpy:** undefined `CGameSpy_*`/`gamespy_gp::*`/`xrGameSpyServer` referenced from
+    xrGame (they live in the `xrGameSpy` module we'd gated off). Decision: **build GameSpy
+    + xrGameSpy for iOS** (un-gate the three spots) rather than excise interwoven MP code —
+    GameSpy builds on every desktop platform and its OpenXRay-fork POSIX support reached
+    iOS **with no compile fixes**. MP is non-functional at runtime (dead servers) but the
+    binary links (`444da52e5`).
+  - Everything else — SDL2/OpenAL/ogg/vorbis/theora/lzo, all engine libs, the glad GL
+    renderer (function-pointer globals, null until Phase 4), pthread/dl (libSystem) —
+    resolved with **no** changes. OpenAL used the iOS SDK `OpenAL.framework` and linked fine.
+- **Next: Phase 3** — boot to a window with the iOS app lifecycle (SDL_main/UIKit,
+  per-frame tick, sandbox paths, real MACOSX_BUNDLE app target with Info.plist + gamedata).
+
 ### 2026-07-13 — Phase 2d Slice 4: compile the whole engine ✅ GREEN
 Commits: `c1009a75b` (4a support libs), `cf3aeac71` (4b big three),
 `58ffcd924` (xr_string varargs), `c39fb9536` (system() guards).

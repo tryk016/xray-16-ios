@@ -25,11 +25,14 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
   (`needs: deps`, `-G Xcode`). Deps resolve from the prefix.
 - **Phase 2d Slice 3 ✅** — all six Externals static libs compile arm64 for both iOS SDKs.
   Solved LuaJIT-under-Xcode (host tools single-config generator; `lj_vm.S` → `LANGUAGE ASM`).
-- **Phase 2d Slice 4 ✅ (COMPLETE)** — the *whole engine* compiles arm64 for both iOS SDKs:
-  12 support libs clean first try; `xrEngine`/`xrRender_GL` clean; `xrGame` needed two
-  fixes (`xr_string` via `.c_str()` in a varargs `Msg`; `system()`/xdg-open guarded on iOS).
-  **No `xr_3da` link yet.** **Next: Phase 2e** — link into one static iOS Mach-O. Watch-items:
-  OpenAL framework-vs-static-lib; `xrRender_GL` desktop-GL symbols unresolved until Phase 4.
+- **Phase 2d Slice 4 ✅** — the *whole engine* compiles arm64 for both iOS SDKs.
+- **Phase 2e ✅ (PHASE 2 COMPLETE 🎉)** — the whole engine LINKS into one arm64 iOS Mach-O
+  (`bin/aarch64/Release/xr_3da.app/xr_3da`, zero unresolved symbols, both SDKs). Link closed
+  with two fixes: disable JPEG on iOS (host `libjpeg.dylib` mismatch); build GameSpy for iOS
+  (xrGame references it — compiled clean). glad GL renderer, OpenAL (SDK framework), pthread/dl
+  all resolved unchanged. CI `engine-build`: configure → Externals → support → core → link.
+  **Next: Phase 3** — boot to a window (SDL_main/UIKit lifecycle, per-frame tick, sandbox
+  paths, real MACOSX_BUNDLE app target). Runtime GLES rendering is Phase 4.
 
 ## The deps prefix (input to the engine build)
 

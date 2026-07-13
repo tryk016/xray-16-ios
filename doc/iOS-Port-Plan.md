@@ -35,10 +35,14 @@ off GameSpy/mimalloc/packaging/install. The CI job `engine-build` (`-G Xcode`, `
 configures → compiles all Externals → all 12 support libs (clean first try) → xrEngine +
 xrRender_GL (clean) → xrGame (2 fixes). New gotcha class **Xcode generator vs build tooling**
 (TESTARCH sysroot, `CMAKE_DEFAULT_BUILD_TYPE`, LuaJIT host-tool generator, `lj_vm.S`→ASM).
-**Now in progress: Phase 2e** — the empirical `xr_3da` link (2.12–2.14). Link watch-items:
-host homebrew `libjpeg.dylib` and the OpenAL SDK framework may need iOS overrides, and
-`xrRender_GL`'s desktop-GL entry points are glad runtime pointers (Phase 4), not link deps.
-Full per-slice history + every error→fix: [iOS-Port-Journal.md](iOS-Port-Journal.md).
+**Phase 2 COMPLETE (14/14) 🎉** — the whole engine links into one arm64 iOS Mach-O
+(`bin/aarch64/Release/xr_3da.app/xr_3da`, zero unresolved symbols, both SDKs). Link
+closed with only two fixes: disable JPEG on iOS (host `libjpeg.dylib` mismatch) and build
+GameSpy for iOS (xrGame references it; it compiled clean). Everything else — deps, all
+engine libs, the glad GL renderer, OpenAL (iOS SDK framework), pthread/dl — resolved with
+no changes. **Next: Phase 3** — boot to a window with the iOS app lifecycle (SDL_main/UIKit,
+per-frame tick, sandbox paths, real MACOSX_BUNDLE app target). Full per-slice history +
+every error→fix: [iOS-Port-Journal.md](iOS-Port-Journal.md).
 
 Controller/touch design for Phase 5 draws on the user's OpenGothic iOS work — see
 [iOS-Controller-Prior-Art.md](iOS-Controller-Prior-Art.md).
@@ -57,7 +61,7 @@ Every task carries: **Goal** (why it exists) · **Steps** (concrete ordered sub-
 | # | Phase | Tasks | Done | Effort focus |
 |---|-------|:-----:|:----:|--------------|
 | 1 | [iOS toolchain + CI pipeline](#phase-1) | 10 | 6/10 | mostly low/medium |
-| 2 | [Cross-build dependencies + link full engine (static)](#phase-2) | 14 | 10/14 | 4× high+ |
+| 2 | [Cross-build dependencies + link full engine (static)](#phase-2) | 14 | 14/14 | 4× high+ |
 | 3 | [Boot to a window with iOS app lifecycle](#phase-3) | 11 | 0/11 | 3× high+ |
 | 4 | [GLES 3.0 / ANGLE-on-Metal renderer + shaders + textures](#phase-4) | 13 | 0/13 | 5× high+ |
 | 5 | [Touch / controls, UI adaptation, playability](#phase-5) | 10 | 0/10 | 5× high+ |
@@ -81,15 +85,15 @@ Every task carries: **Goal** (why it exists) · **Steps** (concrete ordered sub-
   - ✅ 2.3 Cross-build OpenAL for iOS and expose OpenAL::OpenAL
   - ✅ 2.4 Cross-build libogg / libvorbis / libtheora and satisfy the repo's Find modules
   - ✅ 2.5 Cross-build lzo2 and satisfy FindLZO (LZO::LZO)
-  - 🟡 2.6 Optionally cross-build jpeg-turbo (JPEG::JPEG) or cleanly disable JPEG on iOS — configure currently finds a host homebrew libjpeg.dylib (wrong arch); disable on iOS at link
+  - ✅ 2.6 Optionally cross-build jpeg-turbo (JPEG::JPEG) or cleanly disable JPEG on iOS — disabled on iOS (host libjpeg.dylib broke the link; JPEG optional, no-jpeg source path)
   - ✅ 2.7 Force static build + standard allocator on iOS (BUILD_SHARED_LIBS=OFF, MEMORY_ALLOCATOR=standard, skip mimalloc)
   - ✅ 2.8 Add an iOS branch to XRay.Compiler.GNULike.cmake that finds deps from CMAKE_FIND_ROOT_PATH and applies iOS-correct flags
   - ✅ 2.9 Fix Externals/LuaJIT-proj for iOS cross-compile: sysroot, host-tool decoupling, arch detection, JIT-optional variant (+ Xcode-generator: host tools single-config, lj_vm.S LANGUAGE ASM)
-  - 🟡 2.10 Apple/iOS-guard the bare pthread and dl link entries (xrCore, imgui-proj) — compiled without guards (resolve via libSystem); confirm at link
-  - ✅ 2.11 Confirm AGS_SDK / GameSpy / DiscordGameSDK / RenderDoc / DX11 R4 stay out of the iOS link (Apple non-macOS audit)
-  - 🟡 2.12 Minimal source/compile fixes to close the iOS link — whole engine COMPILES (xrGame: xr_string varargs, system()/xdg-open guards); link in progress
-  - 🟡 2.13 Create the iOS application-bundle target that links the whole engine + game into one static Mach-O — empirical xr_3da link attempt in flight (proper MACOSX_BUNDLE is Phase 3)
-  - 🟡 2.14 Extend ios.yml CI to build deps + full engine for both SDKs and verify the single Mach-O — CI builds deps + configures + compiles the whole engine both SDKs; link/verify in progress
+  - ✅ 2.10 Apple/iOS-guard the bare pthread and dl link entries (xrCore, imgui-proj) — not needed: both resolve via libSystem; the link closed with no guards
+  - ✅ 2.11 Audit AGS_SDK / GameSpy / DiscordGameSDK / RenderDoc / DX11 R4 — AGS/Discord/RenderDoc/DX11 stay out; GameSpy is instead BUILT for iOS (xrGame references it; POSIX SDK compiled clean) so the link closes
+  - ✅ 2.12 Minimal source/compile fixes to close the iOS link — xrGame: xr_string varargs `.c_str()`, system()/xdg-open iOS guards; JPEG + GameSpy resolved
+  - ✅ 2.13 Link the whole engine + game into one static Mach-O — `bin/aarch64/Release/xr_3da.app/xr_3da` is a Mach-O arm64 executable, zero unresolved symbols (proper MACOSX_BUNDLE Info.plist/entitlements/gamedata is Phase 3.9)
+  - ✅ 2.14 Extend ios.yml CI to build deps + full engine for both SDKs and verify the single Mach-O — `engine-build` job: configure → Externals → support libs → core libs → link xr_3da, both SDKs
 - **Phase 3 — Boot to a window with iOS app lifecycle**
   - ⬜ 3.1 Route the entry point through SDL2main / SDL_main on iOS
   - ⬜ 3.2 Refactor CApplication::Run's blocking loop into a per-frame tick under SDL_iPhoneSetAnimationCallback
