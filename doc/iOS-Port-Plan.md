@@ -14,6 +14,11 @@ desktop matrix and StyleCheck are disabled here. Some task statuses below were c
 against the branch HEAD before the final green run; treat the CI-verified device build and
 `.ipa` packaging as done. **Next up: Phase 2** (cross-build dependencies + static link).
 
+**Target game: Call of Pripyat 1.6.02.** OpenXRay builds one `xr_3da` binary; the game
+variant is runtime-selected via `fsgame.ltx` + gamedata, so no build-target change is
+needed — the CoP decision drives which gamedata we bundle and test with (Phase 4). Shadow
+of Chernobyl is not yet playable on OpenXRay and is not a target.
+
 ## How to read a task
 
 Every task carries: **Goal** (why it exists) · **Steps** (concrete ordered sub-steps: exact symbols, CMake vars, flags, `#ifdef` guards) · **Files** (repo-relative, with line refs where known) · **Acceptance** (verifiable done-criteria) · **Risks** (easy-to-miss gotchas). Status: ✅ done · 🟡 partial · ⬜ todo. Effort: trivial / low / medium / high / very-high.

@@ -90,5 +90,11 @@ Input (Phase 5):
 1. **Rendering strategy** → default **ANGLE-on-Metal** (GLES 3.0 translated to Metal; Apple's supported forward path). Alternatives: native EAGL GLES 3.0 (simplest, deprecated) or native Metal (largest effort). Shapes Phase 4.
 2. **Bring-up order** → **simulator first** (no signing), then device via SideStore.
 3. **Min iOS target** → **15.0**, arm64 only.
-4. **Which STALKER game + assets** → needed by Phase 4 for real rendering tests. Undecided.
+4. **Which STALKER game + assets** → **DECIDED: Call of Pripyat 1.6.02.** OpenXRay
+   builds a single `xr_3da` binary (links `xrRender_GL`); the game variant is chosen at
+   runtime via `fsgame.ltx` + gamedata, not by a separate build target. So "build CoP" =
+   bundle Call of Pripyat gamedata and point the app at it. Supported set for OpenXRay:
+   Call of Pripyat 1.6.02, Clear Sky 1.5.10, Call of Chernobyl 1.4.22. **Shadow of
+   Chernobyl is not yet playable on OpenXRay** — do not target it. The `res/gamedata`
+   shaders and the DXT→ASTC transcode (Phase 4) are validated against CoP assets.
 5. **Definition of done** → phase-by-phase; "boots to main menu" is the first meaningful milestone.
