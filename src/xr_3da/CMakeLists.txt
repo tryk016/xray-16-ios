@@ -73,6 +73,18 @@ if (XRAY_PLATFORM_IOS)
     set_target_properties(xr_3da PROPERTIES
         XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
     )
+
+    # Bundle fsgame.ltx + base gamedata (configs/scripts/shaders, ~3.4 MB) into the .app.
+    # On first launch the engine (LocatorAPI iOS branch) copies these into the writable
+    # Documents dir and runs from there; the user adds real Call of Pripyat gamedata there.
+    add_custom_command(TARGET xr_3da POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_SOURCE_DIR}/res/fsgame.ltx" "$<TARGET_BUNDLE_DIR:xr_3da>/fsgame.ltx"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/res/gamedata" "$<TARGET_BUNDLE_DIR:xr_3da>/gamedata"
+        COMMENT "iOS: bundling fsgame.ltx + base gamedata into the app"
+        VERBATIM
+    )
 endif()
 
 if (NOT XRAY_PLATFORM_IOS)

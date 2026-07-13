@@ -814,6 +814,67 @@ void CLocatorAPI::setup_fs_path(pcstr fs_name, string_path& fs_path)
     *(slash + 1) = 0;
 }
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include <dirent.h>
+#include <fcntl.h>
+
+// iOS app bundles are read-only, so logs/saves/gamedata must live in a writable dir.
+// On first launch we copy the bundled fsgame.ltx + base gamedata into Documents and run
+// from there. Minimal POSIX recursive copy (no ObjC/Foundation dependency).
+static void ios_copy_file(pcstr src, pcstr dst)
+{
+    const int in = open(src, O_RDONLY);
+    if (in < 0)
+        return;
+    const int out = open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (out < 0)
+    {
+        close(in);
+        return;
+    }
+    char buf[65536];
+    ssize_t n;
+    while ((n = read(in, buf, sizeof buf)) > 0)
+    {
+        ssize_t off = 0;
+        while (off < n)
+        {
+            const ssize_t k = write(out, buf + off, n - off);
+            if (k <= 0)
+                break;
+            off += k;
+        }
+    }
+    close(in);
+    close(out);
+}
+
+static void ios_copy_tree(pcstr src, pcstr dst)
+{
+    mkdir(dst, 0755);
+    DIR* dir = opendir(src);
+    if (!dir)
+        return;
+    struct dirent* ent;
+    while ((ent = readdir(dir)) != nullptr)
+    {
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+            continue;
+        string_path s, t;
+        xr_sprintf(s, "%s/%s", src, ent->d_name);
+        xr_sprintf(t, "%s/%s", dst, ent->d_name);
+        struct stat st;
+        if (stat(s, &st) != 0)
+            continue;
+        if (S_ISDIR(st.st_mode))
+            ios_copy_tree(s, t);
+        else
+            ios_copy_file(s, t);
+    }
+    closedir(dir);
+}
+#endif
+
 void CLocatorAPI::setup_fs_path(pcstr fs_name)
 {
     string_path fs_path;
@@ -837,6 +898,33 @@ void CLocatorAPI::setup_fs_path(pcstr fs_name)
         // If the fs ltx exists in the current working directory use it, if not use the perf path
         if (access(FSLTX, F_OK) == 0)
             getcwd(full_current_directory, sizeof full_current_directory);
+#if defined(XR_PLATFORM_APPLE_IOS)
+        else
+        {
+            // iOS: the bundle is read-only and there is no install dir to symlink from.
+            // Seed the writable Documents dir ($fs_root$) with the bundled fsgame.ltx + base
+            // gamedata on first launch, then run from there. The user drops the real Call of
+            // Pripyat gamedata into Documents/gamedata (Files app; UIFileSharingEnabled).
+            char* base_path = SDL_GetBasePath();  // .../OpenXRay.app/
+            char* pref_path = SDL_GetPrefPath("GSC Game World", "S.T.A.L.K.E.R. - Call of Pripyat");
+            string_path probe;
+            xr_sprintf(probe, "%sfsgame.ltx", pref_path);
+            if (access(probe, F_OK) != 0)
+            {
+                string_path src, dst;
+                xr_sprintf(src, "%sfsgame.ltx", base_path);
+                xr_sprintf(dst, "%sfsgame.ltx", pref_path);
+                ios_copy_file(src, dst);
+                xr_sprintf(src, "%sgamedata", base_path);
+                xr_sprintf(dst, "%sgamedata", pref_path);
+                ios_copy_tree(src, dst);
+            }
+            chdir(pref_path);
+            SDL_strlcpy(full_current_directory, pref_path, sizeof full_current_directory);
+            SDL_free(base_path);
+            SDL_free(pref_path);
+        }
+#else
         else
         {
             char* pref_path;
@@ -892,6 +980,7 @@ void CLocatorAPI::setup_fs_path(pcstr fs_name)
             SDL_strlcpy(full_current_directory, pref_path, sizeof full_current_directory);
             SDL_free(pref_path);
         }
+#endif
     }
 #else
 #   error Select or add implementation for your platform
