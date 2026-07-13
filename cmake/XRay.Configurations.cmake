@@ -11,7 +11,10 @@ set(XRAY_DEFAULT_BUILD_TYPE ReleaseMasterGold)
 
 get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if (is_multi_config)
-    if (NOT CMAKE_DEFAULT_BUILD_TYPE)
+    # CMAKE_DEFAULT_BUILD_TYPE is only supported by the Ninja Multi-Config generator;
+    # the Xcode multi-config generator (used for iOS) errors out if it is set. Desktop
+    # generators (VS / Ninja Multi-Config) are unaffected by this guard.
+    if (NOT CMAKE_DEFAULT_BUILD_TYPE AND NOT CMAKE_GENERATOR STREQUAL "Xcode")
         set(CMAKE_DEFAULT_BUILD_TYPE ${XRAY_DEFAULT_BUILD_TYPE})
     endif()
     if (CMAKE_BUILD_TYPE)
