@@ -50,6 +50,20 @@ if (XRAY_PLATFORM_IOS)
         message(FATAL_ERROR "SDL2::SDL2main target not found — required for the iOS SDL_main entry point")
     endif()
     target_link_libraries(xr_3da PRIVATE SDL2::SDL2main)
+
+    # iOS app bundle Info.plist (installability + Files-app log access). See misc/ios/Info.plist.in.
+    set(XR_IOS_EXECUTABLE    "xr_3da")
+    set(XR_IOS_BUNDLE_ID     "io.github.tryk016.openxray")
+    set(XR_IOS_DISPLAY_NAME  "OpenXRay")
+    set(XR_IOS_SHORT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
+    set(XR_IOS_BUILD_VERSION "${XRAY_BUILD_ID}")
+    set(XR_IOS_MIN_OS        "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    configure_file("${CMAKE_SOURCE_DIR}/misc/ios/Info.plist.in"
+                   "${CMAKE_CURRENT_BINARY_DIR}/Info.plist" @ONLY)
+    set_target_properties(xr_3da PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_BINARY_DIR}/Info.plist"
+    )
 endif()
 
 if (NOT XRAY_PLATFORM_IOS)

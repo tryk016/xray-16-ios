@@ -303,6 +303,87 @@ jobs:
           lipo -info "$BIN" | grep -qi 'arm64' || { echo "::error::xr_3da is not arm64"; exit 1; }
           echo "xr_3da linked for iOS (arm64, zero unresolved symbols)"
 
+      # Phase 3.9/3.10: package the device app bundle as an unsigned .ipa (Payload/<app>).
+      # SideStore/AltStore re-sign on-device. Device SDK only — a simulator .app is not
+      # installable. Runtime is pre-renderer (Phase 4) so expect a launch crash on-device;
+      # the point is to get device logs flowing (os_log + idevicesyslog).
+      - name: Package unsigned .ipa (device)
+        if: ${{ matrix.sdk == 'iphoneos' }}
+        run: |
+          set -e
+          DIR=build/ios-engine-${{ matrix.sdk }}
+          APP=$(find "$DIR" bin -type d -name 'xr_3da.app' 2>/dev/null | head -1)
+          if [ -z "$APP" ]; then echo "::error::xr_3da.app not found"; find "$DIR" bin -name '*.app' 2>/dev/null; exit 1; fi
+          echo "app bundle: $APP"
+          rm -rf Payload && mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qry OpenXRay.ipa Payload
+          echo "--- Info.plist ---"; plutil -p "$APP/Info.plist" 2>/dev/null | head -50 || true
+          echo "--- .ipa ---"; ls -la OpenXRay.ipa; unzip -l OpenXRay.ipa | tail -5
+
+      - name: Upload .ipa artifact
+        if: ${{ matrix.sdk == 'iphoneos' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenXRay-ios-ipa
+          path: OpenXRay.ipa
+          if-no-files-found: error
+
+  # Phase 3.10: publish the device .ipa to a rolling `ios-dev` pre-release and generate a
+  # SideStore/AltStore source (apps.json). The user adds the apps.json URL to SideStore once;
+  # every push updates the release so SideStore offers the new build as an update.
+  release:
+    name: Publish ios-dev release + SideStore source
+    runs-on: ubuntu-latest
+    needs: engine-build
+    permissions:
+      contents: write
+    steps:
+      - name: Download .ipa
+        uses: actions/download-artifact@v4
+        with:
+          name: OpenXRay-ios-ipa
+
+      - name: Generate SideStore source and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          SIZE=$(wc -c < OpenXRay.ipa)
+          VERSION="1.6.02.${{ github.run_number }}"
+          DATE=$(date -u +%Y-%m-%d)
+          REPO="${{ github.repository }}"
+          OWNER="${{ github.repository_owner }}"
+          BASE="https://github.com/$REPO/releases/download/ios-dev"
+          cat > apps.json <<JSON
+          {
+            "name": "OpenXRay iOS (dev)",
+            "identifier": "io.github.tryk016.openxray.source",
+            "apps": [
+              {
+                "name": "OpenXRay",
+                "bundleIdentifier": "io.github.tryk016.openxray",
+                "developerName": "OpenXRay iOS port ($OWNER)",
+                "version": "$VERSION",
+                "versionDate": "$DATE",
+                "versionDescription": "Dev build $VERSION (commit ${{ github.sha }}). Pre-renderer — expect a launch crash; this build is for device-log bring-up.",
+                "downloadURL": "$BASE/OpenXRay.ipa",
+                "localizedDescription": "OpenXRay (S.T.A.L.K.E.R. X-Ray engine) ported to iOS. Development builds for on-device testing. No renderer yet (Phase 4) and no bundled gamedata, so it will crash at launch until those land — the purpose is to bring up the device-log loop.",
+                "iconURL": "https://github.com/$OWNER.png",
+                "tintColor": "2e7d32",
+                "size": $SIZE
+              }
+            ]
+          }
+          JSON
+          echo "--- apps.json ---"; cat apps.json
+          gh release view ios-dev --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create ios-dev --repo "$REPO" --prerelease \
+              --title "OpenXRay iOS — dev builds" \
+              --notes "Rolling development build of the OpenXRay iOS port. Unsigned; SideStore/AltStore re-sign on-device. **Add this SideStore source:** \`$BASE/apps.json\`"
+          gh release upload ios-dev --repo "$REPO" OpenXRay.ipa apps.json --clobber
+          echo "::notice::SideStore source URL — $BASE/apps.json"
+
   # Phase 2: LuaJIT is built inside the engine's CMake (not the deps superbuild). This job
   # verifies the iOS cross-compile in isolation: native host codegen tools (minilua/buildvm)
   # generate the VM, and the target xrLuaJIT static lib is built for the iphoneos SDK.

@@ -101,9 +101,18 @@ inline void _splitpath(const char* path, // Path Input
 }
 
 #include <iostream>
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include <os/log.h>
+#endif
 inline void OutputDebugString(const char *str) // for linux debugger
 {
     std::cerr << str;
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // Also emit to the unified log so every engine line reaches the device console
+    // (idevicesyslog / Console.app). A sideloaded app's bare stderr is not reliably
+    // captured there, but os_log always is — this is what makes remote log capture work.
+    os_log(OS_LOG_DEFAULT, "%{public}s", str);
+#endif
 }
 
 inline unsigned long GetLastError()
