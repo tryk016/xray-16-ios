@@ -359,19 +359,28 @@ jobs:
           {
             "name": "OpenXRay iOS (dev)",
             "identifier": "io.github.tryk016.openxray.source",
+            "sourceURL": "$BASE/apps.json",
             "apps": [
               {
                 "name": "OpenXRay",
                 "bundleIdentifier": "io.github.tryk016.openxray",
                 "developerName": "OpenXRay iOS port ($OWNER)",
-                "version": "$VERSION",
-                "versionDate": "$DATE",
-                "versionDescription": "Dev build $VERSION (commit ${{ github.sha }}). Pre-renderer — expect a launch crash; this build is for device-log bring-up.",
-                "downloadURL": "$BASE/OpenXRay.ipa",
+                "subtitle": "S.T.A.L.K.E.R. X-Ray engine on iOS (dev)",
                 "localizedDescription": "OpenXRay (S.T.A.L.K.E.R. X-Ray engine) ported to iOS. Development builds for on-device testing. No renderer yet (Phase 4) and no bundled gamedata, so it will crash at launch until those land — the purpose is to bring up the device-log loop.",
                 "iconURL": "https://raw.githubusercontent.com/$REPO/${{ github.ref_name }}/misc/ios/openxray_icon.png",
                 "tintColor": "2e7d32",
-                "size": $SIZE
+                "category": "games",
+                "screenshotURLs": [],
+                "versions": [
+                  {
+                    "version": "$VERSION",
+                    "date": "$DATE",
+                    "localizedDescription": "Dev build $VERSION (commit ${{ github.sha }}). Pre-renderer — expect a launch crash; this build is for device-log bring-up.",
+                    "downloadURL": "$BASE/OpenXRay.ipa",
+                    "size": $SIZE,
+                    "minOSVersion": "15.0"
+                  }
+                ]
               }
             ]
           }
