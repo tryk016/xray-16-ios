@@ -1,0 +1,73 @@
+name: iOS
+
+# iOS builds must run on macOS (the iPhoneOS SDK, clang sysroot and codesign are
+# macOS-only). This is the pipeline the whole port depends on: changes are authored
+# on any OS and compiled here on GitHub's macОS runners.
+#
+# Phase 1 scope: prove the cross-compile pipeline with a trivial, engine-free target
+# for both the arm64 simulator and an unsigned arm64 device build. The full engine is
+# wired in from Phase 2 onwards.
+
+on:
+  push:
+    branches:
+      - ios-port
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoketest:
+    name: iOS smoke test (${{ matrix.platform }})
+    runs-on: macos-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: SIMULATORARM64
+            sdk: iphonesimulator
+          - platform: OS64
+            sdk: iphoneos
+
+    steps:
+      - uses: actions/checkout@main
+
+      - name: Show toolchain versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          cmake --version
+
+      - name: Configure (${{ matrix.platform }})
+        working-directory: misc/ios/smoketest
+        run: >
+          cmake -B build -G Xcode
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchains/ios.toolchain.cmake
+          -DPLATFORM=${{ matrix.platform }}
+          -DDEPLOYMENT_TARGET=15.0
+          -DENABLE_BITCODE=OFF
+          --log-level=VERBOSE
+
+      - name: Build
+        working-directory: misc/ios/smoketest
+        run: cmake --build build --config Release
+
+      - name: Inspect artifact
+        working-directory: misc/ios/smoketest
+        run: |
+          set -e
+          APP=$(find build -maxdepth 4 -name 'ios_smoketest.app' | head -1)
+          if [ -z "$APP" ]; then echo "::error::app bundle not found"; exit 1; fi
+          BIN="$APP/ios_smoketest"
+          echo "App bundle: $APP"
+          file "$BIN"
+          lipo -info "$BIN"
+          echo "--- load command platform ---"
+          vtool -show-build "$BIN" 2>/dev/null || otool -l "$BIN" | grep -iA3 'LC_BUILD_VERSION\|LC_VERSION_MIN' | head -20
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@main
+        with:
+          name: ios-smoketest-${{ matrix.platform }}
+          path: misc/ios/smoketest/build/Release-${{ matrix.sdk }}/ios_smoketest.app
+          if-no-files-found: error

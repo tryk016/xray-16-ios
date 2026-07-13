@@ -28,7 +28,21 @@
 #elif defined(__APPLE__)
 #   define XR_PLATFORM_APPLE
 #   define XR_PLATFORM_POSIX
-#   define _XRAY_PLATFORM_MARKER "Apple"
+#   include <TargetConditionals.h>
+#   if TARGET_OS_IOS
+#       define XR_PLATFORM_APPLE_IOS
+#       if TARGET_OS_SIMULATOR
+#           define _XRAY_PLATFORM_MARKER "iOS Simulator"
+#       else
+#           define _XRAY_PLATFORM_MARKER "iOS"
+#       endif
+#   elif TARGET_OS_TV
+#       define XR_PLATFORM_APPLE_TVOS
+#       define _XRAY_PLATFORM_MARKER "tvOS"
+#   else
+#       define XR_PLATFORM_APPLE_MACOS
+#       define _XRAY_PLATFORM_MARKER "Apple"
+#   endif
 #elif defined(__HAIKU__)
 #   define XR_PLATFORM_HAIKU
 #   define XR_PLATFORM_POSIX
