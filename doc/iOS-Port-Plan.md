@@ -12,7 +12,11 @@ and the device leg produces an unsigned, SideStore-ready `.ipa` artifact
 (`OpenXRay-ios-smoketest-ipa`). Only the `iOS` workflow runs on this branch — the heavy
 desktop matrix and StyleCheck are disabled here. Some task statuses below were captured
 against the branch HEAD before the final green run; treat the CI-verified device build and
-`.ipa` packaging as done. **Next up: Phase 2** (cross-build dependencies + static link).
+`.ipa` packaging as done. **Phase 2 in progress:** slice 2a is green — SDL2 2.32.10
+cross-builds static for both iOS SDKs via the `cmake/ios/deps` superbuild (CI job `deps`,
+artifacts `ios-deps-iphoneos` / `ios-deps-iphonesimulator`). Next: ogg/vorbis/theora/lzo,
+then OpenAL and LuaJIT, then the static engine link. Controller/touch design for Phase 5
+draws on the user's OpenGothic iOS work — see [iOS-Controller-Prior-Art.md](iOS-Controller-Prior-Art.md).
 
 **Target game: Call of Pripyat 1.6.02.** OpenXRay builds one `xr_3da` binary; the game
 variant is runtime-selected via `fsgame.ltx` + gamedata, so no build-target change is
