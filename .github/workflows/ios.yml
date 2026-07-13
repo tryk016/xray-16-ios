@@ -168,7 +168,7 @@ jobs:
   engine-build:
     name: iOS engine ${{ matrix.name }}
     runs-on: macos-latest
-    timeout-minutes: 40
+    timeout-minutes: 55
     needs: deps
     strategy:
       fail-fast: false
@@ -247,6 +247,26 @@ jobs:
             echo "$info" | grep -qi 'arm64' || { echo "::error::${stem} is not arm64"; exit 1; }
           done
           echo "all Externals static libs present and arm64"
+
+      # Slice 4a: compile the engine support libs (everything except the big three:
+      # xrEngine, xrRender_GL, xrGame — those are Slice 4b). Build each target on its own,
+      # continuing past failures, so one CI round surfaces every broken module. No link.
+      - name: Build engine support libs (${{ matrix.platform }})
+        run: |
+          DIR=build/ios-engine-${{ matrix.sdk }}
+          targets="xrMiscMath xrCore xrAICore xrCDB xrAPI xrUICore xrMaterialSystem xrParticles xrNetServer xrPhysics xrSound xrScriptEngine"
+          failed=""
+          for t in $targets; do
+            echo "::group::build $t"
+            if cmake --build "$DIR" --config Release --target "$t" -- -quiet; then
+              echo "OK: $t"
+            else
+              echo "::error::build failed: $t"; failed="$failed $t"
+            fi
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then echo "::error::failed engine libs:$failed"; exit 1; fi
+          echo "all Slice 4a engine support libs compiled for iOS"
 
   # Phase 2: LuaJIT is built inside the engine's CMake (not the deps superbuild). This job
   # verifies the iOS cross-compile in isolation: native host codegen tools (minilua/buildvm)
