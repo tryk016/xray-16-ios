@@ -8,7 +8,7 @@ read it to avoid re-deriving, and append an entry there after each slice.**
 
 ## Where we are (2026-07-13)
 
-Branch **`ios-port`** (HEAD `82b76ecfa`), all green on CI (`.github/workflows/ios.yml`,
+Branch **`ios-port`** (HEAD `8acf37228`+), all green on CI (`.github/workflows/ios.yml`,
 macOS runners only — Windows can't build iOS). Per-slice history + every error→fix is
 in [iOS-Port-Journal.md](iOS-Port-Journal.md).
 
@@ -31,8 +31,37 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
   with two fixes: disable JPEG on iOS (host `libjpeg.dylib` mismatch); build GameSpy for iOS
   (xrGame references it — compiled clean). glad GL renderer, OpenAL (SDK framework), pthread/dl
   all resolved unchanged. CI `engine-build`: configure → Externals → support → core → link.
-  **Next: Phase 3** — boot to a window (SDL_main/UIKit lifecycle, per-frame tick, sandbox
-  paths, real MACOSX_BUNDLE app target). Runtime GLES rendering is Phase 4.
+- **Phase 3 (IN PROGRESS) — boots on a real device.** The app launches (SDL_main routes the
+  entry through UIApplicationMain), installs + sideloads as a full iOS bundle, and the engine
+  FS runs from writable `$HOME/Documents`. **Current blocker: a hard crash on launch AFTER the
+  CoP data is in place** (no on-screen dialog — it just closes). Almost certainly desktop-GL
+  context creation (`xrRender_GL`/glad has no GLES path yet) = the Phase 4 renderer seam.
+  **NEXT STEP:** pull the backtrace — `idevicecrashreport -e -k C:\openxray\ios-crashes`
+  (iPhone via USB, unlocked, Trust), then read `C:\openxray\ios-crashes/xr_3da-*.ips` to
+  confirm exactly where it dies. Then either stub/guard the GL context on iOS to reach the
+  next stage, or start the Phase 4 GLES/ANGLE renderer bring-up.
+
+## On-device testing (the loop)
+
+- **Install:** SideStore source
+  `https://github.com/tryk016/xray-16-ios/releases/download/ios-dev/apps.json` (rolling
+  `ios-dev` pre-release; CI republishes each build; the source version is READ FROM THE .ipa's
+  CFBundleShortVersionString so it always matches — AltStore **v2** format with `versions[]` +
+  `minOSVersion`). Add the source once → Update in SideStore for each new build.
+- **Seeing errors:** the engine shows FATAL errors as **on-screen dialogs** (read + report —
+  this is the main loop, no USB needed). For **hard crashes** (app vanishes, no dialog) pull
+  the crash report: `idevicecrashreport -e -k C:\openxray\ios-crashes` (libimobiledevice is
+  installed at `C:\openxray\tools\`, gitignored; use `powershell` not `pwsh`). NOTE: the old
+  `idevicesyslog` does NOT capture app `os_log` on iOS 15+ (only legacy syslog = daemon noise) —
+  don't rely on it; `pip install pymobiledevice3` is the future upgrade for unified-log capture.
+- **CoP gamedata (user owns it; packed `.db` archives).** From the retail CoP install
+  (`C:\Program Files (x86)\bitComposer Games\S.T.A.L.K.E.R. - Call of Pripyat`) the user copied
+  into the app's Documents via iTunes/Apple Devices **File Sharing** (`On My iPhone → OpenXRay`):
+  `resources/` (2.8 GB — `configs.db` has system.ltx, + textures/meshes/shaders), `localization/`
+  (679 MB), `patches/` (34 MB). NOT yet copied: `levels/` (854 MB, needed to load a level);
+  skipped: `mp/` (multiplayer). The bundled `fsgame.ltx`'s `$arch_dir_*$` entries mount these
+  and the engine reads them directly. Documents also holds the engine-seeded `_appdata_`
+  (writable logs/saves), `fsgame.ltx`, and `gamedata` (OpenXRay overlay) from first launch.
 
 ## The deps prefix (input to the engine build)
 

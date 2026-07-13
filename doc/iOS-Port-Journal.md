@@ -91,10 +91,26 @@ Stalker app icon, SideStore v2-format + version-match fixes, fsgame.ltx seeding 
   into writable Documents (`SDL_GetPrefPath`) on first launch, then runs from there
   (minimal POSIX recursive copy). xr_3da POST_BUILD bundles `res/fsgame.ltx` + `res/gamedata`
   (754 files) into the `.app`. Verified present in the .ipa at `Payload/xr_3da.app/`.
-- **Next:** relaunch on device → next on-screen error (likely missing CoP gamedata → user
-  copies legal CoP assets into Documents/gamedata via Files app; or the GL context → Phase 4).
-  Remaining Phase 3: per-frame tick (3.2), lifecycle (3.4), fullscreen window (3.5), GLES
-  context for a cleared frame (3.11).
+- **3.7b ✅ run from `$HOME/Documents` (not the bundle):** the first fsgame fix still ran
+  from the read-only bundle — on iOS the initial CWD IS the `.app`, and since we bundle
+  fsgame.ltx there, `access(FSLTX)` succeeded and it never took the Documents branch (error
+  path was `.../App.app/gamedata/configs/system.ltx`). Also `SDL_GetPrefPath` is
+  `Library/Application Support` (hidden from Files). Fix: make the iOS FS path unconditional
+  and use `$HOME/Documents` (writable AND Files-app-visible via UIFileSharingEnabled). Verified
+  on device: Documents now holds engine-seeded `_appdata_` (writes work), `fsgame.ltx`,
+  `gamedata`, plus the user-copied CoP `resources`/`localization`/`patches`.
+- **CoP data provisioning (done by user):** retail CoP is packed `.db` archives; user copied
+  `resources`/`localization`/`patches` into `On My iPhone → OpenXRay` via File Sharing; the
+  bundled fsgame.ltx `$arch_dir_*$` mount them. Engine got PAST system.ltx.
+- **Current blocker:** hard crash on launch with **no dialog** (app vanishes) after data is in
+  place — most likely desktop-GL context creation (`xrRender_GL`/glad, no GLES) = Phase 4 seam.
+  Next: `idevicecrashreport -e -k C:\openxray\ios-crashes` → read `xr_3da-*.ips` backtrace.
+- **CI infra note:** one build "failed" only on the `Upload .ipa artifact` step (transient
+  GitHub ArtifactService timeout, 5 retries) — compile/link/package were green; `gh run rerun
+  --failed` fixed it. Not a code issue.
+- **Remaining Phase 3:** confirm crash cause, then per-frame tick (3.2), lifecycle (3.4),
+  fullscreen window (3.5), GLES context for a cleared frame (3.11) — most of this overlaps the
+  Phase 4 renderer.
 
 ### 2026-07-13 — Phase 2e: link the whole engine into one iOS Mach-O ✅ GREEN 🎉
 Commits: `1b5426b05` (link attempt + signing off), `5cd7aa853`→`1b5426b05` (JPEG),
