@@ -152,8 +152,23 @@ set(CCOPTIONS "${CCOPT};${XCFLAGS}")
 
 target_compile_options(xrLuaJIT PRIVATE ${CCOPTIONS})
 
+# Arch probe: preprocess lj_arch.h and read the LJ_TARGET_* / LJ_* markers.
+set(TESTARCH_FLAGS ${CCOPTIONS})
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    # Under the Xcode generator the leetal toolchain applies -target/-isysroot through
+    # Xcode build settings, NOT CMAKE_C_FLAGS, so this raw preprocess would have no
+    # sysroot (<TargetConditionals.h> not found) and no iOS target. Pass both explicitly
+    # so the probe reflects the iOS target regardless of the generator. (Under the
+    # Makefiles generator CMAKE_C_FLAGS already carries -target; these are then redundant
+    # but harmless.)
+    if (CMAKE_C_COMPILER_TARGET)
+        list(APPEND TESTARCH_FLAGS "--target=${CMAKE_C_COMPILER_TARGET}")
+    endif()
+    list(APPEND TESTARCH_FLAGS "-isysroot" "${CMAKE_OSX_SYSROOT}")
+endif()
+
 execute_process(
-    COMMAND ${CMAKE_C_COMPILER} ${CCOPTIONS} -E lj_arch.h -dM
+    COMMAND ${CMAKE_C_COMPILER} ${TESTARCH_FLAGS} -E lj_arch.h -dM
     WORKING_DIRECTORY "${LUAJIT_DIR}"
     OUTPUT_VARIABLE TESTARCH_OUTPUT
     ERROR_VARIABLE TESTARCH_ERROR
