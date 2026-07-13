@@ -895,18 +895,18 @@ void CLocatorAPI::setup_fs_path(pcstr fs_name)
     }
     else
     {
-        // If the fs ltx exists in the current working directory use it, if not use the perf path
-        if (access(FSLTX, F_OK) == 0)
-            getcwd(full_current_directory, sizeof full_current_directory);
 #if defined(XR_PLATFORM_APPLE_IOS)
-        else
+        // iOS: the initial CWD is the read-only .app bundle (where we bundle fsgame.ltx),
+        // but we must run from a WRITABLE root that the Files app also exposes, so the user
+        // can drop in their Call of Pripyat gamedata. That is the app's Documents dir
+        // ($HOME/Documents) — NOT SDL_GetPrefPath (Library/Application Support, hidden from
+        // Files) and NOT the read-only bundle. Seed Documents from the bundle on first launch.
         {
-            // iOS: the bundle is read-only and there is no install dir to symlink from.
-            // Seed the writable Documents dir ($fs_root$) with the bundled fsgame.ltx + base
-            // gamedata on first launch, then run from there. The user drops the real Call of
-            // Pripyat gamedata into Documents/gamedata (Files app; UIFileSharingEnabled).
             char* base_path = SDL_GetBasePath();  // .../OpenXRay.app/
-            char* pref_path = SDL_GetPrefPath("GSC Game World", "S.T.A.L.K.E.R. - Call of Pripyat");
+            pcstr home = SDL_getenv("HOME");      // iOS: the app's data-container home
+            string_path pref_path;
+            xr_sprintf(pref_path, "%s/Documents/", home ? home : ".");
+            mkdir(pref_path, 0755);
             string_path probe;
             xr_sprintf(probe, "%sfsgame.ltx", pref_path);
             if (access(probe, F_OK) != 0)
@@ -922,9 +922,11 @@ void CLocatorAPI::setup_fs_path(pcstr fs_name)
             chdir(pref_path);
             SDL_strlcpy(full_current_directory, pref_path, sizeof full_current_directory);
             SDL_free(base_path);
-            SDL_free(pref_path);
         }
 #else
+        // If the fs ltx exists in the current working directory use it, if not use the perf path
+        if (access(FSLTX, F_OK) == 0)
+            getcwd(full_current_directory, sizeof full_current_directory);
         else
         {
             char* pref_path;
