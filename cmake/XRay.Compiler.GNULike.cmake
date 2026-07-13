@@ -143,7 +143,12 @@ endif()
 if (NOT WIN32)
     find_package(SDL2 2.0.18 REQUIRED)
     find_package(OpenAL REQUIRED)
-    find_package(JPEG)
+    if (NOT XRAY_PLATFORM_IOS)
+        # Skip on iOS: with FIND_ROOT_PATH_MODE=BOTH this matches a host homebrew
+        # libjpeg.dylib (macOS arch) and breaks the link. JPEG is optional; JPEG_FOUND
+        # stays false so xrCore drops JPEG::JPEG and ImageJPEG.cpp takes its no-jpeg path.
+        find_package(JPEG)
+    endif()
     find_package(Ogg REQUIRED)
     find_package(Vorbis REQUIRED)
     find_package(Theora REQUIRED)
