@@ -278,7 +278,7 @@ jobs:
         run: |
           DIR=build/ios-engine-${{ matrix.sdk }}
           failed=""
-          for t in xrEngine xrRender_GL xrGame; do
+          for t in xrEngine xrRender_GL xrGameSpy xrGame; do
             echo "::group::build $t"
             if cmake --build "$DIR" --config Release --target "$t" -- -quiet; then
               echo "OK: $t"
