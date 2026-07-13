@@ -330,8 +330,10 @@ set(HOST_ALDFLAGS "${CMAKE_C_FLAGS}")
 # build machine. Append a native target so the last -target wins and they build+run on
 # the host (the host sub-builds also get -DCMAKE_OSX_SYSROOT=macosx, see above).
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
-    string(APPEND HOST_ACFLAGS " -target ${CMAKE_HOST_SYSTEM_PROCESSOR}-apple-macos")
-    string(APPEND HOST_ALDFLAGS " -target ${CMAKE_HOST_SYSTEM_PROCESSOR}-apple-macos")
+    # Single-token --target= form so it survives the repeated separate_arguments() and
+    # list round-trips through the nested host cmake without the value being orphaned.
+    string(APPEND HOST_ACFLAGS " --target=${CMAKE_HOST_SYSTEM_PROCESSOR}-apple-macos")
+    string(APPEND HOST_ALDFLAGS " --target=${CMAKE_HOST_SYSTEM_PROCESSOR}-apple-macos")
 endif()
 
 string(APPEND TARGET_XCFLAGS " -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -U_FORTIFY_SOURCE")
