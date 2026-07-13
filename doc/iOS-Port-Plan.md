@@ -20,7 +20,11 @@ against the branch HEAD before the final green run; treat the CI-verified device
   superbuild passes `CMAKE_POLICY_VERSION_MINIMUM=3.5` for older deps (vorbis, lzo).
 - **theora ✅** libtheora 1.1.1 via an injected CMake build (`cmake/ios/theora`) over the
   autotools-only source — portable no-asm source set; engine links only `Theora::Theora`.
-- Next: **OpenAL**, **LuaJIT**, then the iOS engine CMake branch and the static engine link.
+- **OpenAL ✅** OpenAL Soft 1.25.2 static (CoreAudio backend). Xcode 26.5's clang trips
+  `-Werror=function-effects`; the superbuild pre-seeds `HAVE_WFUNCTION_EFFECTS=OFF`.
+- 6/7 deps done (SDL2, OpenAL, ogg, vorbis, theora, lzo2 — all arm64, both SDKs).
+- Next: **LuaJIT** (hardest — native host tools vs iOS target; interpreter mode), then the
+  iOS engine CMake branch and the static engine link.
 
 Controller/touch design for Phase 5 draws on the user's OpenGothic iOS work — see
 [iOS-Controller-Prior-Art.md](iOS-Controller-Prior-Art.md).
