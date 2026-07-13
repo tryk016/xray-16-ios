@@ -268,6 +268,26 @@ jobs:
           if [ -n "$failed" ]; then echo "::error::failed engine libs:$failed"; exit 1; fi
           echo "all Slice 4a engine support libs compiled for iOS"
 
+      # Slice 4b: compile the big three. xrRender_GL uses desktop GL via glad (compiles as
+      # in-lib function pointers; runtime GLES port is Phase 4). xrGame is huge and the
+      # likeliest to surface source-level GameSpy/multiplayer references now the lib is gated.
+      # No final xr_3da link — that is Phase 2e.
+      - name: Build engine core libs (${{ matrix.platform }})
+        run: |
+          DIR=build/ios-engine-${{ matrix.sdk }}
+          failed=""
+          for t in xrEngine xrRender_GL xrGame; do
+            echo "::group::build $t"
+            if cmake --build "$DIR" --config Release --target "$t" -- -quiet; then
+              echo "OK: $t"
+            else
+              echo "::error::build failed: $t"; failed="$failed $t"
+            fi
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then echo "::error::failed engine libs:$failed"; exit 1; fi
+          echo "whole engine compiles for iOS (no xr_3da link — Phase 2e)"
+
   # Phase 2: LuaJIT is built inside the engine's CMake (not the deps superbuild). This job
   # verifies the iOS cross-compile in isolation: native host codegen tools (minilua/buildvm)
   # generate the VM, and the target xrLuaJIT static lib is built for the iphoneos SDK.
