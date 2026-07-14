@@ -63,6 +63,35 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-14 — Phase 4 Slice 4.6a: guard glBindFragDataLocation on GLES (+ result of 4.1)
+
+- **On-device result of Slice 4.1 + the version fix (build `1.6.02.10018035`):** both
+  landed. The version bumped (SideStore offered the update) and the GLES 3.0 context works
+  — the launch SIGKILL in `xrRender_test_hw` is **gone**. The engine now boots *far* deeper:
+  `CRenderDevice::Create` → `CRender::create` → `CRenderTarget()` → shader/pass build
+  (`CBlender_Compile::r_Pass` → `CResourceManager::_LinkPP`).
+- **New crash (`xr_3da-2026-07-14-1712*.ips`):** same shape (`EXC_BAD_ACCESS`, `pc=0`,
+  NULL func-ptr) but a new, deeper frame — register `x28 = glad_glBindFragDataLocation`.
+  `_LinkPP` correctly takes the **monolithic** program path on ES (it's gated:
+  `if (GLAD_GL_ARB_separate_shader_objects) …pipeline… else …GLLinkMonolithicProgram…`,
+  and the ARB SSO extension is absent on ES), but `GLLinkMonolithicProgram`
+  ([ShaderResourceTraits.h:119](../src/Layers/xrRender/ShaderResourceTraits.h)) calls
+  **`glBindFragDataLocation`** unconditionally — desktop-GL only, null under ES → crash.
+- **Fix (Slice 4.6a):** wrap the `glBindFragDataLocation` clusters in
+  `if (glBindFragDataLocation)` (idiomatic here — mirrors the existing `if (glObjectLabel)`),
+  in both `GLLinkMonolithicProgram` (the ES path) and `GLUseBinary`. On ES the pointer is
+  null → skipped; fragment outputs bind via `layout(location=N) out` in the shader source
+  (that's the shader-side work, Plan 4.5). Desktop path unchanged. No-regret under either
+  renderer backend (native ES *or* ANGLE — ES semantics have no glBindFragDataLocation).
+- **What this unblocks / the REAL next seam:** this stops the null-call SIGKILL and lets the
+  engine's own shader path run — but the shaders are still emitted as **`#version 410`**
+  ([rgl_shaders.cpp:227](../src/Layers/xrRenderPC_GL/rgl_shaders.cpp)), which a GLES 3.0
+  context rejects. So the substantive blocker is now the **GLSL source port to ES 3.00**
+  (Plan 4.3 `#version 300 es` + precision, 4.4 the common.h/common_samplers.h shims, 4.5 the
+  ~81 iostructs headers → `layout(location)` outputs, drop `gl_PerVertex`). That's the
+  interdependent core of Phase 4; direction (native ES 3.0 vs ANGLE) + tooling (a CI
+  offline GLSL-ES compile gate to avoid a device round-trip per shader) decided next.
+
 ### 2026-07-13 — Fix: SideStore never shows an update (per-day, not per-build, version)
 
 - **Symptom (user):** after pushing a new build, SideStore offered no update; removing +

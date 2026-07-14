@@ -99,10 +99,14 @@ inline std::pair<char, GLuint> GLUseBinary(pcstr* buffer, size_t size, const GLe
         CHK_GL(glObjectLabel(GL_PROGRAM, program, -1, name));
     CHK_GL(glProgramParameteri(program, GL_PROGRAM_SEPARABLE, (GLint)GL_TRUE));
 
-    CHK_GL(glBindFragDataLocation(program, 0, "SV_Target"));
-    CHK_GL(glBindFragDataLocation(program, 0, "SV_Target0"));
-    CHK_GL(glBindFragDataLocation(program, 1, "SV_Target1"));
-    CHK_GL(glBindFragDataLocation(program, 2, "SV_Target2"));
+    // Desktop-GL only (null pointer under OpenGL ES); ES uses layout(location) outputs.
+    if (glBindFragDataLocation)
+    {
+        CHK_GL(glBindFragDataLocation(program, 0, "SV_Target"));
+        CHK_GL(glBindFragDataLocation(program, 0, "SV_Target0"));
+        CHK_GL(glBindFragDataLocation(program, 1, "SV_Target1"));
+        CHK_GL(glBindFragDataLocation(program, 2, "SV_Target2"));
+    }
 
     CHK_GL(glProgramBinary(program, *format, buffer, size));
     CHK_GL(glGetProgramiv(program, GL_LINK_STATUS, &status));
@@ -130,10 +134,16 @@ static GLuint GLLinkMonolithicProgram(pcstr name, GLuint ps, GLuint vs, GLuint g
     CHK_GL(glAttachShader(program, vs));
     if (gs)
         CHK_GL(glAttachShader(program, gs));
-    CHK_GL(glBindFragDataLocation(program, 0, "SV_Target"));
-    CHK_GL(glBindFragDataLocation(program, 0, "SV_Target0"));
-    CHK_GL(glBindFragDataLocation(program, 1, "SV_Target1"));
-    CHK_GL(glBindFragDataLocation(program, 2, "SV_Target2"));
+    // glBindFragDataLocation is desktop-GL only; on OpenGL ES its glad pointer is null
+    // (calling it hard-crashes). ES binds fragment outputs via `layout(location=N) out`
+    // in the shader source instead, so skip the explicit binding when it's unavailable.
+    if (glBindFragDataLocation)
+    {
+        CHK_GL(glBindFragDataLocation(program, 0, "SV_Target"));
+        CHK_GL(glBindFragDataLocation(program, 0, "SV_Target0"));
+        CHK_GL(glBindFragDataLocation(program, 1, "SV_Target1"));
+        CHK_GL(glBindFragDataLocation(program, 2, "SV_Target2"));
+    }
     CHK_GL(glLinkProgram(program));
     CHK_GL(glDetachShader(program, ps));
     CHK_GL(glDetachShader(program, vs));

@@ -112,7 +112,7 @@ Every task carries: **Goal** (why it exists) · **Steps** (concrete ordered sub-
   - ⬜ 4.3 Central shader front-end: emit '#version 300 es' + precision, force the monolithic non-separable path
   - ⬜ 4.4 Rewrite the shared shims common.h and common_samplers.h for GLSL ES 3.00
   - ⬜ 4.5 Regenerate the 81 iostructs/ headers: name-matched varyings, drop gl_PerVertex, layout(location) fragment outputs
-  - ⬜ 4.6 Replace glBindFragDataLocation and reconcile the compile/link traits for GLES monolithic programs
+  - 🟡 4.6 Replace glBindFragDataLocation and reconcile the compile/link traits for GLES monolithic programs — glBindFragDataLocation guarded out on ES (Slice 4.6a, fixes the _LinkPP SIGKILL); layout(location) outputs in shaders + link-trait reconcile still to do
   - ⬜ 4.7 Replace desktop-only GL calls in the runtime (draw, buffers, formats, polygon mode, screenshot)
   - ⬜ 4.8 HW caps, extension gating, and shader-binary cache for GLES
   - ⬜ 4.9 Texture pipeline: gli ES30 profile + DXT/BC->ASTC offline transcode + runtime RGBA fallback
