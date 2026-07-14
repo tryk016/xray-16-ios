@@ -46,22 +46,15 @@ BASE_DEFINES = [
     ("SMAP_size", "2048"),
 ]
 
-# ES fragment shaders have no default float precision, and sampler types need an
-# explicit default too. The engine relies on desktop GL's implicit precision;
-# under ES we must state it. (Once shared/common.h is ported this moves there.)
+# Only the float/int floor goes in the preamble — matching what the engine's ES
+# emission will prepend after `#version 300 es`. SAMPLER precision is deliberately
+# NOT added here: it belongs in the shader source (gl/common.h, #ifdef GL_ES),
+# so the gate faithfully fails if that source is missing/wrong rather than masking it.
 FRAG_PRECISION = [
     "precision highp float;",
     "precision highp int;",
-    "precision highp sampler2D;",
-    "precision highp sampler3D;",
-    "precision highp samplerCube;",
-    "precision highp sampler2DArray;",
-    "precision highp sampler2DShadow;",
 ]
-VERT_PRECISION = [
-    "precision highp float;",
-    "precision highp int;",
-]
+VERT_PRECISION = list(FRAG_PRECISION)
 
 
 def find_include(name: str, roots: list[str]) -> str | None:

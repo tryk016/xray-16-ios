@@ -1,6 +1,19 @@
 #ifndef        COMMON_H
 #define        COMMON_H
 
+// OpenGL ES has no implicit default precision (desktop GL does), so every shader
+// must declare one for float/int and each sampler type BEFORE first use. glslang
+// and the on-device ES driver both predefine GL_ES for a `#version NNN es` unit, so
+// this block is desktop-safe (compiled out under desktop GL). See iOS port Plan 4.4.
+#ifdef GL_ES
+precision highp float;
+precision highp int;
+precision highp sampler2D;
+precision highp sampler3D;
+precision highp samplerCube;
+precision highp sampler2DShadow;
+#endif
+
 #include "shared\common.h"
 
 #include "common_defines.h"
