@@ -224,8 +224,18 @@ HRESULT CRender::shader_compile(pcstr name, IReader* fs, pcstr pFunctionName,
         sh_name.append(option);
     };
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // iOS runs OpenGL ES 3.0 (native EAGL). Emit an ES shader header instead of the
+    // desktop GL 4.10 one: ES has no separable_shader_objects extension (the renderer
+    // takes the monolithic-program path there) and requires an explicit default float/int
+    // precision. `GL_ES` is auto-predefined by the compiler, which the shaders #ifdef on.
+    options.add("#version 300 es");
+    options.add("precision highp float;");
+    options.add("precision highp int;");
+#else
     options.add("#version 410");
     options.add("#extension GL_ARB_separate_shader_objects : enable");
+#endif
 
 #ifdef DEBUG
     options.add("#pragma optimize (off)");

@@ -63,6 +63,35 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-14 — Phase 4.3: engine emits ES on iOS + ANGLE decision + FSR planned
+
+- **Slice 4.3 (engine ES emission):** `rgl_shaders.cpp` now emits `#version 300 es` +
+  `precision highp float/int;` on iOS (guarded `XR_PLATFORM_APPLE_IOS`) instead of
+  `#version 410` + the desktop `GL_ARB_separate_shader_objects` extension. This is what makes
+  the device build actually try the ES shaders we've been greening in the gate — the ~148
+  compiling shaders should now compile on-device, and we hit the real monolithic-link (A2)
+  behaviour. Desktop path unchanged.
+- **Decision — native ES 3.0 now, ANGLE-on-Metal as the A2 fallback (not now).** Weighed
+  switching to ANGLE (ES 3.1) immediately. Verdict: it does NOT help the current wall.
+  - ANGLE would save **A2** (ES 3.1 has separable_shader_objects → varyings match by
+    *location*, so no vs↔fs name reconciliation), enable `sampler2DMS` MSAA variants, and keep
+    the renderer's SSO architecture. Genuinely valuable — *for linking*.
+  - ANGLE does **not** save the shader-source ES conversion: `#version 310 es` GLSL is just as
+    strict on int→float (family C), precision (B), HLSL shims, etc. That work is common to both
+    paths and is exactly what's blocking us now. There is no "desktop-GL via ANGLE, skip the
+    rewrite" shortcut on iOS (ANGLE's iOS front-end is strict GLES).
+  - ANGLE costs a large up-front build/vendor of libEGL/libGLESv2 for iOS + SDL EGL wiring +
+    ~10-20 MB `.ipa` + another Metal-backend moving part.
+  - **So:** finish the shader ES conversion (needed either way) on native ES 3.0; if the A2
+    monolithic-link (varying-name) reconciliation proves too painful on-device, THEN adopt
+    ANGLE/ES-3.1-SSO to make A2 disappear. Keep it as plan B for linking, don't pay its cost
+    blind. (This also matches the project's long-stated "ANGLE-on-Metal default" intent — it
+    just arrives later, when it actually earns its keep.)
+- **Planned — FSR 1.0 upscaling (new Plan Phase 6).** Added 6.1 dynamic render-scale infra +
+  6.2 AMD FidelityFX FSR 1.0 (EASU+RCAS) ported to GLSL ES 3.00 as the present pass. Spatial
+  (no motion vectors) → fits the deferred GL renderer + mobile; render-scale + sharpness cvars;
+  gate-validated. Target: reach a playable framerate on high-DPI iOS panels.
+
 ### 2026-07-14 — Phase 4 shader port: gate baseline + first fixes + the real roadmap
 
 - **Gate is live and driving fixes.** After two gate bugs were fixed (see below) the

@@ -65,6 +65,7 @@ Every task carries: **Goal** (why it exists) · **Steps** (concrete ordered sub-
 | 3 | [Boot to a window with iOS app lifecycle](#phase-3) | 11 | 1/11 | 3× high+ |
 | 4 | [GLES 3.0 / ANGLE-on-Metal renderer + shaders + textures](#phase-4) | 13 | 1/13 | 5× high+ |
 | 5 | [Touch / controls, UI adaptation, playability](#phase-5) | 10 | 0/10 | 5× high+ |
+| 6 | [Performance & polish (post-playable)](#phase-6) | 2 | 0/2 | medium/high |
 
 ## Contents
 
@@ -131,6 +132,9 @@ Every task carries: **Goal** (why it exists) · **Steps** (concrete ordered sub-
   - ⬜ 5.8 App lifecycle, frame pacing, thermals & LOWMEMORY: no GL while backgrounded, CADisplayLink pacing
   - ⬜ 5.9 iOS application bundle target: Info.plist, entitlements (get-task-allow), launch storyboard, resource bundling
   - ⬜ 5.10 On-device signing path, optional LuaJIT-JIT enablement with interpreter fallback, and .ipa packaging for SideStore
+- **Phase 6 — Performance & polish (post-playable)**
+  - ⬜ 6.1 Dynamic render-scale infrastructure: render the 3D scene into an off-screen color target at a configurable fraction of native resolution, then present it to the backbuffer through a full-screen pass. Prerequisite for any upscaler; add a `r__render_scale` cvar. High-DPI iOS panels make native-res rendering very expensive, so this alone is a big perf lever.
+  - ⬜ 6.2 **FSR 1.0 upscaling**: port AMD FidelityFX Super Resolution 1.0 (EASU edge-adaptive upscale + RCAS sharpening) to GLSL ES 3.00 as the present pass over the render-scale target. FSR 1.0 is spatial (no motion vectors / no temporal history), which suits the deferred GL renderer and mobile — much simpler to integrate than FSR2/temporal. Expose render-scale + sharpness cvars; validate through the same `shader-check` gate. Quality/perf win to hit a playable framerate on device.
 
 ---
 
