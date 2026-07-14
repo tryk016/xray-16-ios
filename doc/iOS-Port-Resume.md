@@ -68,11 +68,10 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     device log: pre-fix shader source had none of our edits.
   - **`#version 410` is confirmed unsupported** on the ES 3.0 context (driver error at `0:1`,
     independent of the stale-cache issue) → exactly what 4.3 fixes.
-  - **NEXT STEP (resume here):** build **`29359246431`** (commit `488cc8c47`, the 4.5c fix) was
-    launched and left building at session end — **first check its result**:
-    `gh run view 29359246431 --json conclusion,jobs` (or read the leftover watcher output at
-    `…/tasks/b442vr28v.output` if it's still there). If green, a new SideStore version is published →
-    user does **Update → run → sends `Documents/xray_*.log`**. Read that log: expect
+  - **NEXT STEP (resume here):** build **`29359246431`** (commit `488cc8c47`, the 4.5c fix) went
+    **GREEN** — all jobs incl. the shader-check gate passed, and **SideStore version
+    `1.6.02.10019049` is published** and ready. So resume is simply: user does **SideStore Update
+    (→ 1.6.02.10019049) → run → sends `Documents/xray_*.log`**. Read that log: expect
     `accum_sun_mask_nomsaa.ps` to **compile now** and the engine to march to the **next** ES class
     (one class per round — this is the grind). Watch specifically whether the `unsupported uniform`
     fatal is gone (it should be) and whether the **monolithic program LINKS** — the deferred **A2**
