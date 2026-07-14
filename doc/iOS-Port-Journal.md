@@ -124,9 +124,25 @@ answer is almost always in one of these:
   gl_FragCoord;` redecl → drop on ES), 5× undefined-macro-in-`#if` (FXAA_360/MSAA_SAMPLES/
   SSR_QUALITY → define 0 or `#ifdef`), 1× `#unfdef` typo (`accum_volumetric_sun_normal .ps`,
   note the stray space in the filename too).
-- **Reminder:** the engine still needs Plan 4.3 (emit `#version 300 es` on iOS) before any of
-  this reaches the device; the gate greens the shader tree off-device first. Now that 114
-  shaders compile, a device build (4.3) would let us see the monolithic-link (A2) reality.
+- **Trajectory cont'd:** 114 → **147** (4.4b lmodel/clip float literals) → **148** (4.3a option-
+  macro defaults SUN_QUALITY/SSR_QUALITY/MSAA_SAMPLES=0). Family E is essentially gone (only
+  fxaa.ps's self-contained FXAA_360/FXAA_PS3 + one MSAA_SAMPLES left).
+- **Current wall = family C (int/float), 103 first-errors.** The count is stuck ~148 because
+  ~103 shaders first-fail on `wrong operand types` (int literal / int-typed value in float or
+  vector math). It's DIVERSE (many shaders + shared includes). Cleared shared sources so far:
+  lmodel.h `1 - …`, `shared/common.h` `clip(x) x<0`. Next shared source to pinpoint: a
+  **`float * ivec2`** in the accum family (deep in shadow.h / the deferred path — needs
+  aligning glslang's assembled line to source; do it with `--dump` after the next edit so the
+  line numbers match the current tree). Then a long tail of per-shader literal casts.
+- **State at handoff:** gate at **148/286**, all commits green, HEAD `5ab28aad5`. Remaining:
+  finish family C (shared sources first, then per-shader casts), the small tail (fxaa.ps FXAA_*
+  defaults, `in vec4 gl_FragCoord;` redecl → drop on ES, `#unfdef` typo in
+  `accum_volumetric_sun_normal .ps`), and A2 (varying-name reconciliation — device/link only).
+- **Strategic fork raised with the user:** keep grinding C to green, OR pivot now to the engine
+  change **Plan 4.3** (emit `#version 300 es` on iOS in `rgl_shaders.cpp:227` + define nothing
+  extra since GL_ES is auto-predefined) to get a DEVICE build where the ~148 compiling shaders
+  actually load and we hit the real monolithic-link (A2) behaviour — likely higher-value than
+  the last ~90 casts.
 
 ### 2026-07-14 — Phase 4 tooling: offline GLSL ES 3.00 shader gate in CI
 
