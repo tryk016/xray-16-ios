@@ -1,6 +1,8 @@
 out vec4 SV_Target;
 #ifdef GBUFFER_OPTIMIZATION
+#ifndef GL_ES
 in vec4 gl_FragCoord;
+#endif
 #endif // GBUFFER_OPTIMIZATION
 
 struct	p_TL2uv_msaa

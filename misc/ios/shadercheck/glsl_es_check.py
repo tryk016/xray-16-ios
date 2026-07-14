@@ -44,6 +44,13 @@ INCLUDE_RE = re.compile(r'^\s*#\s*include\s*"([^"]+)"', re.MULTILINE)
 # value that is always substituted, so give it a plausible number.
 BASE_DEFINES = [
     ("SMAP_size", "2048"),
+    # The device's r3/deferred path (what CoP runs) assembles shaders with
+    # GBUFFER_OPTIMIZATION defined. It changes the *fragment interface* — the MRT
+    # f_deffer layout and, critically, the `in vec4 gl_FragCoord;` redeclaration in
+    # the iostructs p_*.h headers. Without defining it here the gate skips that whole
+    # path and silently passes shaders that fail on-device (that redeclaration is
+    # illegal in GLSL ES 3.00). Model it so the gate catches this class offline.
+    ("GBUFFER_OPTIMIZATION", "1"),
 ]
 
 # Only the float/int floor goes in the preamble — matching what the engine's ES

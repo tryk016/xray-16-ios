@@ -1,10 +1,14 @@
 
 out vec4 SV_Target;
 #ifdef GBUFFER_OPTIMIZATION
+#ifndef GL_ES
 in vec4 gl_FragCoord;
 #endif
+#endif
 #ifdef MSAA_OPTIMIZATION
+#ifndef GL_ES
 in int gl_SampleID;
+#endif
 #endif
 
 VARYING(TEXCOORD0) in float4 	p_accum_omni_tc		; // TEXCOORD0;

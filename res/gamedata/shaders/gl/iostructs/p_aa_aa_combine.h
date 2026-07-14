@@ -1,7 +1,9 @@
 
 out vec4 SV_Target;
 #ifdef GBUFFER_OPTIMIZATION
+#ifndef GL_ES
 in vec4 gl_FragCoord;
+#endif
 #endif // GBUFFER_OPTIMIZATION
 
 VARYING(TEXCOORD0) in float2 	p_aa_AA_Tex0	; // TEXCOORD0;

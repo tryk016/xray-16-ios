@@ -1,8 +1,12 @@
 out vec4 SV_Target;
+#ifndef GL_ES
 in vec4 gl_FragCoord;
+#endif
 
 #ifdef MSAA_OPTIMIZATION
+#ifndef GL_ES
 in int gl_SampleID;
+#endif
 #endif
 
 struct	_input

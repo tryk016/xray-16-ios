@@ -9,7 +9,9 @@ out vec4 SV_Target2;
 out int gl_SampleMask[];
 #endif // EXTEND_F_DEFFER
 #ifdef	MSAA_ALPHATEST_DX10_1_ATOC
+#ifndef GL_ES
 in vec4 gl_FragCoord;
+#endif
 #endif // MSAA_ALPHATEST_DX10_1_ATOC
 #endif // #endif 
 

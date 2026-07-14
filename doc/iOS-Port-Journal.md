@@ -63,6 +63,50 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-14 — Phase 4 Slice 4.5c: guard `gl_FragCoord`/`gl_SampleID` redeclaration for ES (first real on-device compile error)
+
+- **The definitive build finally delivered the port to the device.** On-device log
+  (`Documents/xray_*.log`, now at the root) confirms: renderer up on **`OpenGL ES 3.0 Metal` /
+  `GLSL ES 3.00`** (Apple A17 Pro), FS + CoP `.db` mounted (39265 files / 12 archives), 2736
+  textures, and — the point — the **dumped shader source now carries all our fixes**: `#version
+  300 es`, the `#ifdef GL_ES` precision prelude, `VARYING()` macro, default option macros. The
+  seeding-refresh fix worked; the gate→fix→device loop is real now.
+- **First real ES compile error (which the glslang gate had NOT caught):**
+  `ERROR: Regular non-array variable 'gl_FragCoord' may not be redeclared`, on the very first
+  shader compiled (`accum_sun_mask_nomsaa.ps`, deferred path). Root cause: every fragment shader
+  pulls an `iostructs/p_*.h` header that does, under `#ifdef GBUFFER_OPTIMIZATION`,
+  `in vec4 gl_FragCoord;` — a redeclaration of a **built-in**. Desktop GL tolerates it (used there
+  to attach `origin_upper_left`/`pixel_center_integer`-style layout qualifiers); **GLSL ES 3.00
+  forbids redeclaring `gl_FragCoord`** — it's implicitly available. Same class: `in int
+  gl_SampleID;` under `MSAA_OPTIMIZATION` (off on iOS, but same illegal construct).
+- **Why the gate missed it:** `glsl_es_check.py` only defined `SMAP_size`, **not
+  `GBUFFER_OPTIMIZATION`**, so the `#ifdef GBUFFER_OPTIMIZATION … in vec4 gl_FragCoord … #endif`
+  block was preprocessed out → the gate never saw the redeclaration. The device's r3/deferred path
+  (what CoP runs) *does* define it (`#define GBUFFER_OPTIMIZATION 1` in the dumped source).
+- **Fix (shaders):** wrap every standalone built-in redeclaration in `#ifndef GL_ES … #endif` —
+  desktop keeps it verbatim, ES drops it (built-in stays available, and all the *usages*
+  `_main(I, gl_FragCoord)`, `I.pos2d = gl_FragCoord`, `texelFetch(…, gl_SampleID)` are untouched
+  and legal on ES). Python transform (`misc/…/guard_builtin_redecl.py`, scratchpad), CRLF-preserving,
+  idempotent: **32 redeclarations across 24 files** (iostructs `p_*.h` + `depth_downs.ps`,
+  `copy.ps`, `copy_p.ps`). Verified 0 unguarded remain.
+- **Fix (gate):** add `GBUFFER_OPTIMIZATION=1` to `BASE_DEFINES` so the gate assembles the deferred
+  fragment interface the device actually uses, and this class fails offline from now on. (The
+  guarded redeclaration still passes — glslang predefines `GL_ES` for a `300 es` unit, so it drops
+  the line exactly like the device.) glslangValidator isn't on the Windows box, so the new number
+  lands from the CI `shader-check` job, not locally.
+- **The downstream `FATAL … unsupported uniform` (`glR_constants.cpp:20`) is a cascade, not a
+  second bug:** the fragment failed to compile → the monolithic program failed to link
+  (`ES requires exactly one vertex and one fragment shader`) → `R_constant_table::parse` ran on the
+  broken program and hit its `default: fatal("unsupported uniform")`. On a *valid* link every
+  uniform our shaders declare is `float*/mat4/mat4x3/sampler2D/3D/Cube/2DShadow` — all in the
+  handled switch — so this should vanish once the fragment compiles. Watch it on the next log; if it
+  survives a valid link, the real fix is adding the offending GL type (likely a `uint`/`uvec`
+  uniform or `sampler2DArray`) to the `parse` switch.
+- **Next:** rebuild → SideStore Update → run → new `Documents/xray_*.log`. Expect
+  `accum_sun_mask_nomsaa.ps` to compile now and the engine to march to the *next* shader/link error
+  (this is the grind: one class of ES error per round). A2 (varying name matching in monolithic
+  programs) is still the deferred link-time question we haven't reached yet.
+
 ### 2026-07-14 — CRITICAL: shader fixes weren't reaching the device (gamedata not refreshed)
 
 - **Symptom:** first on-device run of an ES-capable build showed a **black screen, no crash**.

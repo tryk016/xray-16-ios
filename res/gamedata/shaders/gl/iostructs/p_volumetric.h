@@ -1,7 +1,9 @@
 
 out vec4 SV_Target;
 #ifdef MSAA_OPTIMIZATION
+#ifndef GL_ES
 in int gl_SampleID;
+#endif
 #endif
 
 struct 	v2p
