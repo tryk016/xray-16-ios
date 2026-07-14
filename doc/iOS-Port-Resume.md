@@ -34,7 +34,7 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
 - **Phase 3 (IN PROGRESS) — boots on a real device.** The app launches (SDL_main routes the
   entry through UIApplicationMain), installs + sideloads as a full iOS bundle, and the engine
   FS runs from writable `$HOME/Documents`.
-- **Phase 4 (IN PROGRESS — the shader port; HEAD `89601d7fe`, 2026-07-14).** The renderer runs:
+- **Phase 4 (IN PROGRESS — the shader port; HEAD `488cc8c47`, 2026-07-14).** The renderer runs:
   on device the log reports **`OpenGL ES 3.0 Metal` / `GLSL ES 3.00`** (Apple's own GL-on-Metal —
   native ES 3.0 is Metal-backed, no ANGLE needed to *run*). The engine boots all the way through
   FS (CoP `.db` mounted), sound, textures (2736 .thm), to shader compilation. Slices landed:
@@ -48,6 +48,19 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     in `gl/common.h`; **4.5a** `gl_PerVertex` wrapped `#ifndef GL_ES`; **4.5b (A1)** `VARYING(loc)`
     macro strips `layout(location=)` off vs→fs varyings; **4.3a** default option macros (SUN/SSR/
     MSAA_QUALITY=0). **4.3** engine emits `#version 300 es` on iOS (`rgl_shaders.cpp`).
+  - **4.5c (2026-07-14, HEAD `488cc8c47`) — the FIRST real on-device ES compile error.** The
+    definitive build finally delivered the port to the device; the dumped shader source carries all
+    our fixes, and the first shader compiled (`accum_sun_mask_nomsaa.ps`, deferred path) failed with
+    **`gl_FragCoord may not be redeclared`**. Every fragment shader's `iostructs/p_*.h` does, under
+    `GBUFFER_OPTIMIZATION`, `in vec4 gl_FragCoord;` (also `in int gl_SampleID;` under MSAA) — a
+    redeclaration of a **built-in** that desktop tolerates but GLSL ES 3.00 forbids. FIX: wrap every
+    such redeclaration in `#ifndef GL_ES` (desktop verbatim, ES drops it; all *usages* untouched) —
+    **32 across 24 files** (iostructs p_*.h + depth_downs/copy/copy_p.ps). The **gate had missed it**
+    because it only defined `SMAP_size`, not `GBUFFER_OPTIMIZATION`, so the `#ifdef` block was cut →
+    added `GBUFFER_OPTIMIZATION=1` to the gate's `BASE_DEFINES` (shader-check job stays green). The
+    downstream `FATAL unsupported uniform` (`glR_constants.cpp:20`) is a **cascade** of the failed
+    link (parse ran on a broken program), NOT a 2nd bug — should vanish once the fragment compiles
+    (every uniform our shaders declare is a handled type: `float*/mat4/mat4x3/sampler*`).
   - **CRITICAL infra fix (`LocatorAPI.cpp`):** the iOS seed copied bundled `gamedata` into
     Documents only on FIRST launch, so every shader fix shipped in the `.app` but never reached
     the device (it reads shaders from `Documents/gamedata`). Now **refreshes fsgame.ltx + gamedata
@@ -55,15 +68,19 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     device log: pre-fix shader source had none of our edits.
   - **`#version 410` is confirmed unsupported** on the ES 3.0 context (driver error at `0:1`,
     independent of the stale-cache issue) → exactly what 4.3 fixes.
-  - **NEXT STEP:** the definitive build (`89601d7fe`: 4.3 + seeding-refresh + Documents-root log)
-    is the FIRST to actually deliver the port to the device. When green, user does SideStore
-    Update → run → sends `Documents/xray_*.log`. Read it: how many of the ~148 compile on Apple's
-    ES compiler (glslang is only a proxy), and whether the **monolithic program LINKS** — the
-    deferred **A2** problem (paired vs `v2p_*` out vs fs `p_*` in have DIFFERENT names; ES matches
-    varyings by name, not location). Then: finish **family C** (~90 int/float casts — the gate
-    wall) and, if A2 linking is painful, adopt **ANGLE/ES-3.1-SSO** (avoids the varying rename;
-    it's the A2 fallback — does NOT help family C). **Decisions + FSR 1.0 (Plan Phase 6) in the
-    journal.** Build speed: full engine build ≈30 min (no caching yet — TODO incremental cache).
+  - **NEXT STEP (resume here):** build **`29359246431`** (commit `488cc8c47`, the 4.5c fix) was
+    launched and left building at session end — **first check its result**:
+    `gh run view 29359246431 --json conclusion,jobs` (or read the leftover watcher output at
+    `…/tasks/b442vr28v.output` if it's still there). If green, a new SideStore version is published →
+    user does **Update → run → sends `Documents/xray_*.log`**. Read that log: expect
+    `accum_sun_mask_nomsaa.ps` to **compile now** and the engine to march to the **next** ES class
+    (one class per round — this is the grind). Watch specifically whether the `unsupported uniform`
+    fatal is gone (it should be) and whether the **monolithic program LINKS** — the deferred **A2**
+    problem (paired vs `v2p_*` out vs fs `p_*` in have DIFFERENT names; ES matches varyings by name,
+    not location) is the next unknown. Then: finish **family C** (~90 int/float casts — the gate
+    wall) and, if A2 linking is painful, adopt **ANGLE/ES-3.1-SSO** (avoids the varying rename; it's
+    the A2 fallback — does NOT help family C). **Decisions + FSR 1.0 (Plan Phase 6) in the journal.**
+    Build speed: full engine build ≈30 min (no caching yet — TODO incremental cache).
 
 ## On-device testing (the loop)
 
