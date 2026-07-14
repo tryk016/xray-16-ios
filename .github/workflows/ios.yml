@@ -421,7 +421,7 @@ jobs:
           glslangValidator --version
 
       - name: Validate GL shaders as GLSL ES 3.00
-        run: python3 misc/ios/shadercheck/glsl_es_check.py
+        run: python3 misc/ios/shadercheck/glsl_es_check.py --dump 3
 
   # Phase 2: LuaJIT is built inside the engine's CMake (not the deps superbuild). This job
   # verifies the iOS cross-compile in isolation: native host codegen tools (minilua/buildvm)

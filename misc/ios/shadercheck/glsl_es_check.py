@@ -157,6 +157,8 @@ def main() -> int:
     ap.add_argument("--glslang", default="glslangValidator")
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--strict", action="store_true")
+    ap.add_argument("--dump", type=int, default=0,
+                    help="print full glslang output for the first N failing shaders")
     args = ap.parse_args()
 
     root = args.shaders
@@ -175,6 +177,7 @@ def main() -> int:
     shaders.sort()
 
     passed, failed = 0, []
+    full_reports: list[tuple[str, str]] = []
     for path, stage in shaders:
         try:
             src = assemble(path, stage, roots)
@@ -188,8 +191,15 @@ def main() -> int:
                 print(f"  OK   {rel}")
         else:
             failed.append((rel, first_error(report)))
+            full_reports.append((rel, report))
             if args.verbose:
                 print(f"  FAIL {rel}\n       {first_error(report)}")
+
+    # Show the full glslang output for the first few failures so the exact token +
+    # line of the dominant error is visible (drives the common.h / iostructs fixes).
+    for rel, report in full_reports[: args.dump]:
+        print(f"\n===== full glslang output: {rel} =====")
+        print(report)
 
     total = len(shaders)
     print("")
