@@ -125,11 +125,30 @@ def validate(glslang: str, stage: str, source: str) -> tuple[bool, str]:
 
 
 def first_error(report: str) -> str:
+    """Extract the first real glslang diagnostic. glslangValidator prints the input
+    filename first, then `ERROR: <file>:<line>: <message>` lines and an
+    `ERROR: N compilation errors` summary — we want the first <message>."""
     for line in report.splitlines():
         s = line.strip()
-        if s and not s.lower().startswith(("warning", "info")) and "warning:" not in s.lower():
+        if not s.startswith("ERROR:"):
+            continue
+        msg = s[len("ERROR:"):].strip()
+        if "compilation error" in msg.lower():  # the summary line, not a diagnostic
+            continue
+        msg = re.sub(r"^\S+:\d+:\s*", "", msg)  # strip "file:line: "
+        return msg
+    for line in report.splitlines():  # fallback: first non-filename, non-warning line
+        s = line.strip()
+        if s and not s.startswith("/tmp/") and not s.lower().startswith(("warning", "info")):
             return s
-    return report.splitlines()[0] if report.splitlines() else "(no diagnostic)"
+    return "(no diagnostic)"
+
+
+def normalize_error(msg: str) -> str:
+    """Collapse a diagnostic to a family key so errors aggregate across shaders."""
+    key = re.sub(r"'[^']*'", "'X'", msg)
+    key = re.sub(r"\b\d+\b", "N", key)
+    return key.strip()
 
 
 def main() -> int:
@@ -175,7 +194,13 @@ def main() -> int:
     total = len(shaders)
     print("")
     print(f"GLSL ES 3.00 shader check: {passed}/{total} compile, {len(failed)} fail")
+
     if failed:
+        from collections import Counter
+        families = Counter(normalize_error(err) for _rel, err in failed)
+        print("\nDominant first-error families (count x message):")
+        for msg, n in families.most_common(20):
+            print(f"  {n:4d}  {msg}")
         print("\nFirst error per failing shader:")
         for rel, err in failed:
             print(f"  {rel}: {err}")
