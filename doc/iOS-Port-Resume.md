@@ -57,10 +57,15 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
   `minOSVersion`). Add the source once → Update in SideStore for each new build.
 - **Seeing errors:** the engine shows FATAL errors as **on-screen dialogs** (read + report —
   this is the main loop, no USB needed). For **hard crashes** (app vanishes, no dialog) pull
-  the crash report: `idevicecrashreport -e -k C:\openxray\ios-crashes` (libimobiledevice is
-  installed at `C:\openxray\tools\`, gitignored; use `powershell` not `pwsh`). NOTE: the old
-  `idevicesyslog` does NOT capture app `os_log` on iOS 15+ (only legacy syslog = daemon noise) —
+  the crash report with the wrapper `powershell C:\openxray\tools\get-xray-crash.ps1` — it
+  runs idevicecrashreport, keeps ONLY `xr_3da-*.ips` in `C:\openxray\ios-crashes`, and drops
+  all the device noise (SiriSearchFeedback/Jetsam/other apps), printing the newest report's
+  name. (`idevicecrashreport` itself has no name filter; raw form is
+  `idevicecrashreport -e -k C:\openxray\ios-crashes`. libimobiledevice + these scripts live
+  in `C:\openxray\tools\`, gitignored; use `powershell` not `pwsh`.) Then say "czytaj crash".
+  NOTE: `idevicesyslog` does NOT capture app `os_log` on iOS 15+ (only legacy daemon noise) —
   don't rely on it; `pip install pymobiledevice3` is the future upgrade for unified-log capture.
+  NOTE: `JetsamEvent-*.ips` next to a crash is unrelated OS memory-pressure noise, not our kill.
 - **CoP gamedata (user owns it; packed `.db` archives).** From the retail CoP install
   (`C:\Program Files (x86)\bitComposer Games\S.T.A.L.K.E.R. - Call of Pripyat`) the user copied
   into the app's Documents via iTunes/Apple Devices **File Sharing** (`On My iPhone → OpenXRay`):
