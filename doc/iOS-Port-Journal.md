@@ -63,6 +63,49 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-14 — Phase 4 shader port: gate baseline + first fixes + the real roadmap
+
+- **Gate is live and driving fixes.** After two gate bugs were fixed (see below) the
+  honest baseline is **14/286** GL shaders compiling as GLSL ES 3.00. The first source fix
+  (precision prelude, Slice 4.4a) took it to **25/286**. The brama→fix→measure loop runs in
+  ~2 min on CI — no device round-trip.
+- **Two gate bugs fixed first (they masked the real errors):**
+  1. `first_error()` reported glslang's echoed temp filename, not the diagnostic → fixed +
+     added a normalized error histogram (`--dump N` prints full glslang output).
+  2. **Backslash includes:** `gl/common.h` does `#include "shared\common.h"`. On the Linux
+     runner `os.path.join` left `shared\common.h` as one literal name → the type shims
+     (`float4x4`→`mat4`…) never inlined → every `uniform float4x4 …` looked like two
+     identifiers (280 bogus "unexpected IDENTIFIER"). Fixed by normalising `\`→`/` in the
+     resolver. (Resolved locally on Windows, which hid it.) After the fix the histogram is real.
+- **Slice 4.4a (done, 14→25):** ES has no implicit default precision, so ~84 shaders (mostly
+  *vertex*, whose samplers had no precision) failed `type requires declaration of default
+  precision qualifier`. Fixed in the source: a `#ifdef GL_ES` precision prelude at the top of
+  `gl/common.h` (float/int + sampler2D/3D/Cube/2DShadow). **`GL_ES` is auto-predefined by
+  glslang and the on-device ES driver for a `#version … es` unit** — so shader-side ES fixes
+  need no engine define and are desktop-safe (compiled out). The gate's Python preamble now
+  only adds the float/int floor (not samplers) so it faithfully requires the source to declare
+  sampler precision.
+- **The real remaining roadmap (261 fail), by family:**
+  - **A — 103× `layout(location=…) in` "not supported in this stage: fragment"** (+ located
+    `out` on 37 vertex iostructs). ES 3.00 disallows explicit locations on fs inputs / vs
+    outputs. **Crux (Plan 4.5):** desktop matches vs↔fs varyings by *location* (they're a
+    separable-program pair with DIFFERENT names — vs `v2p_*` out vs fs `p_*` in). ES 3.00
+    monolithic programs match by **name**, so we can't just strip locations — the varying
+    names must be reconciled across each vs/fs pair. This is the "very-high effort" core.
+  - **C — 87× `wrong operand types` (int ⊗ float)**. ES 3.00 has no implicit int→float in
+    `- * <` etc.; desktop does. Needs explicit `float()` casts in shims/shaders (e.g. an int
+    `SMAP_size` minus a float). Spread across many shaders.
+  - **D — 55× `vertex output block not supported`** = `out gl_PerVertex { vec4 gl_Position; };`
+    in the `.vs`/`v_*.h`. Wrap in `#ifndef GL_ES` (ES declares `gl_Position` implicitly).
+    Bulk, mechanical (~120 files carry the identical line).
+  - Tail: 4× `gl_` reserved (redeclared `gl_FragCoord`), 5× undefined-macro-in-`#if`
+    (FXAA_360/MSAA_SAMPLES/SSR_QUALITY — define to 0 or `#ifdef`), 1× `#unfdef` typo (real
+    shader bug in `accum_volumetric_sun_normal .ps` — note the stray space in the name too).
+- **Next:** grind families D (clean/bulk) → E/F (trivial) → then the hard A (varying rename)
+  and C (casts), each gate-verified. Engine still needs Plan 4.3 (emit `#version 300 es` on
+  iOS) before any of this reaches the device — but the gate lets us fix the whole shader tree
+  green first, off-device.
+
 ### 2026-07-14 — Phase 4 tooling: offline GLSL ES 3.00 shader gate in CI
 
 - **Why:** the shader/program port (Plan 4.3–4.5) means grinding ~286 GL shaders from
