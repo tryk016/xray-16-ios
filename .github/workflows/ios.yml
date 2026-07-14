@@ -399,6 +399,30 @@ jobs:
           gh release upload ios-dev --repo "$REPO" OpenXRay.ipa apps.json --clobber
           echo "::notice::SideStore source URL — $BASE/apps.json"
 
+  # Phase 4: offline GLSL ES 3.00 validation gate for the GL shader tree. The iOS
+  # renderer runs OpenGL ES 3.0, but the ~286 shaders under res/gamedata/shaders/gl
+  # are desktop GLSL 4.10 today. This job assembles each shader the way the engine
+  # does (version line + defines + recursive #include inlining) but as `#version
+  # 300 es`, and runs glslangValidator so ES incompatibilities surface here in
+  # seconds instead of one SideStore round-trip per shader. Informational for now
+  # (non-strict → always green); flip glsl_es_check.py to --strict to block once the
+  # tree compiles. Runs on Linux, no device or deps needed.
+  shader-check:
+    name: GLSL ES 3.00 shader check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install glslang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y glslang-tools
+          glslangValidator --version
+
+      - name: Validate GL shaders as GLSL ES 3.00
+        run: python3 misc/ios/shadercheck/glsl_es_check.py
+
   # Phase 2: LuaJIT is built inside the engine's CMake (not the deps superbuild). This job
   # verifies the iOS cross-compile in isolation: native host codegen tools (minilua/buildvm)
   # generate the VM, and the target xrLuaJIT static lib is built for the iphoneos SDK.

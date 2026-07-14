@@ -109,7 +109,7 @@ Every task carries: **Goal** (why it exists) · **Steps** (concrete ordered sub-
 - **Phase 4 — GLES 3.0 / ANGLE-on-Metal renderer + shaders + textures**
   - ✅ 4.1 Wire xrRender_GL into the iOS build — target links from Phase 2 (USE_OGL); GLES loader (gladLoadGLES2, merged glad) wired in glHW.cpp; native EAGL for now, ANGLE deferred
   - 🟡 4.2 Create a GLES 3.0 context: SetPrimaryAttributes ES profile + gladLoadGLES2 done (fixes the launch SIGKILL in xrRender_test_hw); ANGLE/EAGL selection + fallback still to add
-  - ⬜ 4.3 Central shader front-end: emit '#version 300 es' + precision, force the monolithic non-separable path
+  - 🟡 4.3 Central shader front-end: emit '#version 300 es' + precision, force the monolithic non-separable path — tooling done first: offline GLSL-ES gate `misc/ios/shadercheck/glsl_es_check.py` + CI job `shader-check` (assembles each shader as ES 3.00 and runs glslangValidator; informational until the tree compiles). Front-end emission change still to do.
   - ⬜ 4.4 Rewrite the shared shims common.h and common_samplers.h for GLSL ES 3.00
   - ⬜ 4.5 Regenerate the 81 iostructs/ headers: name-matched varyings, drop gl_PerVertex, layout(location) fragment outputs
   - 🟡 4.6 Replace glBindFragDataLocation and reconcile the compile/link traits for GLES monolithic programs — glBindFragDataLocation guarded out on ES (Slice 4.6a, fixes the _LinkPP SIGKILL); layout(location) outputs in shaders + link-trait reconcile still to do

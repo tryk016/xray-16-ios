@@ -63,6 +63,32 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-14 — Phase 4 tooling: offline GLSL ES 3.00 shader gate in CI
+
+- **Why:** the shader/program port (Plan 4.3–4.5) means grinding ~286 GL shaders from
+  desktop GLSL 4.10 to ES 3.00. Each error only shows at runtime on-device today = one
+  SideStore round-trip per shader. Unworkable. Decision (user): go native GLES 3.0 **and
+  build a CI shader-compile gate first** so errors surface in seconds on Linux.
+- **Feasible because the shaders are in the repo:** `res/gamedata/shaders/gl/` — 199 `.ps`,
+  87 `.vs`, plus `shared/` (5 shims incl. `common.h`) and `iostructs/` (81 interface headers).
+  No `.gs` (ES 3.0 has no geometry shaders); `.s` are blender scripts, not GLSL.
+- **How the engine assembles a shader** (mirrored by the gate): version line +
+  `#define`s + **recursive `#include` inlining** ([rgl_shaders.cpp:141](../src/Layers/xrRenderPC_GL/rgl_shaders.cpp)
+  `load_includes`, resolved against `getShaderPath()`=`"gl\\"`). `common.h` is an HLSL→GLSL
+  shim (`float4`→`vec4`, `mul()` overloads, `tex2D`→`texture`, `POSITION`=3, …).
+- **The gate** (`misc/ios/shadercheck/glsl_es_check.py` + CI job `shader-check`): walks every
+  `.vs`/`.ps`, inlines includes (searching `gl/`,`gl/shared/`,`gl/iostructs/`), prepends
+  `#version 300 es` + ES default precision + a representative `#define` set, and runs
+  `glslangValidator`. Reports `passed/total` + the first error per failing shader. Runs on
+  `ubuntu-latest` (`apt install glslang-tools`), **non-strict = always green** for now
+  (informational); flip `--strict` to make it a hard gate once the tree compiles.
+- **Deliberately approximate:** the engine's real define set is cap/settings-driven, so the
+  gate compiles each shader's *default* (`#ifdef`-off) path with a fixed define set. It
+  catches structural ES breakage (version, `gl_PerVertex` redecl, missing precision, shim
+  validity, sampler/layout issues) — not runtime correctness. First CI run gives the
+  **baseline failure count** that quantifies Plan 4.3–4.5. Then: port `common.h` (4.4) and
+  the shader front-end to `#version 300 es` (4.3) and watch the number fall.
+
 ### 2026-07-14 — Phase 4 Slice 4.6a: guard glBindFragDataLocation on GLES (+ result of 4.1)
 
 - **On-device result of Slice 4.1 + the version fix (build `1.6.02.10018035`):** both
