@@ -7,7 +7,7 @@ in vec4 gl_FragCoord;
 in int gl_SampleID;
 #endif
 
-layout(location = TEXCOORD0)	in float4 	p_accum_omni_tc		; // TEXCOORD0;
+VARYING(TEXCOORD0) in float4 	p_accum_omni_tc		; // TEXCOORD0;
 
 #ifdef MSAA_OPTIMIZATION
 #ifdef GBUFFER_OPTIMIZATION

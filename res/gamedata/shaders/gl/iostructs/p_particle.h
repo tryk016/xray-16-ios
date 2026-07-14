@@ -18,10 +18,10 @@ struct v2p
 #endif // USE_SOFT_PARTICLES
 };
 
-layout(location = TEXCOORD0) 	in float2	p_particle_tc	; // TEXCOORD0;
-layout(location = COLOR0) 		in float4	p_particle_c	; // COLOR0;
+VARYING(TEXCOORD0) in float2	p_particle_tc	; // TEXCOORD0;
+VARYING(COLOR0) in float4	p_particle_c	; // COLOR0;
 #ifdef	USE_SOFT_PARTICLES
-layout(location = TEXCOORD1) 	in float4	p_particle_tctexgen; // TEXCOORD1;
+VARYING(TEXCOORD1) in float4	p_particle_tctexgen; // TEXCOORD1;
 #endif	//	USE_SOFT_PARTICLES
 
 float4 _main ( v2p I );

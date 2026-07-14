@@ -9,10 +9,10 @@ struct v2p
 	float   fog	; // FOG;
 };
 
-layout(location = TEXCOORD0) 		in float2	v2p_model_tc0		; // TEXCOORD0;
-layout(location = TEXCOORD1) 		in float3	v2p_model_tc1		; // TEXCOORD1;
-layout(location = COLOR0) 		in float3	v2p_model_c0		; // COLOR0;		
-layout(location = FOG) 			in float	v2p_model_fog		; // FOG;
+VARYING(TEXCOORD0) in float2	v2p_model_tc0		; // TEXCOORD0;
+VARYING(TEXCOORD1) in float3	v2p_model_tc1		; // TEXCOORD1;
+VARYING(COLOR0) in float3	v2p_model_c0		; // COLOR0;		
+VARYING(FOG) in float	v2p_model_fog		; // FOG;
 
 float4 _main ( v2p I );
 

@@ -35,10 +35,10 @@ layout(location = TEXCOORD3)		in float4	v_lod_rgbh1		; // TEXCOORD3;		// rgb.h
 layout(location = COLOR0)		in float4	v_lod_sun_af		; // COLOR0;		// x=sun_0, y=sun_1, z=alpha, w=factor
 
 
-layout(location = TEXCOORD0) 		out float3	v2p_lod_Pe		; // TEXCOORD0;		// base
-layout(location = TEXCOORD1) 		out float2	v2p_lod_tc0		; // TEXCOORD1;		// lmap
-layout(location = TEXCOORD2) 		out float2	v2p_lod_tc1		; // TEXCOORD2;		// hemi
-layout(location = COLOR1) 		out float4	v2p_lod_af		; // COLOR1;
+VARYING(TEXCOORD0) out float3	v2p_lod_Pe		; // TEXCOORD0;		// base
+VARYING(TEXCOORD1) out float2	v2p_lod_tc0		; // TEXCOORD1;		// lmap
+VARYING(TEXCOORD2) out float2	v2p_lod_tc1		; // TEXCOORD2;		// hemi
+VARYING(COLOR1) out float4	v2p_lod_af		; // COLOR1;
 
 v2p _main ( v_lod I );
 

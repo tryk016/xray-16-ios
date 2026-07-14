@@ -20,8 +20,8 @@ layout(location = TEXCOORD1)		in float2	v_static_lmh		; // TEXCOORD1;		// (lmu,l
 #endif
 
 
-layout(location = TEXCOORD0) 		out float2	v2p_lplanes_tc0		; // TEXCOORD0;		// base
-layout(location = COLOR0) 		out float4	v2p_lplanes_c0		; // COLOR0;		// color
+VARYING(TEXCOORD0) out float2	v2p_lplanes_tc0		; // TEXCOORD0;		// base
+VARYING(COLOR0) out float4	v2p_lplanes_c0		; // COLOR0;		// color
 
 v2p _main ( v_static v );
 

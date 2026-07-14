@@ -17,11 +17,11 @@ struct	_input
 };
 
 #ifdef USE_VTF
-layout(location = TEXCOORD0)	in float4	p_combine_tc0	; // TEXCOORD0;	// tc.xy, tc.w = tonemap scale
+VARYING(TEXCOORD0) in float4	p_combine_tc0	; // TEXCOORD0;	// tc.xy, tc.w = tonemap scale
 #else // USE_VTF
-layout(location = TEXCOORD0)	in float2	p_combine_tc0	; // TEXCOORD0;	// tc.xy
+VARYING(TEXCOORD0) in float2	p_combine_tc0	; // TEXCOORD0;	// tc.xy
 #endif // USE_VTF
-layout(location = TEXCOORD1)	in float2	p_combine_tcJ	; // TEXCOORD1;	// jitter coords
+VARYING(TEXCOORD1) in float2	p_combine_tcJ	; // TEXCOORD1;	// jitter coords
 
 #ifndef MSAA_OPTIMIZATION
 float4 _main ( _input I );

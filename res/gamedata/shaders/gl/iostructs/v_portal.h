@@ -18,8 +18,8 @@ struct 	v2p
 layout(location = POSITION)		in float4	v_portal_pos	; // POSITION;	// (float,float,float,1)
 layout(location = COLOR0)		in float4	v_portal_color	; // COLOR0;	// (r,g,b,dir-occlusion)
 
-layout(location = COLOR0) 		out float4	v2p_portal_c	; // COLOR0;
-layout(location = FOG) 			out float	v2p_portal_fog	; // FOG;
+VARYING(COLOR0) out float4	v2p_portal_c	; // COLOR0;
+VARYING(FOG) out float	v2p_portal_fog	; // FOG;
 
 v2p _main ( v_vert I );
 

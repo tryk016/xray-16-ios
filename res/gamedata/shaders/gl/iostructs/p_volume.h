@@ -7,9 +7,9 @@ in vec4 gl_FragCoord;
 in int gl_SampleID;
 #endif
 
-layout(location = TEXCOORD0)	in 	float4 	p_volume_tc		; // TEXCOORD0;
+VARYING(TEXCOORD0) in 	float4 	p_volume_tc		; // TEXCOORD0;
 #ifdef 	USE_SJITTER
-layout(location = TEXCOORD1)	in 	float4 	p_volume_tcJ	; // TEXCOORD1;
+VARYING(TEXCOORD1) in 	float4 	p_volume_tcJ	; // TEXCOORD1;
 #endif
 
 #ifdef MSAA_OPTIMIZATION

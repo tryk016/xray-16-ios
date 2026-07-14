@@ -8,9 +8,9 @@ layout(location = TEXCOORD0)	in float2	v_TL2uv_Tex0	; // TEXCOORD0;
 layout(location = TEXCOORD1)	in float2	v_TL2uv_Tex1	; // TEXCOORD1;
 layout(location = COLOR)		in float4	v_TL2uv_Color	; // COLOR; 
 
-layout(location = TEXCOORD0) 	out float2 	v2p_TL2uv_Tex0	; // TEXCOORD0;
-layout(location = TEXCOORD1) 	out float2	v2p_TL2uv_Tex1	; // TEXCOORD1;
-layout(location = COLOR)	 	out float4	v2p_TL2uv_Color	; // COLOR;
+VARYING(TEXCOORD0) out float2 	v2p_TL2uv_Tex0	; // TEXCOORD0;
+VARYING(TEXCOORD1) out float2	v2p_TL2uv_Tex1	; // TEXCOORD1;
+VARYING(COLOR) out float4	v2p_TL2uv_Color	; // COLOR;
 
 v2p_TL2uv _main ( v_TL2uv I );
 

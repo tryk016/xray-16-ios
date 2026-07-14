@@ -15,13 +15,13 @@ struct c2_out
 #endif
 };
 
-layout(location = TEXCOORD0)	in float2 	p_aa_AA_Tex0	; // TEXCOORD0;
-layout(location = TEXCOORD1)	in float2	p_aa_AA_Tex1	; // TEXCOORD1;
-layout(location = TEXCOORD2)	in float2 	p_aa_AA_Tex2	; // TEXCOORD2;
-layout(location = TEXCOORD3)	in float2	p_aa_AA_Tex3	; // TEXCOORD3;
-layout(location = TEXCOORD4)	in float2 	p_aa_AA_Tex4	; // TEXCOORD4;
-layout(location = TEXCOORD5)	in float4	p_aa_AA_Tex5	; // TEXCOORD5;
-layout(location = TEXCOORD6)	in float4 	p_aa_AA_Tex6	; // TEXCOORD6;
+VARYING(TEXCOORD0) in float2 	p_aa_AA_Tex0	; // TEXCOORD0;
+VARYING(TEXCOORD1) in float2	p_aa_AA_Tex1	; // TEXCOORD1;
+VARYING(TEXCOORD2) in float2 	p_aa_AA_Tex2	; // TEXCOORD2;
+VARYING(TEXCOORD3) in float2	p_aa_AA_Tex3	; // TEXCOORD3;
+VARYING(TEXCOORD4) in float2 	p_aa_AA_Tex4	; // TEXCOORD4;
+VARYING(TEXCOORD5) in float4	p_aa_AA_Tex5	; // TEXCOORD5;
+VARYING(TEXCOORD6) in float4 	p_aa_AA_Tex6	; // TEXCOORD6;
 
 c2_out _main ( v2p_aa_AA I );
 

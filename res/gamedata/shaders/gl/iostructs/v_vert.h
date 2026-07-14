@@ -22,9 +22,9 @@ layout(location = TEXCOORD1)		in float2	v_static_color_lmh	; // TEXCOORD1;		// (
 layout(location = COLOR0)		in float4	v_static_color_c	; // COLOR0;		// (r,g,b,dir-occlusion)
 
 
-layout(location = TEXCOORD0) 		out float2	v2p_vert_tc		; // TEXCOORD0;
-layout(location = COLOR0) 		out float3	v2p_vert_c		; // COLOR0;		// c0=all lighting
-layout(location = FOG) 			out float	v2p_vert_fog		; // FOG;
+VARYING(TEXCOORD0) out float2	v2p_vert_tc		; // TEXCOORD0;
+VARYING(COLOR0) out float3	v2p_vert_c		; // COLOR0;		// c0=all lighting
+VARYING(FOG) out float	v2p_vert_fog		; // FOG;
 
 v2p _main ( v_static_color I );
 

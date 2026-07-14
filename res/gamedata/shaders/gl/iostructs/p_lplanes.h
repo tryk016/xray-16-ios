@@ -7,8 +7,8 @@ struct v2p
   	float4	c0	; // COLOR0;		// sun
 };
 
-layout(location = TEXCOORD0) 		in float2	v2p_lplanes_tc0		; // TEXCOORD0;		// base
-layout(location = COLOR0) 		in float4	v2p_lplanes_c0		; // COLOR0;		// sun
+VARYING(TEXCOORD0) in float2	v2p_lplanes_tc0		; // TEXCOORD0;		// base
+VARYING(COLOR0) in float4	v2p_lplanes_c0		; // COLOR0;		// sun
 
 float4 _main ( v2p I );
 

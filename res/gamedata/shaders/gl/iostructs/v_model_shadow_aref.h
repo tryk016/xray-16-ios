@@ -25,7 +25,7 @@ layout(location = TEXCOORD0)	in float2	v_model_tc		; // TEXCOORD0;	// (u,v)
 layout(location = TEXCOORD1)	in float4	v_model_ind		; // (x=m-index0, y=m-index1, z=m-index2, w=m-index3)
 #endif
 
-layout(location = TEXCOORD1)	out float2	v2p_shadow_tc0	; // TEXCOORD1;	// Diffuse map for aref
+VARYING(TEXCOORD1) out float2	v2p_shadow_tc0	; // TEXCOORD1;	// Diffuse map for aref
 
 v2p_shadow_direct_aref _main( v_model	I );
 

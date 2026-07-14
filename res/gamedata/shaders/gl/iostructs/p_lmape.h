@@ -12,13 +12,13 @@ struct v2p
 	float   fog	; 	// FOG;
 };
 
-layout(location = TEXCOORD0) 		in float2	v2p_lmape_tc0		; // TEXCOORD0;		// base
-layout(location = TEXCOORD1) 		in float2	v2p_lmape_tc1		; // TEXCOORD1;		// lmap
-layout(location = TEXCOORD2) 		in float2	v2p_lmape_tc2		; // TEXCOORD2;		// hemi
-layout(location = TEXCOORD3) 		in float3	v2p_lmape_tc3		; // TEXCOORD3;		// env
-layout(location = COLOR0) 		in float3	v2p_lmape_c0		; // COLOR0;
-layout(location = COLOR1) 		in float3	v2p_lmape_c1		; // COLOR1;
-layout(location = FOG) 			in float	v2p_lmape_fog		; // FOG;
+VARYING(TEXCOORD0) in float2	v2p_lmape_tc0		; // TEXCOORD0;		// base
+VARYING(TEXCOORD1) in float2	v2p_lmape_tc1		; // TEXCOORD1;		// lmap
+VARYING(TEXCOORD2) in float2	v2p_lmape_tc2		; // TEXCOORD2;		// hemi
+VARYING(TEXCOORD3) in float3	v2p_lmape_tc3		; // TEXCOORD3;		// env
+VARYING(COLOR0) in float3	v2p_lmape_c0		; // COLOR0;
+VARYING(COLOR1) in float3	v2p_lmape_c1		; // COLOR1;
+VARYING(FOG) in float	v2p_lmape_fog		; // FOG;
 
 float4 _main ( v2p I );
 

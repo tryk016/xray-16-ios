@@ -7,9 +7,9 @@ in int gl_SampleID;
 in vec4 gl_FragCoord;
 #endif
 
-layout(location = TEXCOORD0)	in float2	p_rain_tc	; // TEXCOORD0;
-layout(location = TEXCOORD1)	in float2	p_rain_tcJ	; // TEXCOORD1; 
-layout(location = COLOR)		in float4	p_rain_Color; // COLOR; 
+VARYING(TEXCOORD0) in float2	p_rain_tc	; // TEXCOORD0;
+VARYING(TEXCOORD1) in float2	p_rain_tcJ	; // TEXCOORD1; 
+VARYING(COLOR) in float4	p_rain_Color; // COLOR; 
 
 #ifdef GBUFFER_OPTIMIZATION
 #ifdef MSAA_OPTIMIZATION

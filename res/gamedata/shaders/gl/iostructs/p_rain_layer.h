@@ -4,8 +4,8 @@ out vec4 SV_Target;
 in vec4 gl_FragCoord;
 #endif
 
-layout(location = TEXCOORD0)	in float2	p_rain_tc	; // TEXCOORD0;
-layout(location = TEXCOORD1)	in float2	p_rain_tcJ	; // TEXCOORD1; 
+VARYING(TEXCOORD0) in float2	p_rain_tc	; // TEXCOORD0;
+VARYING(TEXCOORD1) in float2	p_rain_tcJ	; // TEXCOORD1; 
 
 #ifdef GBUFFER_OPTIMIZATION
 float4 _main ( float2 tc, float2 tcJ, float4 pos2d );

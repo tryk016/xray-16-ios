@@ -18,9 +18,9 @@ struct	_out
 };
 
 #ifdef USE_VTF
-layout(location = TEXCOORD0)	in float4	p_volumetric_tc0;	// TEXCOORD0;	// tc.xy, tc.w = tonemap scale
+VARYING(TEXCOORD0) in float4	p_volumetric_tc0;	// TEXCOORD0;	// tc.xy, tc.w = tonemap scale
 #else // USE_VTF
-layout(location = TEXCOORD0)	in float2	p_volumetric_tc0;	// TEXCOORD0;	// tc.xy
+VARYING(TEXCOORD0) in float2	p_volumetric_tc0;	// TEXCOORD0;	// tc.xy
 #endif // USE_VTF
 
 _out _main( _input I );

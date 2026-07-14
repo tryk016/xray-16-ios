@@ -18,7 +18,7 @@ layout(location = TEXCOORD1)	in float2	v_static_lmh	; // TEXCOORD1;	// (lmu,lmv)
 #endif
 layout(location = POSITION)		in float4	v_static_P		; // POSITION;	// (float,float,float,1)
 
-layout(location = TEXCOORD1)	out float2	v2p_shadow_tc0	; // TEXCOORD1;	// Diffuse map for aref
+VARYING(TEXCOORD1) out float2	v2p_shadow_tc0	; // TEXCOORD1;	// Diffuse map for aref
 
 v2p_shadow_direct_aref _main ( v_static I );
 

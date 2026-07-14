@@ -22,9 +22,9 @@ layout(location = POSITION)		in float4	v_clouds_p		; // POSITION;
 layout(location = COLOR0)		in float4	v_clouds_dir	; // COLOR0;	// dir0,dir1(w<->z)
 layout(location = COLOR1)		in float4	v_clouds_color	; // COLOR1;	// rgb. intensity
 
-layout(location = COLOR0) 		out float4	v2p_clouds_color	; // COLOR0;	// rgb. intensity, for SM3 - tonemap-prescaled, HI-res
-layout(location = TEXCOORD0) 	out float2	v2p_clouds_tc0		; // TEXCOORD0;
-layout(location = TEXCOORD1) 	out float2	v2p_clouds_tc1		; // TEXCOORD1;
+VARYING(COLOR0) out float4	v2p_clouds_color	; // COLOR0;	// rgb. intensity, for SM3 - tonemap-prescaled, HI-res
+VARYING(TEXCOORD0) out float2	v2p_clouds_tc0		; // TEXCOORD0;
+VARYING(TEXCOORD1) out float2	v2p_clouds_tc1		; // TEXCOORD1;
 
 vf _main (vi v);
 

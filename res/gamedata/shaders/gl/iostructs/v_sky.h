@@ -24,9 +24,9 @@ layout(location = COLOR0)		in float4	v_sky_c		; // COLOR0;
 layout(location = TEXCOORD0)	in float3	v_sky_tc0	; // TEXCOORD0;
 layout(location = TEXCOORD1)	in float3	v_sky_tc1	; // TEXCOORD1;
 
-layout(location = COLOR0) 		out float4	v2p_sky_c	; // COLOR0;
-layout(location = TEXCOORD0) 	out float3	v2p_sky_tc0	; // TEXCOORD0;
-layout(location = TEXCOORD1) 	out float3	v2p_sky_tc1	; // TEXCOORD1;
+VARYING(COLOR0) out float4	v2p_sky_c	; // COLOR0;
+VARYING(TEXCOORD0) out float3	v2p_sky_tc0	; // TEXCOORD0;
+VARYING(TEXCOORD1) out float3	v2p_sky_tc1	; // TEXCOORD1;
 
 v2p _main (vi v);
 

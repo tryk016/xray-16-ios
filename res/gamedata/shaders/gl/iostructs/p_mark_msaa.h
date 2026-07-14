@@ -13,9 +13,9 @@ struct	p_TL2uv_msaa
 #endif // GBUFFER_OPTIMIZATION
 };
 
-layout(location = TEXCOORD0)		in float2	p_TL0uv_Tex0	; // TEXCOORD0;
-layout(location = TEXCOORD1)		in float2	p_TL0uv_Tex1	; // TEXCOORD1;
-layout(location = COLOR)		in float4	p_TL0uv_Color	; // COLOR;
+VARYING(TEXCOORD0) in float2	p_TL0uv_Tex0	; // TEXCOORD0;
+VARYING(TEXCOORD1) in float2	p_TL0uv_Tex1	; // TEXCOORD1;
+VARYING(COLOR) in float4	p_TL0uv_Color	; // COLOR;
 
 float4 _main ( p_TL2uv_msaa I );
 

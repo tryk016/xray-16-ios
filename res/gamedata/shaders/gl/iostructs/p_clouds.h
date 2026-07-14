@@ -8,9 +8,9 @@ struct 	v2p
   	float2	tc1		; // TEXCOORD1;
 };
 
-layout(location = COLOR0)		in float4	p_clouds_color	; // COLOR0;	// rgb. intensity, for SM3 - tonemap prescaled
-layout(location = TEXCOORD0)	in float2	p_clouds_tc0	; // TEXCOORD0;
-layout(location = TEXCOORD1)	in float2	p_clouds_tc1	; // TEXCOORD1;
+VARYING(COLOR0) in float4	p_clouds_color	; // COLOR0;	// rgb. intensity, for SM3 - tonemap prescaled
+VARYING(TEXCOORD0) in float2	p_clouds_tc0	; // TEXCOORD0;
+VARYING(TEXCOORD1) in float2	p_clouds_tc1	; // TEXCOORD1;
 
 float4 	_main	( v2p I );
 

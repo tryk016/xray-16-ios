@@ -33,8 +33,8 @@ layout(location = TEXCOORD1)		in float4	v_model_ind		; // (x=m-index0, y=m-index
 #endif
 
 
-layout(location = TEXCOORD0)		out float2	v2p_model_tc0		; // TEXCOORD0;		// base
-layout(location = COLOR0)		out float3	v2p_model_c0		; // COLOR0;		// color
+VARYING(TEXCOORD0) out float2	v2p_model_tc0		; // TEXCOORD0;		// base
+VARYING(COLOR0) out float3	v2p_model_c0		; // COLOR0;		// color
 
 v2p _main ( v_model v );
 

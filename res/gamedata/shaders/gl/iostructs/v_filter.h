@@ -13,14 +13,14 @@ layout(location = TEXCOORD5)	in float4	v_filter_Tex5	; // TEXCOORD5;
 layout(location = TEXCOORD6)	in float4 	v_filter_Tex6	; // TEXCOORD6;
 layout(location = TEXCOORD7)	in float4	v_filter_Tex7	; // TEXCOORD7;
 
-layout(location = TEXCOORD0)	out float4 	v2p_filter_Tex0	; // TEXCOORD0;
-layout(location = TEXCOORD1)	out float4	v2p_filter_Tex1	; // TEXCOORD1;
-layout(location = TEXCOORD2)	out float4 	v2p_filter_Tex2	; // TEXCOORD2;
-layout(location = TEXCOORD3)	out float4	v2p_filter_Tex3	; // TEXCOORD3;
-layout(location = TEXCOORD4)	out float4 	v2p_filter_Tex4	; // TEXCOORD4;
-layout(location = TEXCOORD5)	out float4	v2p_filter_Tex5	; // TEXCOORD5;
-layout(location = TEXCOORD6)	out float4 	v2p_filter_Tex6	; // TEXCOORD6;
-layout(location = TEXCOORD7)	out float4	v2p_filter_Tex7	; // TEXCOORD7;
+VARYING(TEXCOORD0) out float4 	v2p_filter_Tex0	; // TEXCOORD0;
+VARYING(TEXCOORD1) out float4	v2p_filter_Tex1	; // TEXCOORD1;
+VARYING(TEXCOORD2) out float4 	v2p_filter_Tex2	; // TEXCOORD2;
+VARYING(TEXCOORD3) out float4	v2p_filter_Tex3	; // TEXCOORD3;
+VARYING(TEXCOORD4) out float4 	v2p_filter_Tex4	; // TEXCOORD4;
+VARYING(TEXCOORD5) out float4	v2p_filter_Tex5	; // TEXCOORD5;
+VARYING(TEXCOORD6) out float4 	v2p_filter_Tex6	; // TEXCOORD6;
+VARYING(TEXCOORD7) out float4	v2p_filter_Tex7	; // TEXCOORD7;
 
 v2p_filter _main ( v_filter I );
 

@@ -1,7 +1,7 @@
 
 out vec4 SV_Target;
 
-layout(location = COLOR0)		in float4	p_simple_C	; // COLOR0; 
+VARYING(COLOR0) in float4	p_simple_C	; // COLOR0; 
 
 float4 _main ( float4 C );
 

@@ -21,10 +21,10 @@ struct v2p
 	float4 	af	; 	// COLOR1;		// alpha&factor //skyloader: COLOR1? maybe COLOR0?
 };
 
-layout(location = TEXCOORD0) 		in float3	v2p_lod_Pe		; // TEXCOORD0;		// base
-layout(location = TEXCOORD1) 		in float2	v2p_lod_tc0		; // TEXCOORD1;		// lmap
-layout(location = TEXCOORD2) 		in float2	v2p_lod_tc1		; // TEXCOORD2;		// hemi
-layout(location = COLOR1) 		in float4	v2p_lod_af		; // COLOR1;
+VARYING(TEXCOORD0) in float3	v2p_lod_Pe		; // TEXCOORD0;		// base
+VARYING(TEXCOORD1) in float2	v2p_lod_tc0		; // TEXCOORD1;		// lmap
+VARYING(TEXCOORD2) in float2	v2p_lod_tc1		; // TEXCOORD2;		// hemi
+VARYING(COLOR1) in float4	v2p_lod_af		; // COLOR1;
 
 #ifdef	ATOC
 float4 _main ( v2p I );

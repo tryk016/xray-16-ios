@@ -14,6 +14,17 @@ precision highp samplerCube;
 precision highp sampler2DShadow;
 #endif
 
+// vs->fs varyings carry an explicit `layout(location=...)` so the desktop separable-
+// program path can match them across stages. OpenGL ES 3.00 forbids location qualifiers
+// on vertex outputs / fragment inputs (they match by name in a monolithic program), so
+// VARYING() drops the qualifier under ES and keeps it on desktop. Vertex *attribute*
+// inputs keep their raw layout(location=) — ES allows and needs those.
+#ifdef GL_ES
+#  define VARYING(loc)
+#else
+#  define VARYING(loc) layout(location = loc)
+#endif
+
 #include "shared\common.h"
 
 #include "common_defines.h"

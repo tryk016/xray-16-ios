@@ -39,21 +39,21 @@ layout(location = BINORMAL)		in float4	v_vert_B		; // BINORMAL;		// binormal
 layout(location = COLOR0)		in float4	v_vert_color		; // COLOR0;		// (r,g,b,dir-occlusion)
 layout(location = TEXCOORD0)		in float2	v_vert_uv		; // TEXCOORD0;		// (u0,v0)
 
-layout(location = TEXCOORD0) 		out float2	v2p_vert_tbase		; // TEXCOORD0;
-layout(location = TEXCOORD1) 		out float2	v2p_vert_tnorm0		; // TEXCOORD1;
-layout(location = TEXCOORD2) 		out float2	v2p_vert_tnorm1		; // TEXCOORD2;
-layout(location = TEXCOORD3) 		out float3	v2p_vert_M1		; // TEXCOORD3;
-layout(location = TEXCOORD4) 		out float3	v2p_vert_M2		; // TEXCOORD4;
-layout(location = TEXCOORD5) 		out float3	v2p_vert_M3		; // TEXCOORD5;
-layout(location = TEXCOORD6) 		out float3	v2p_vert_v2point	; // TEXCOORD6;
+VARYING(TEXCOORD0) out float2	v2p_vert_tbase		; // TEXCOORD0;
+VARYING(TEXCOORD1) out float2	v2p_vert_tnorm0		; // TEXCOORD1;
+VARYING(TEXCOORD2) out float2	v2p_vert_tnorm1		; // TEXCOORD2;
+VARYING(TEXCOORD3) out float3	v2p_vert_M1		; // TEXCOORD3;
+VARYING(TEXCOORD4) out float3	v2p_vert_M2		; // TEXCOORD4;
+VARYING(TEXCOORD5) out float3	v2p_vert_M3		; // TEXCOORD5;
+VARYING(TEXCOORD6) out float3	v2p_vert_v2point	; // TEXCOORD6;
 #if defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
-layout(location = TEXCOORD7) 		out float4	v2p_vert_tctexgen	; // TEXCOORD7;
+VARYING(TEXCOORD7) out float4	v2p_vert_tctexgen	; // TEXCOORD7;
 #endif	// defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
 #if SSR_QUALITY > 0
-layout(location = POSITION0) 		out float4	v2p_vert_pos	; // POSITION0;
+VARYING(POSITION0) out float4	v2p_vert_pos	; // POSITION0;
 #endif
-layout(location = COLOR0) 		out float4	v2p_vert_c0		; // COLOR0;
-layout(location = FOG) 			out float	v2p_vert_fog		; // FOG;
+VARYING(COLOR0) out float4	v2p_vert_c0		; // COLOR0;
+VARYING(FOG) out float	v2p_vert_fog		; // FOG;
 
 v2p _main (v_vert v);
 

@@ -21,9 +21,9 @@ layout(location = TEXCOORD1)		in float2	v_static_lmh		; // TEXCOORD1;		// (lmu,l
 #endif
 
 
-layout(location = TEXCOORD0) 		out float2	v2p_wmark_tc0		; // TEXCOORD0;
-layout(location = COLOR0) 		out float3	v2p_wmark_c0		; // COLOR0;		// c0=all lighting
-layout(location = FOG) 			out float	v2p_wmark_fog		; // FOG;
+VARYING(TEXCOORD0) out float2	v2p_wmark_tc0		; // TEXCOORD0;
+VARYING(COLOR0) out float3	v2p_wmark_c0		; // COLOR0;		// c0=all lighting
+VARYING(FOG) out float	v2p_wmark_fog		; // FOG;
 
 v2p _main ( v_static v );
 

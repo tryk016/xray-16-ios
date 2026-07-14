@@ -7,12 +7,12 @@ in vec4 gl_FragCoord;
 in int gl_SampleID;
 #endif
 
-layout(location = TEXCOORD0)	in float2 	p_aa_AA_sun_tc		; // TEXCOORD0;
-layout(location = TEXCOORD1)	in float2	p_aa_AA_sun_unused	; // TEXCOORD1;
-layout(location = TEXCOORD2)	in float2 	p_aa_AA_sun_LT		; // TEXCOORD2;
-layout(location = TEXCOORD3)	in float2	p_aa_AA_sun_RT		; // TEXCOORD3;
-layout(location = TEXCOORD4)	in float2 	p_aa_AA_sun_LB		; // TEXCOORD4;
-layout(location = TEXCOORD5)	in float2	p_aa_AA_sun_RB		; // TEXCOORD5;
+VARYING(TEXCOORD0) in float2 	p_aa_AA_sun_tc		; // TEXCOORD0;
+VARYING(TEXCOORD1) in float2	p_aa_AA_sun_unused	; // TEXCOORD1;
+VARYING(TEXCOORD2) in float2 	p_aa_AA_sun_LT		; // TEXCOORD2;
+VARYING(TEXCOORD3) in float2	p_aa_AA_sun_RT		; // TEXCOORD3;
+VARYING(TEXCOORD4) in float2 	p_aa_AA_sun_LB		; // TEXCOORD4;
+VARYING(TEXCOORD5) in float2	p_aa_AA_sun_RB		; // TEXCOORD5;
 
 #ifdef MSAA_OPTIMIZATION
 #ifdef GBUFFER_OPTIMIZATION

@@ -24,11 +24,11 @@ layout(location = POSITIONT)	in float4	v_combine_P	; // POSITIONT;	// xy=pos, zw
 layout(location = TEXCOORD0)	in float2	v_combine_tcJ	; // TEXCOORD0;	// jitter coords
 
 #ifdef USE_VTF
-layout(location = TEXCOORD0) 	out float4	v2p_combine_tc0	; // TEXCOORD0;	// tc.xy, tc.w = tonemap scale
+VARYING(TEXCOORD0) out float4	v2p_combine_tc0	; // TEXCOORD0;	// tc.xy, tc.w = tonemap scale
 #else // USE_VTF
-layout(location = TEXCOORD0) 	out float2	v2p_combine_tc0	; // TEXCOORD0;	// tc.xy
+VARYING(TEXCOORD0) out float2	v2p_combine_tc0	; // TEXCOORD0;	// tc.xy
 #endif // USE_VTF
-layout(location = TEXCOORD1) 	out float2	v2p_combine_tcJ	; // TEXCOORD1;	// jitter coords
+VARYING(TEXCOORD1) out float2	v2p_combine_tcJ	; // TEXCOORD1;	// jitter coords
 
 v2p _main (_in v);
 

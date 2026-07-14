@@ -8,9 +8,9 @@ struct 	v2p
   	float3	c0; //			COLOR0;		// sun
 };
 
-layout(location = TEXCOORD0)	in float2	p_model_tc0	; // TEXCOORD0;	// base
-//layout(location = TEXCOORD1)	in float2	p_model_tc1	; // TEXCOORD1;	// lmap
-layout(location = COLOR0)		in float3	p_model_c0	; // COLOR0; 	// sun
+VARYING(TEXCOORD0) in float2	p_model_tc0	; // TEXCOORD0;	// base
+//VARYING(TEXCOORD1) in float2	p_model_tc1	; // TEXCOORD1;	// lmap
+VARYING(COLOR0) in float3	p_model_c0	; // COLOR0; 	// sun
 
 float4 _main ( v2p I );
 

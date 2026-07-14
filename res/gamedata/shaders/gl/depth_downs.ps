@@ -18,8 +18,8 @@ struct	_input
 	float4	pos2d		; // SV_Position;
 };
 
-layout(location = TEXCOORD0)	in float4 	p_depth_tc0	; // TEXCOORD0;
-layout(location = TEXCOORD1)	in float2	p_depth_tcJ	; // TEXCOORD1;
+VARYING(TEXCOORD0) in float4 	p_depth_tc0	; // TEXCOORD0;
+VARYING(TEXCOORD1) in float2	p_depth_tcJ	; // TEXCOORD1;
 
 void main ()
 {

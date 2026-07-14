@@ -27,10 +27,10 @@ layout(location = POSITION)		in float4	v_particle_P	; // POSITION;
 layout(location = TEXCOORD0)	in float2	v_particle_tc	; // TEXCOORD0;
 layout(location = COLOR)		in float4	v_particle_c	; // COLOR; 
 
-layout(location = TEXCOORD0) 	out float2	v2p_particle_tc	; // TEXCOORD0;
-layout(location = COLOR0) 		out float4	v2p_particle_c	; // COLOR0;
+VARYING(TEXCOORD0) out float2	v2p_particle_tc	; // TEXCOORD0;
+VARYING(COLOR0) out float4	v2p_particle_c	; // COLOR0;
 #ifdef	USE_SOFT_PARTICLES
-layout(location = TEXCOORD1) 	out float4	v2p_particle_tctexgen; // TEXCOORD1;
+VARYING(TEXCOORD1) out float4	v2p_particle_tctexgen; // TEXCOORD1;
 #endif	//	USE_SOFT_PARTICLES
 
 v2p _main ( vv I );

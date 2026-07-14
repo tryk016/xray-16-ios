@@ -20,10 +20,10 @@ struct v2p
 
 layout(location = POSITION)		in float3	v_volumetric_P;
 
-layout(location = TEXCOORD0)	out float3 	v2p_lightToPos	; // TEXCOORD0;		// light center to plane vector
-layout(location = TEXCOORD1)	out float3 	v2p_vPos		; // TEXCOORD1;		// position in camera space
-layout(location = TEXCOORD2)	out float 	v2p_fDensity	; // TEXCOORD2;		// plane density alon Z axis
-//layout(location = TEXCOORD3)	out float2	v2p_tNoise 		; // TEXCOORD3;		// projective noise
+VARYING(TEXCOORD0) out float3 	v2p_lightToPos	; // TEXCOORD0;		// light center to plane vector
+VARYING(TEXCOORD1) out float3 	v2p_vPos		; // TEXCOORD1;		// position in camera space
+VARYING(TEXCOORD2) out float 	v2p_fDensity	; // TEXCOORD2;		// plane density alon Z axis
+//VARYING(TEXCOORD3) out float2	v2p_tNoise 		; // TEXCOORD3;		// projective noise
 
 v2p _main ( float3 P );
 

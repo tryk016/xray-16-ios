@@ -30,11 +30,11 @@ layout(location = BINORMAL)		in float4	v_vert_B		; // BINORMAL;		// binormal
 layout(location = COLOR0)		in float4	v_vert_color		; // COLOR0;		// (r,g,b,dir-occlusion)
 layout(location = TEXCOORD0)		in int2		v_vert_uv		; // TEXCOORD0;		// (u0,v0)
 
-layout(location = TEXCOORD0) 		out float2	v2p_vert_tbase		; // TEXCOORD0;
-layout(location = TEXCOORD1) 		out float2	v2p_vert_tdist0		; // TEXCOORD1;
-layout(location = TEXCOORD2) 		out float2	v2p_vert_tdist1		; // TEXCOORD2;		
+VARYING(TEXCOORD0) out float2	v2p_vert_tbase		; // TEXCOORD0;
+VARYING(TEXCOORD1) out float2	v2p_vert_tdist0		; // TEXCOORD1;
+VARYING(TEXCOORD2) out float2	v2p_vert_tdist1		; // TEXCOORD2;		
 #if defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
-layout(location = TEXCOORD3) 		out float4	v2p_vert_tctexgen	; // TEXCOORD3;
+VARYING(TEXCOORD3) out float4	v2p_vert_tctexgen	; // TEXCOORD3;
 #endif	// defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
 
 v2p _main (v_vert v);

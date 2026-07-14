@@ -33,9 +33,9 @@ layout(location = TEXCOORD0)	in float2	v_model_tc		; // TEXCOORD0;	// (u,v)
 layout(location = TEXCOORD1)	in float4	v_model_ind		; // (x=m-index0, y=m-index1, z=m-index2, w=m-index3)
 #endif
 
-layout(location = TEXCOORD0) 	out float2	v2p_model_tc0	; // TEXCOORD0;		// base
-layout(location = COLOR0) 		out float3	v2p_model_c0	; // COLOR0;		// color
-layout(location = FOG) 			out float	v2p_model_fog	; // FOG;
+VARYING(TEXCOORD0) out float2	v2p_model_tc0	; // TEXCOORD0;		// base
+VARYING(COLOR0) out float3	v2p_model_c0	; // COLOR0;		// color
+VARYING(FOG) out float	v2p_model_fog	; // FOG;
 
 v2p _main(v_model v);
 

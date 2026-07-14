@@ -18,7 +18,7 @@ struct v2p
 layout(location = COLOR0)		in float4 v_editor_C	; // COLOR0;
 layout(location = POSITION)		in float4 v_editor_P	; // POSITION;
 
-layout(location = COLOR0) 		out float4 v2p_editor_C	; // COLOR0;
+VARYING(COLOR0) out float4 v2p_editor_C	; // COLOR0;
 
 v2p _main (vf i);
 

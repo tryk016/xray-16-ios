@@ -20,19 +20,19 @@ layout(location = POSITION)		in float4	v_particle_P	; // POSITION;
 layout(location = TEXCOORD0)	in float2	v_particle_tc	; // TEXCOORD0;
 layout(location = COLOR)		in float4	v_particle_c	; // COLOR; 
 
-layout(location = COLOR0) 		out float4	v2p_particle_color; // COLOR0;
+VARYING(COLOR0) out float4	v2p_particle_color; // COLOR0;
 #if defined(USE_R2_STATIC_SUN) && !defined(USE_LM_HEMI)
-layout(location = TEXCOORD0) 	out float4	v2p_flat_tcdh	; // TEXCOORD0;	// Texture coordinates,         w=sun_occlusion
+VARYING(TEXCOORD0) out float4	v2p_flat_tcdh	; // TEXCOORD0;	// Texture coordinates,         w=sun_occlusion
 #else
-layout(location = TEXCOORD0) 	out float2	v2p_flat_tcdh	; // TEXCOORD0;	// Texture coordinates
+VARYING(TEXCOORD0) out float2	v2p_flat_tcdh	; // TEXCOORD0;	// Texture coordinates
 #endif
-layout(location = TEXCOORD1) 	out float4	v2p_flat_position; // TEXCOORD1;	// position + hemi
-layout(location = TEXCOORD2) 	out float3	v2p_flat_N		; // TEXCOORD2;	// Eye-space normal        (for lighting)
+VARYING(TEXCOORD1) out float4	v2p_flat_position; // TEXCOORD1;	// position + hemi
+VARYING(TEXCOORD2) out float3	v2p_flat_N		; // TEXCOORD2;	// Eye-space normal        (for lighting)
 #ifdef USE_TDETAIL
-layout(location = TEXCOORD3) 	out float2	v2p_flat_tcdbump; // TEXCOORD3;	// d-bump
+VARYING(TEXCOORD3) out float2	v2p_flat_tcdbump; // TEXCOORD3;	// d-bump
 #endif
 #ifdef USE_LM_HEMI
-layout(location = TEXCOORD4) 	out float2	v2p_flat_lmh	; // TEXCOORD4;	// lm-hemi
+VARYING(TEXCOORD4) out float2	v2p_flat_lmh	; // TEXCOORD4;	// lm-hemi
 #endif
 
 v2p_particle _main ( vv I );

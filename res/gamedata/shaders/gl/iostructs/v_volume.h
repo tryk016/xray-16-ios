@@ -5,9 +5,9 @@ out gl_PerVertex { vec4 gl_Position; };
 
 layout(location = POSITION)		in float4	v_volume_P;
 
-layout(location = TEXCOORD0)	out float4 	v2p_volume_tc	; // TEXCOORD0;
+VARYING(TEXCOORD0) out float4 	v2p_volume_tc	; // TEXCOORD0;
 #ifdef 	USE_SJITTER
-layout(location = TEXCOORD1)	out float4 	v2p_volume_tcJ	; // TEXCOORD1;
+VARYING(TEXCOORD1) out float4 	v2p_volume_tcJ	; // TEXCOORD1;
 #endif
 
 v2p_volume _main ( float4 P );

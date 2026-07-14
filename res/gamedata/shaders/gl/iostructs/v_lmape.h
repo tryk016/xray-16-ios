@@ -25,13 +25,13 @@ layout(location = TEXCOORD1)		in float2	v_static_lmh		; // TEXCOORD1;		// (lmu,l
 #endif
 
 
-layout(location = TEXCOORD0) 		out float2	v2p_lmape_tc0		; // TEXCOORD0;		// base
-layout(location = TEXCOORD1) 		out float2	v2p_lmape_tc1		; // TEXCOORD1;		// lmap
-layout(location = TEXCOORD2) 		out float2	v2p_lmape_tc2		; // TEXCOORD2;		// hemi
-layout(location = TEXCOORD3) 		out float3	v2p_lmape_tc3		; // TEXCOORD3;		// env
-layout(location = COLOR0) 		out float3	v2p_lmape_c0		; // COLOR0;
-layout(location = COLOR1) 		out float3	v2p_lmape_c1		; // COLOR1;
-layout(location = FOG) 			out float	v2p_lmape_fog		; // FOG;
+VARYING(TEXCOORD0) out float2	v2p_lmape_tc0		; // TEXCOORD0;		// base
+VARYING(TEXCOORD1) out float2	v2p_lmape_tc1		; // TEXCOORD1;		// lmap
+VARYING(TEXCOORD2) out float2	v2p_lmape_tc2		; // TEXCOORD2;		// hemi
+VARYING(TEXCOORD3) out float3	v2p_lmape_tc3		; // TEXCOORD3;		// env
+VARYING(COLOR0) out float3	v2p_lmape_c0		; // COLOR0;
+VARYING(COLOR1) out float3	v2p_lmape_c1		; // COLOR1;
+VARYING(FOG) out float	v2p_lmape_fog		; // FOG;
 
 v2p _main ( v_static I );
 

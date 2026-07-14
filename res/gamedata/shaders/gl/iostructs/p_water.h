@@ -23,21 +23,21 @@ struct v2p
 	float	fog	; // FOG;
 };
 
-layout(location = TEXCOORD0) 		in float2	v2p_water_tbase		; // TEXCOORD0;
-layout(location = TEXCOORD1) 		in float2	v2p_water_tnorm0	; // TEXCOORD1;
-layout(location = TEXCOORD2) 		in float2	v2p_water_tnorm1	; // TEXCOORD2;
-layout(location = TEXCOORD3) 		in float3	v2p_water_M1		; // TEXCOORD3;
-layout(location = TEXCOORD4) 		in float3	v2p_water_M2		; // TEXCOORD4;
-layout(location = TEXCOORD5) 		in float3	v2p_water_M3		; // TEXCOORD5;
-layout(location = TEXCOORD6) 		in float3	v2p_water_v2point	; // TEXCOORD6;
+VARYING(TEXCOORD0) in float2	v2p_water_tbase		; // TEXCOORD0;
+VARYING(TEXCOORD1) in float2	v2p_water_tnorm0	; // TEXCOORD1;
+VARYING(TEXCOORD2) in float2	v2p_water_tnorm1	; // TEXCOORD2;
+VARYING(TEXCOORD3) in float3	v2p_water_M1		; // TEXCOORD3;
+VARYING(TEXCOORD4) in float3	v2p_water_M2		; // TEXCOORD4;
+VARYING(TEXCOORD5) in float3	v2p_water_M3		; // TEXCOORD5;
+VARYING(TEXCOORD6) in float3	v2p_water_v2point	; // TEXCOORD6;
 #if defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
-layout(location = TEXCOORD7) 		in float4	v2p_water_tctexgen	; // TEXCOORD7;
+VARYING(TEXCOORD7) in float4	v2p_water_tctexgen	; // TEXCOORD7;
 #endif	// defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
 #if SSR_QUALITY > 0
-layout(location = POSITION0) 		in float4	v2p_water_pos	; // POSITION0;
+VARYING(POSITION0) in float4	v2p_water_pos	; // POSITION0;
 #endif
-layout(location = COLOR0) 		in float4	v2p_water_c0		; // COLOR0;
-layout(location = FOG) 			in float	v2p_water_fog		; // FOG;
+VARYING(COLOR0) in float4	v2p_water_c0		; // COLOR0;
+VARYING(FOG) in float	v2p_water_fog		; // FOG;
 
 #ifdef GBUFFER_OPTIMIZATION
 float4 _main( v2p I, float4 pos2d );
