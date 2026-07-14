@@ -1,5 +1,7 @@
 
+#ifndef GL_ES
 out gl_PerVertex { vec4 gl_Position; };
+#endif
 
 layout(location = POSITIONT)	in float4	v_TL2uv_P		; // POSITIONT;
 layout(location = TEXCOORD0)	in float2	v_TL2uv_Tex0	; // TEXCOORD0;

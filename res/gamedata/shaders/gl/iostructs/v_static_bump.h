@@ -1,5 +1,7 @@
 
+#ifndef GL_ES
 out gl_PerVertex { vec4 gl_Position; };
+#endif
 
 #if defined(USE_R2_STATIC_SUN) && !defined(USE_LM_HEMI)
 #define	v_in	v_static_color	

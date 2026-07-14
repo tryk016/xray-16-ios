@@ -1,9 +1,11 @@
 
+#ifndef GL_ES
 out gl_PerVertex
 {
 	vec4 gl_Position;
 	float gl_ClipDistance[6];
 };
+#endif
 
 struct v2p
 {

@@ -1,5 +1,7 @@
 
+#ifndef GL_ES
 out gl_PerVertex { vec4 gl_Position; };
+#endif
 
 layout(location = POSITION)		in float4	v_tree_P		; // POSITION;		// (float,float,float,1)
 layout(location = NORMAL)		in float4	v_tree_Nh		; // NORMAL;		// (nx,ny,nz)
