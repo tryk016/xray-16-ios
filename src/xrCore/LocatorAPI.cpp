@@ -907,18 +907,24 @@ void CLocatorAPI::setup_fs_path(pcstr fs_name)
             string_path pref_path;
             xr_sprintf(pref_path, "%s/Documents/", home ? home : ".");
             mkdir(pref_path, 0755);
-            string_path probe;
-            xr_sprintf(probe, "%sfsgame.ltx", pref_path);
-            if (access(probe, F_OK) != 0)
-            {
-                string_path src, dst;
-                xr_sprintf(src, "%sfsgame.ltx", base_path);
-                xr_sprintf(dst, "%sfsgame.ltx", pref_path);
-                ios_copy_file(src, dst);
-                xr_sprintf(src, "%sgamedata", base_path);
-                xr_sprintf(dst, "%sgamedata", pref_path);
-                ios_copy_tree(src, dst);
-            }
+
+            // Refresh the engine-owned fsgame.ltx + bundled gamedata OVERLAY (configs/
+            // scripts/shaders, ~3.4 MB) from the read-only .app bundle on EVERY launch, so a
+            // new build actually ships its new shaders/config to the device — the shaders are
+            // read from Documents\gamedata, not the bundle, so a first-launch-only seed left
+            // the device stuck on the shaders from whatever build was first installed. The
+            // user's own Call of Pripyat data (resources/localization/patches .db archives) is
+            // OUTSIDE gamedata and untouched, as is $app_data_root$ (_appdata_: logs/saves).
+            // (Copy is O_TRUNC-overwrite; ~thousands of small files — acceptable for a dev
+            // build. TODO: skip when a stored build-id marker matches to cut startup cost.)
+            string_path src, dst;
+            xr_sprintf(src, "%sfsgame.ltx", base_path);
+            xr_sprintf(dst, "%sfsgame.ltx", pref_path);
+            ios_copy_file(src, dst);
+            xr_sprintf(src, "%sgamedata", base_path);
+            xr_sprintf(dst, "%sgamedata", pref_path);
+            ios_copy_tree(src, dst);
+
             chdir(pref_path);
             SDL_strlcpy(full_current_directory, pref_path, sizeof full_current_directory);
             SDL_free(base_path);

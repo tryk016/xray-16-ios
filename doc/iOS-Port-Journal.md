@@ -63,6 +63,32 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-14 — CRITICAL: shader fixes weren't reaching the device (gamedata not refreshed)
+
+- **Symptom:** first on-device run of an ES-capable build showed a **black screen, no crash**.
+  The engine log (`_appdata_/logs/*.log`, pulled via File Sharing) was gold: FS up, **CoP data
+  mounted** (39264 files / 12 archives), renderer up on **`OpenGL ES 3.0 Metal` / `GLSL ES 3.00`**
+  (Apple's own GL-on-Metal — so native ES 3.0 is Metal-backed, no ANGLE needed to run), 2736
+  textures processed — healthy all the way to shader compilation, which failed with
+  `version '410' is not supported` (this was a pre-4.3 build). All expected.
+- **The trap (found in the log's dumped shader source):** the shader text showed **none of our
+  fixes** — no `#ifdef GL_ES` precision prelude, `clip(x)` still `if (x < 0)` not `< 0.0`. The
+  engine reads shaders from **`Documents\gamedata\shaders`**, but `CLocatorAPI::setup_fs_path`'s
+  iOS seed copied the bundled `gamedata` into Documents **only on first launch** (`if
+  access(fsgame.ltx)!=0`). So the device was stuck on the shaders from whatever build was FIRST
+  installed — **every shader fix since then never shipped.** The gate was green while the device
+  ran stale files.
+- **Fix (`LocatorAPI.cpp`):** on iOS, **refresh `fsgame.ltx` + the bundled `gamedata` overlay
+  from the `.app` on every launch** (drop the first-launch guard). O_TRUNC overwrite; the user's
+  CoP `.db` archives (resources/localization/patches — OUTSIDE gamedata) and `_appdata_`
+  (logs/saves) are untouched. TODO: gate on a stored build-id marker to skip the copy when
+  unchanged (startup cost). **This is what makes the whole gate→fix→device loop actually work.**
+- **Log path QoL (`res/fsgame.ltx`):** `$logs$` moved from `$app_data_root$\logs\`
+  (`_appdata_/logs/`, buried) to `$fs_root$\logs\` → **`OnMyiPhone/OpenXRay/logs/`**, visible at
+  the top level in File Sharing. (Takes effect now that fsgame.ltx refreshes every launch.)
+- **Net:** the next build carries 4.3 (`#version 300 es`) + this refresh + the log move, so the
+  ~148 gate-passing shaders should finally compile on-device and we hit the real A2 link reality.
+
 ### 2026-07-14 — Phase 4.3: engine emits ES on iOS + ANGLE decision + FSR planned
 
 - **Slice 4.3 (engine ES emission):** `rgl_shaders.cpp` now emits `#version 300 es` +
