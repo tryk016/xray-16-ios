@@ -101,10 +101,32 @@ answer is almost always in one of these:
   - Tail: 4× `gl_` reserved (redeclared `gl_FragCoord`), 5× undefined-macro-in-`#if`
     (FXAA_360/MSAA_SAMPLES/SSR_QUALITY — define to 0 or `#ifdef`), 1× `#unfdef` typo (real
     shader bug in `accum_volumetric_sun_normal .ps` — note the stray space in the name too).
-- **Next:** grind families D (clean/bulk) → E/F (trivial) → then the hard A (varying rename)
-  and C (casts), each gate-verified. Engine still needs Plan 4.3 (emit `#version 300 es` on
-  iOS) before any of this reaches the device — but the gate lets us fix the whole shader tree
-  green first, off-device.
+- **Progress trajectory (gate, compile/286):** 14 → **25** (4.4a precision) → **27** (4.5a
+  gl_PerVertex) → **114** (4.5b A1 varying-location strip). A1 was the dominant unblock (+87).
+- **Slice 4.5a (D, done):** `out gl_PerVertex { vec4 gl_Position; };` in 41 `.vs`/`v_*.h`
+  wrapped `#ifndef GL_ES` (ES declares `gl_Position` implicitly). Revealed the twin vertex-out
+  location error, folded into A1.
+- **Slice 4.5b (A1, done, 27→114):** ES 3.00 forbids `layout(location=)` on vs outputs / fs
+  inputs. Added `VARYING(loc)` macro in `gl/common.h` (`layout(location=loc)` desktop / empty
+  under GL_ES) and rewrote every vs→fs varying (`out` anywhere, `in` in fragment iostructs/
+  `.ps`) as `VARYING(loc) out/in …`; vertex **attribute** inputs keep raw `layout(location=)`
+  (ES allows those). 82 files, mechanical. **A2 (deferred, device-only):** the paired vs/fs
+  varyings have DIFFERENT names (`v2p_*` out vs `p_*` in) — a monolithic ES program matches by
+  name, so linking needs a name reconciliation the gate cannot check. Do it at renderer bring-up.
+- **Now dominant — family C (140× wrong operand types, int ⊗ float).** ES 3.00 has no implicit
+  int→float in `- * / <` etc.; desktop does. DIVERSE: integer literals (`0`,`1`,`2`) and
+  int-typed values used in float/vector math across many shaders + shims. Highest leverage is
+  the shared shims (`common.h` `clip(x): if(x<0)` → `<0.0`; `common_functions.h`; texture-size
+  int math), then per-shader casts. Also a preprocessor knock-on: several `accum_*.ps` show
+  `missing #endif` after the first operand error (glslang bails mid-`#if`) — verify it clears
+  once the operand error is fixed.
+- **Tail (unchanged, small):** 5× overloaded-fn no-match, 4× `gl_` reserved (`in vec4
+  gl_FragCoord;` redecl → drop on ES), 5× undefined-macro-in-`#if` (FXAA_360/MSAA_SAMPLES/
+  SSR_QUALITY → define 0 or `#ifdef`), 1× `#unfdef` typo (`accum_volumetric_sun_normal .ps`,
+  note the stray space in the filename too).
+- **Reminder:** the engine still needs Plan 4.3 (emit `#version 300 es` on iOS) before any of
+  this reaches the device; the gate greens the shader tree off-device first. Now that 114
+  shaders compile, a device build (4.3) would let us see the monolithic-link (A2) reality.
 
 ### 2026-07-14 — Phase 4 tooling: offline GLSL ES 3.00 shader gate in CI
 
