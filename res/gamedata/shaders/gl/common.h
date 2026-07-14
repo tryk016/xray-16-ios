@@ -25,6 +25,20 @@ precision highp sampler2DShadow;
 #  define VARYING(loc) layout(location = loc)
 #endif
 
+// Engine feature-quality options are only #defined when the feature is enabled; the
+// shaders test them with `#if` (never `#ifdef`). Desktop GLSL treats an undefined macro
+// in a `#if` as 0, but GLSL ES rejects it ("undefined macro in expression not allowed"),
+// so give them explicit 0 defaults. Behaviour is unchanged on desktop (undefined == 0).
+#ifndef SUN_QUALITY
+#  define SUN_QUALITY 0
+#endif
+#ifndef SSR_QUALITY
+#  define SSR_QUALITY 0
+#endif
+#ifndef MSAA_SAMPLES
+#  define MSAA_SAMPLES 0
+#endif
+
 #include "shared\common.h"
 
 #include "common_defines.h"
