@@ -66,7 +66,12 @@ VERT_PRECISION = [
 
 def find_include(name: str, roots: list[str]) -> str | None:
     """Resolve an #include target. Tries the name relative to each root (so
-    'iostructs/p_foo.h' works), then falls back to a basename search."""
+    'iostructs/p_foo.h' works), then falls back to a basename search. Shader
+    includes use Windows separators (e.g. `#include "shared\\common.h"`), so
+    normalise backslashes to forward slashes — otherwise on Linux CI the whole
+    `shared\\common.h` string is one literal filename and never resolves, which
+    silently drops the type shims and makes every downstream decl look broken."""
+    name = name.replace("\\", "/")
     for root in roots:
         cand = os.path.normpath(os.path.join(root, name))
         if os.path.isfile(cand):
