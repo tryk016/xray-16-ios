@@ -34,19 +34,36 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
 - **Phase 3 (IN PROGRESS) — boots on a real device.** The app launches (SDL_main routes the
   entry through UIApplicationMain), installs + sideloads as a full iOS bundle, and the engine
   FS runs from writable `$HOME/Documents`.
-- **Phase 4 (STARTED) — Slice 4.1: GLES 3.0 context.** The launch SIGKILL was diagnosed from
-  `ios-crashes/xr_3da-2026-07-13-2307/2311.ips`: `EXC_BAD_ACCESS`, `pc=0` (NULL func-ptr call)
-  inside `xrRender_test_hw()` → `CHW::CreateDevice`, because `SetPrimaryAttributes` requested
-  desktop **GL 4.1 CORE** and `CreateDevice` called desktop **`gladLoadGL`** on the ES context
-  iOS actually hands back. Fixed in `src/Layers/xrRenderGL/glHW.cpp` (3 iOS-guarded hunks):
-  request `SDL_GL_CONTEXT_PROFILE_ES` 3.0, skip the desktop 4.1 override on iOS, and call
-  **`gladLoadGLES2`** (the vendored glad is a *merged* gl+gles2=3.2 loader — `gladLoadGLES2`
-  was already in `sdk/include/glad/gl.c`). This is Plan 3.11 / 4.2.
-  **NEXT STEP:** update via SideStore, relaunch on device. Expected: the null-call SIGKILL is
-  gone and boot advances into real renderer creation. The **next seam is GLSL** — ~286
-  `#version 410` desktop shaders don't compile under ES 3.0 (Plan 4.3+: emit `#version 300 es`
-  + precision + monolithic program path). If it still dies, pull a fresh `xr_3da-*.ips` and
-  read the new top frame — that tells us the next stop (shader compile, FBO, or texture).
+- **Phase 4 (IN PROGRESS — the shader port; HEAD `89601d7fe`, 2026-07-14).** The renderer runs:
+  on device the log reports **`OpenGL ES 3.0 Metal` / `GLSL ES 3.00`** (Apple's own GL-on-Metal —
+  native ES 3.0 is Metal-backed, no ANGLE needed to *run*). The engine boots all the way through
+  FS (CoP `.db` mounted), sound, textures (2736 .thm), to shader compilation. Slices landed:
+  - **4.1** GLES 3.0 context (`glHW.cpp`: ES profile + `gladLoadGLES2`) — fixed the launch SIGKILL.
+  - **4.6a** guard `glBindFragDataLocation` on ES (`ShaderResourceTraits.h`) — fixed the `_LinkPP` SIGKILL.
+  - **CI shader gate** (`misc/ios/shadercheck/glsl_es_check.py` + `shader-check` job): assembles
+    each of the ~286 GL shaders as `#version 300 es` and runs `glslangValidator`. ~2-min loop,
+    non-strict/green. THE fix-verification tool — use it, don't round-trip the device per shader.
+  - Shader-source ES fixes, all `#ifdef GL_ES` (glslang + the driver auto-predefine `GL_ES`),
+    gate now at **148/286**: **4.4a** precision prelude + **4.4b** float-literal shims (lmodel/clip)
+    in `gl/common.h`; **4.5a** `gl_PerVertex` wrapped `#ifndef GL_ES`; **4.5b (A1)** `VARYING(loc)`
+    macro strips `layout(location=)` off vs→fs varyings; **4.3a** default option macros (SUN/SSR/
+    MSAA_QUALITY=0). **4.3** engine emits `#version 300 es` on iOS (`rgl_shaders.cpp`).
+  - **CRITICAL infra fix (`LocatorAPI.cpp`):** the iOS seed copied bundled `gamedata` into
+    Documents only on FIRST launch, so every shader fix shipped in the `.app` but never reached
+    the device (it reads shaders from `Documents/gamedata`). Now **refreshes fsgame.ltx + gamedata
+    from the bundle every launch** (CoP `.db` archives + `_appdata_` untouched). Confirmed via the
+    device log: pre-fix shader source had none of our edits.
+  - **`#version 410` is confirmed unsupported** on the ES 3.0 context (driver error at `0:1`,
+    independent of the stale-cache issue) → exactly what 4.3 fixes.
+  - **NEXT STEP:** the definitive build (`89601d7fe`: 4.3 + seeding-refresh + Documents-root log)
+    is the FIRST to actually deliver the port to the device. When green, user does SideStore
+    Update → run → sends `Documents/xray_*.log`. Read it: how many of the ~148 compile on Apple's
+    ES compiler (glslang is only a proxy), and whether the **monolithic program LINKS** — the
+    deferred **A2** problem (paired vs `v2p_*` out vs fs `p_*` in have DIFFERENT names; ES matches
+    varyings by name, not location). Then: finish **family C** (~90 int/float casts — the gate
+    wall) and, if A2 linking is painful, adopt **ANGLE/ES-3.1-SSO** (avoids the varying rename;
+    it's the A2 fallback — does NOT help family C). **Decisions + FSR 1.0 (Plan Phase 6) in the
+    journal.** Build speed: full engine build ≈30 min (no caching yet — TODO incremental cache).
 
 ## On-device testing (the loop)
 
@@ -55,6 +72,14 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
   `ios-dev` pre-release; CI republishes each build; the source version is READ FROM THE .ipa's
   CFBundleShortVersionString so it always matches — AltStore **v2** format with `versions[]` +
   `minOSVersion`). Add the source once → Update in SideStore for each new build.
+- **Engine log (MAIN diagnostic now — for black-screen / runs-but-wrong, not crashes):** the
+  engine writes `xray_*.log` to `$logs$`, now **`$fs_root$` = the OpenXRay Documents root**
+  (was `_appdata_/logs/`), so it's one tap in File Sharing: `On My iPhone → OpenXRay →
+  xray_*.log`. Pull it and read — it shows FS mount, GPU/GL version, per-shader compile results,
+  link errors, how far boot got. This is how the black-screen (shaders not compiling) was found.
+- **gamedata refresh:** the app now recopies bundled `fsgame.ltx` + `gamedata` (shaders/configs)
+  from the `.app` into Documents on **every** launch, so a new build's shader fixes actually ship.
+  First launch after an update is a bit slower (the copy). CoP `.db` archives + `_appdata_` kept.
 - **Seeing errors:** the engine shows FATAL errors as **on-screen dialogs** (read + report —
   this is the main loop, no USB needed). For **hard crashes** (app vanishes, no dialog) pull
   the crash report with the wrapper `powershell C:\openxray\tools\get-xray-crash.ps1` — it
