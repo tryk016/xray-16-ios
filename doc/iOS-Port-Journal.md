@@ -63,6 +63,36 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-16 (end of day) — Build 10021058 verdict: ALL SHADERS PASS on device; kill-at-menu is the next wall
+
+- **The shader layer is DONE on-device (for now):** the 10021058 xr_boot.log has **zero**
+  `shader compilation failed` and **zero** `failed to link` lines — MRT locations + the
+  real-define-set fixes cleared everything the device compiles at boot. `ui_main_menu.script`
+  loads. (Family D model-VS + soft-failed effect pairs remain, but nothing at boot trips them.)
+- **DXT decode: one suspicious report, likely a false alarm.** `0x506: iOS DXT->RGBA8 upload
+  failed: intro_back.dds` — but 0x506 (GL_INVALID_FRAMEBUFFER_OPERATION) is not a texture-upload
+  error; GL errors are STICKY and the video path raises 0x500/0x506 right around this point, so
+  the decoder's trailing glGetError() almost certainly read someone else's leftover error.
+  TODO: drain glGetError() before the upload and check per-stage (storage vs sub-uploads) so
+  reports are attributable. Only ONE dds goes through before the log ends, so broad verification
+  of the decoder needs the next run.
+- **The real wall: the app is killed at the exact moment the intro movies end** (~40s of audio —
+  same timing every run) — i.e., right when the MENU would appear. No fatal, no engine log tail →
+  a hard iOS kill (watchdog 0x8badf00d? jetsam OOM? GPU fault). The intro Theora videos
+  (D3D-wrapper `CreateTexture(A8R8G8B8)`, still unsupported on ES) spin GL errors the whole time
+  and can't render; they're also the prime suspect zone for the kill.
+- **NEXT SESSION, in order:**
+  1. **Pull crash reports FIRST** (`idevicecrashreport` staging; look for today's `xr_3da-*.ips`)
+     — the termination reason (watchdog/jetsam/GPU) decides everything downstream.
+  2. **Skip the intro movies on iOS** — they can't render (video-texture path unported), they
+     cost 40s per boot iteration, and they bracket the kill. Find the sequence trigger: grep
+     configs/scripts for `bitcomposer`/`intro` (CUISequencer in xrGame plays logo movies), guard
+     it out on iOS. This alone may reach the menu.
+  3. **Harden the DXT decoder's error scoping** (drain before, per-stage checks) so the next log
+     tells the truth about texture uploads.
+  4. Then: menu render test → video-texture D3D-wrapper port (in-game PDA/TV need it later) →
+     A2-tail effect pairs → family D → Phase 5 (touch input — menu needs taps).
+
 ### 2026-07-16 — Phase 4 Slices 4.11+4.12: THE ENGINE RUNS — MRT locations, real-define shader fixes, DXT→RGBA8 decode
 
 - **Soft-fail build verdict (xr_boot.log, 8307 lines, ZERO fatals):** the engine boots to the

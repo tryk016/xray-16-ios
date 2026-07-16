@@ -108,20 +108,32 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     `! Pass '<vs|ps>' failed to link — pass disabled`; `CBackend::Render` skips draws with `pp==0`).
     One run now lists ALL broken pairs. `link_check.py` also scans C++ blenders (`r_Pass` in
     src/Layers/xrRender/blenders) = the boot-critical passes: **121/137 clean, 16 broken = 3 roots**.
-  - **NEXT STEP (resume here):** test the **soft-fail build**. SideStore Update → run OpenXRay →
-    send `Documents/xr_boot.log`. Expected: boot continues past broken passes — possibly ALL the way
-    to the **menu** (2D UI needs none of the broken sun/effect passes); the log lists every
-    `failed to link — pass disabled` pair in one run. Then fix the **3 known roots** (see journal
-    2026-07-16 4.10 entry for the exact fix per root): (a) `stub_notransform_2uv`↔`accum_sun_*`
-    family — widen v_TL2uv varyings to float4 (`.w=1` fullscreen), float2 consumers read `.xy`,
-    VISUALLY verify sun shafts; (b) `model_distort*`↔`particle_*` — VS must write TEXCOORD1
-    (7 pairs); (c) `model_def_lplanes|base_lplanes` — COLOR0 float4 vs float3. If type mismatches
-    keep appearing: the systematic fix is the **float4-ABI transform** (declare EVERY xrvary as
-    float4, pad on write, swizzle on read — kills the class by construction). Then **family D**
-    (skinning vertex-format, 14 model VS — see 4.8 notes) and Plan 4.7–4.10 (runtime GL, RT
-    formats, textures) as the device surfaces them. Tools: gate =
-    `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`;
-    links = `python misc/ios/shadercheck/link_check.py`. **ANGLE = plan C. FSR 1.0 = Plan Phase 6.**
+  - **4.11+4.12 (2026-07-16 evening):** soft-fail run showed the engine reaches the MAIN LOOP
+    (Lua loads, intro audio plays). Fixed on top: **MRT `layout(location=N)`** on all 18
+    SV_Target0/1/2 outs (ES requires it; was the sky2/combine/particle root), gate switched to the
+    **real device define set** (SUN_SHAFTS/SSR/DOF/parallax paths — fixed everything it exposed;
+    gate 265/279 on real paths), and **CPU DXT→RGBA8 decode** in glTexture.cpp (BC1-5, all
+    mips/faces; Apple ES has no S3TC — this was the black-screen root) + gli PROFILE_ES30 for
+    non-DXT (no GL_BGRA on ES). **Build 10021058 verdict: ZERO shader errors on device.**
+  - **NEXT STEP (resume here), in order:**
+    1. **Pull crash reports FIRST** (phone via USB; `./tools/libimobiledevice/idevicecrashreport.exe
+       -u <udid> <dir>`, look for fresh `xr_3da-*.ips`): the app is HARD-KILLED at the exact moment
+       the intro movies end (~40s, when the menu would appear) — no fatal in xr_boot.log. Watchdog
+       (0x8badf00d) vs jetsam (OOM) vs GPU fault decides the fix.
+    2. **Skip intro movies on iOS**: they can't render (video textures go through the D3D wrapper
+       `CreateTexture(A8R8G8B8)` — unported to ES), cost 40s per boot iteration, spam GL errors,
+       and bracket the kill. Find the trigger: grep configs/scripts for `bitcomposer`/`intro`
+       (CUISequencer in xrGame plays the logo movies) and guard it out on iOS.
+    3. **Fix DXT-decoder error scoping** (glTexture.cpp `ios_upload_dxt_as_rgba8`): drain
+       glGetError() BEFORE uploading and check per-stage — the lone `0x506 intro_back.dds` report
+       was almost certainly a sticky error from the video path, not the decode itself.
+    4. Menu render test → then: video-texture wrapper port (PDA/TVs need it in-game), A2-tail
+       effect pairs (accum_sun↔2uv widen-to-float4 / distort↔particle missing varying / lplanes),
+       **family D** skinning (14 model VS), Phase 5 touch input (menu needs taps!).
+    Tools: gate = `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`;
+    links = `python misc/ios/shadercheck/link_check.py`; debug channel = `Documents/xr_boot.log`.
+    **Float4-ABI transform = systematic fallback for varying mismatches. ANGLE = plan C.
+    FSR 1.0 = Plan Phase 6.**
 
 ## On-device testing (the loop)
 
