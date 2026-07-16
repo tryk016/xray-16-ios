@@ -254,6 +254,15 @@ void CreateLog(bool nl)
 
     if (strstr(Core.Params, "-force_flushlog"))
         ForceFlushLog = true;
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // iOS has no command line to pass -force_flushlog, and the log is otherwise only
+    // flushed to disk on a fatal / clean exit. That makes the log invisible in exactly
+    // the states we most need it on device — a black-screen hang or a silently-running
+    // boot that never reaches a fatal. Flush every message on device so the on-disk log
+    // always reflects how far boot actually got.
+    ForceFlushLog = true;
+#endif
 }
 
 void CloseLog(void)
