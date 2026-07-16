@@ -54,7 +54,7 @@ void hmodel
 			hdiffuse= env_d * light.xyz + L_ambient.rgb;
 
 	// specular color
-	vreflect.y      = vreflect.y*2-1;	// fake remapping
+	vreflect.y      = vreflect.y*2.0-1.0;	// fake remapping
 //	float3	e0s		= texCUBE( env_s0, vreflect );
 //	float3	e1s		= texCUBE( env_s1, vreflect );
 //	float3	e0s		= env_s0.Sample( smp_rtlinear, vreflect );

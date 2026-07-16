@@ -11,7 +11,7 @@ vf _main (vi v)
 //	if (length(float3(v.p.x,0,v.p.z))>CLOUD_FADE)	o.color.w = 0	;
 
 	// generate tcs
-	float2  d0	= v.dir.xy*2-1;
+	float2  d0	= v.dir.xy*2.0-1.0;
 	float2  d1	= v.dir.wz*2-1;
 	float2 	_0	= v.p.xz * CLOUD_TILE0 + d0*timers.z*CLOUD_SPEED0;
 	float2 	_1	= v.p.xz * CLOUD_TILE1 + d1*timers.z*CLOUD_SPEED1;

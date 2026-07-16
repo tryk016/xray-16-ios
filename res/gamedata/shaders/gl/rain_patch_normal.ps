@@ -27,7 +27,7 @@ float3	GetNVNMap(float2 tc, float time)
 	water.xyz *= 6.0;
 
 //	water.y = sqrt(1-water.x*water.x-water.z*water.z);
-	water.y = 0;
+	water.y = 0.0;
 
 	return water.xyz;
 }
@@ -44,7 +44,7 @@ float3	GetWaterNMap(float2 tc)
 
 	water.xyz *= 0.3;
 
-	water.y = 0;
+	water.y = 0.0;
 
 	return water.xyz;
 }

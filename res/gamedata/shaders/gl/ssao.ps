@@ -205,7 +205,7 @@ for (int rad=0; rad < RINGS; rad++)
 		float 	infl 	= saturate(dot( direct, N.xyz));
 		float 	occ_factor = saturate(dist);
 //		float	range_att = 1/(occ_factor+0.1);
-		float	range_att = saturate(1-dist*0.5);
+		float	range_att = saturate(1.0-dist*0.5);
 		{
 //			occ += lerp( 1, occ_factor, infl);
 //			num_dir += 1;		

@@ -104,7 +104,7 @@ v_model skinning_1 	(v_model_skinned_1	v)
 	v.B.xyz		= v.B.zyx;
 
 	// matrices
-	int 	mid = int(v.N.w * 255 + 0.3);
+	int 	mid = int(v.N.w * 255.0 + 0.3);
 	float4  m0 	= sbones_array[mid+0];
 	float4  m1 	= sbones_array[mid+1];
 	float4  m2 	= sbones_array[mid+2];

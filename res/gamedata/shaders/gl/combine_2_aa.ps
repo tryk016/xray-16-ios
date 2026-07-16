@@ -43,7 +43,7 @@ float4 _main ( v_aa_AA I )
 	nd.z 		=  dot 		(nc, float3( gbd3.N ));
 	nd.w 		=  dot 		(nc, float3( gbd4.N ));
 	nd 		-= e_barrier.x	;
-	nd 		=  step		(0,nd);	// bw
+	nd 		=  step		(0.0,nd);	// bw
   float  ne 		=  saturate	(dot(nd,float4(e_weights.x)));
 
   // Opposite coords
