@@ -6,6 +6,17 @@
 #include "log.h"
 #include "xrCore/Threading/Lock.hpp"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include <os/log.h>
+// Mirror every engine log line to Apple's unified log. The on-disk log file only exists
+// after CreateLog() (which needs the FS up), so a hang during early boot — SDL init, the
+// gamedata seed copy, FS cache/archive-mount — leaves NO file log at all. os_log is
+// unbuffered and visible LIVE over the wire (idevicesyslog / Console), from message #1,
+// so we can always see how far a device boot actually got even when it never reaches a
+// fatal, a clean exit, or even the log-file open.
+static inline void ios_oslog(const char* s) { os_log(OS_LOG_DEFAULT, "[xr] %{public}s", s); }
+#endif
+
 bool LogExecCB = true;
 string_path log_file_name{};
 bool no_log = true;
@@ -36,6 +47,9 @@ void AddOne(pcstr split)
 
     OutputDebugString(split);
     OutputDebugString("\n");
+#if defined(XR_PLATFORM_APPLE_IOS)
+    ios_oslog(split);
+#endif
 
     LogFile.push_back(split);
 
