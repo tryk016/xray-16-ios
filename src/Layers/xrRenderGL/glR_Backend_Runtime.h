@@ -319,6 +319,11 @@ IC u32 GetIndexCount(D3DPRIMITIVETYPE T, u32 iPrimitiveCount)
 
 ICF void CBackend::Render(D3DPRIMITIVETYPE T, u32 baseV, u32 startV, u32 countV, u32 startI, u32 PC)
 {
+    // Soft-failed pass (program failed to link, see _LinkPP): nothing is bound, a draw
+    // would just raise GL_INVALID_OPERATION per call. Skip it and keep the frame going.
+    if (0 == pp)
+        return;
+
     GLenum Topology = TranslateTopology(T);
     u32 iIndexCount = GetIndexCount(T, PC);
 
@@ -332,6 +337,9 @@ ICF void CBackend::Render(D3DPRIMITIVETYPE T, u32 baseV, u32 startV, u32 countV,
 
 ICF void CBackend::Render(D3DPRIMITIVETYPE T, u32 startV, u32 PC)
 {
+    if (0 == pp) // soft-failed pass — see the indexed Render() overload above
+        return;
+
     GLenum Topology = TranslateTopology(T);
     u32 iIndexCount = GetIndexCount(T, PC);
 

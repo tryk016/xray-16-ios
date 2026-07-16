@@ -112,7 +112,16 @@ bool CResourceManager::_LinkPP(SPass& pass)
     else
     {
         pp.pp = GLLinkMonolithicProgram(pp.cName.c_str(), pass.ps->sh, pass.vs->sh, pass.gs->sh);
-        pp.constants.parse(&pp.pp, RC_dest_all);
+
+        // A failed link returns program 0. Parsing the constant table of program 0 reads
+        // garbage uniform data and lands in R_constant_table::parse's fatal("unsupported
+        // uniform") — turning ONE broken shader pair into a boot-killing FATAL. Soft-fail
+        // instead: leave the constant table empty and let the pass be skipped at draw time
+        // (CBackend::set_PP), so boot continues and ALL broken pairs surface in one run.
+        if (pp.pp)
+            pp.constants.parse(&pp.pp, RC_dest_all);
+        else
+            Msg("! Pass '%s' failed to link — pass disabled, continuing", pp.cName.c_str());
 
         pass.ps = nullptr;
         pass.vs = nullptr;
