@@ -96,7 +96,7 @@ float4 _main ( v_aa_AA I )
   // Smoothed color
   // (a-c)*w + c = a*w + c(1-w)
 
-	float2	offset 	=  center * (1-w);
+	float2	offset 	=  center * (1.0-w);
 	float4 	s0 	=  tex2D	(s_image, offset + I.Tex1*w);
 	float4 	s1 	=  tex2D	(s_image, offset + I.Tex2*w);
 	float4 	s2 	=  tex2D	(s_image, offset + I.Tex3*w);

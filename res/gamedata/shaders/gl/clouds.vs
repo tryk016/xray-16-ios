@@ -19,7 +19,7 @@ vf _main (vi v)
 	o.tc1		= _1;					// copy tc
 
 	o.color		=	v.color	;			// copy color, low precision, cannot prescale even by 2
-	o.color.w	*= 	pow		(v.p.y,25);
+	o.color.w	*= 	pow		(v.p.y,25.0);
 
 #ifdef USE_VTF
 	float scale	=	texelFetch(s_tonemap, int2(0,0), 0).x;

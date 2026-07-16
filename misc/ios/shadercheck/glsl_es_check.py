@@ -57,6 +57,11 @@ BASE_DEFINES = [
     # so define these to compile the path CoP actually runs instead of the dead one.
     ("USE_HWSMAP", "1"),
     ("USE_HWSMAP_PCF", "1"),
+    # Model vertex shaders declare their input `I` only inside a skinning-variant guard
+    # (#ifdef SKIN_NONE / SKIN_0..4 in v_model_*.h); the engine always compiles each with
+    # exactly one defined. Pick the non-skinned variant so `I` is declared — otherwise every
+    # deffer_model_*/model_* VS fails with a cascade of "I undeclared".
+    ("SKIN_NONE", "1"),
 ]
 
 # Only the float/int floor goes in the preamble — matching what the engine's ES

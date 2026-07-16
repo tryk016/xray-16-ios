@@ -108,7 +108,7 @@ float4 _main ( float2 tc, float2 tcJ )
 
 	float fIsUp = -dot( Ldynamic_dir.xyz, _N.xyz );
 	s *= saturate(fIsUp*10.0+(10.0*0.5)+0.5);
-	fIsUp = max(0, fIsUp);
+	fIsUp = max(0.0, fIsUp);
 
 	float fIsX = WorldN.x;
 	float fIsZ = WorldN.z;
@@ -117,11 +117,11 @@ float4 _main ( float2 tc, float2 tcJ )
 //	float3 waterFallX = GetWaterNMap( float2(WorldP.x, WorldP.y-timers.x), 0.5 );
 //	float3 waterFallZ = GetWaterNMap( float2(WorldP.z, WorldP.y-timers.x), 0.5 );
 
-	float3 tc1 = WorldP / 2;
+	float3 tc1 = WorldP / 2.0;
 
-	float fAngleFactor = 1 - fIsUp;
+	float fAngleFactor = 1.0 - fIsUp;
 
-	fAngleFactor = 0.1*ceil(10*fAngleFactor);
+	fAngleFactor = 0.1*ceil(10.0*fAngleFactor);
 
 	//	Just slow down effect.
 //	fAngleFactor *= 0.25;

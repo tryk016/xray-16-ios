@@ -214,7 +214,7 @@ v_model skinning_4 	(v_model_skinned_4	v)
 
 	for (int i=0; i<4; ++i)
 	{		
-		id[i] = int(v.ind[i]*255+0.3);
+		id[i] = int(v.ind[i]*255.0+0.3);
 
 		for (int j=0; j<3; ++j)
 			m[i][j] = sbones_array[id[i]+j];
@@ -225,7 +225,7 @@ v_model skinning_4 	(v_model_skinned_4	v)
 	w[0] 	= v.N.w;
 	w[1] 	= v.T.w;
 	w[2] 	= v.B.w;
-	w[3]	= 1-w[0]-w[1]-w[2];
+	w[3]	= 1.0-w[0]-w[1]-w[2];
 
 	float4  m0 	= m[0][0]*w[0];
 	float4  m1 	= m[0][1]*w[0];

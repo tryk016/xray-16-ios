@@ -241,7 +241,7 @@ for (int rad=0; rad < RINGS; rad++)
 //	occ = 1;
 
 	float WeaponAttenuation = smoothstep( 0.8, 0.9, length( P.xyz ));
-	occ = lerp( 1, occ, WeaponAttenuation );
+	occ = lerp( 1.0, occ, WeaponAttenuation );
 
 	return occ;
 }
