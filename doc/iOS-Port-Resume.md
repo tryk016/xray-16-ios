@@ -68,7 +68,7 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     device log: pre-fix shader source had none of our edits.
   - **`#version 410` is confirmed unsupported** on the ES 3.0 context (driver error at `0:1`,
     independent of the stale-cache issue) → exactly what 4.3 fixes.
-  - **4.8 — local glslang + family C grind, gate 117→230/286 (80%).** Downloaded the official
+  - **4.8 — local glslang + family C grind, gate 117→265/279 (95%).** Downloaded the official
     Khronos `glslangValidator` (16.4.0) to `tools/glslang/` (gitignored) so **the gate runs LOCALLY
     in seconds** — no CI round-trip per fix. Helpers in scratchpad: `diag.py` (assemble like the gate
     + local glslang + show the offending source line; `--list` = first-error per failing shader),
@@ -82,22 +82,28 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     gl/common.h); guarded `gl_ClipDistance` write under `#ifndef GL_ES` (`v_volumetric.h`); renamed
     the space-typo file `accum_volumetric_sun_normal .ps` + `#unfdef`→`#undef`. Gate now also defines
     `USE_HWSMAP`/`USE_HWSMAP_PCF` (device uses HW shadows) to compile the real path.
+    Then int-literal batches (skin.h `v.N.w*255`/`1-w0-w1`/`v.ind[i]*255` ≈14 shaders each,
+    shared/watermove.h, cloudconfig.h `(2*0.05)`→`(2.0*…)`), structural fixes (`p_flat_atoc.h`
+    forward-declared `_main(p_bumped)` not `p_flat`; `v.uv` int2→`float2(v.uv)`), macro defaults
+    (fxaa FXAA_360/PS3, common.h SSAO_QUALITY/SSAO_OPT_DATA), and gate accuracy (skip include-only
+    + dead files, define USE_HWSMAP/SKIN_NONE). Method: dedup the *first-error source line* across all
+    failures → 2–18 unique expressions cover 30–90 shaders, almost all in shared headers.
   - **NEXT STEP (resume here):** two tracks.
-    (a) **Device test still pending from 4.5c** — SideStore build carrying the gl_FragCoord fix is
-    live; a NEW build (run **`29506572965`**, the 4.8 family-C batch) is finishing. Once green,
-    user does **SideStore Update → run → send `Documents/xray_*.log`** to see how far the engine now
-    marches on Apple's ES compiler and whether the monolithic program **LINKS** (the deferred **A2**
-    varying-name problem — `v2p_*` out vs `p_*` in differ; ES matches by name — is the next unknown;
-    the `unsupported uniform` fatal should be gone once fragments compile).
-    (b) **Continue family C offline** (fast now): remaining **56** = ~41 `wrong operand` + 9
-    `cannot convert` + 6 `no matching overload` (scattered per-shader int/float — same method,
-    `python scratchpad/diag.py <shader>` then fix); plus deferred `fxaa.ps`/`ssao_hdao_new.ps`
-    undefined-macro `#if` (need `#ifndef FXAA_360/MSAA_SAMPLES … 0` defaults), the ATOC `_main`
-    signature mismatch (structural), and 3 include-only files (`gather.ps`/`ssao_blur.ps`/
-    `ssao_hbao.ps`) that are gate false-positives (teach the gate to skip files with no main/_main).
-    Run the gate locally: `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`.
-    Then A2 (adopt ANGLE/ES-3.1-SSO only if A2 linking is painful — does NOT help family C).
-    **FSR 1.0 = Plan Phase 6.** Build ≈30 min (no caching — TODO incremental).
+    (a) **Device test** — SideStore build carrying gl_FragCoord (4.5c) + the whole family-C batch
+    (4.8) is live (a new build pushes with parts 5–8). Once green, **SideStore Update → run → send
+    `Documents/xray_*.log`** to see how far the engine marches on Apple's ES compiler and whether the
+    monolithic program **LINKS** (the deferred **A2** varying-name problem — `v2p_*` out vs `p_*` in
+    differ, ES matches by name — is the next unknown; the `unsupported uniform` fatal should be gone).
+    (b) **Family D: skinning vertex-format (the only offline item left, 14 shaders).** Every remaining
+    gate failure is a **model vertex shader** doing `I.N = v_model_N` where the NORMAL attribute is
+    `float4` (packs a skin index/weight in .w) but `v_model.N` is `float3` → strict ES rejects vec4→vec3.
+    It's variant-dependent (struct N is float3 for v_model/skinned_0/1, float4 for skinned_2/3/4; the
+    attribute is float3 only under SKIN_0), so no single-line fix — needs a variant-aware change to the
+    v_model_*.h headers (or the skin.h structs / vertex-format) **verified on-device**, not rushed,
+    because it touches how the engine binds model vertex buffers. Run the gate locally:
+    `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`
+    (`scratchpad/diag.py <shader>` shows the offending line). Then A2 (adopt ANGLE/ES-3.1-SSO only if
+    A2 linking is painful — does NOT help family C/D). **FSR 1.0 = Plan Phase 6.** Build ≈30 min.
 
 ## On-device testing (the loop)
 

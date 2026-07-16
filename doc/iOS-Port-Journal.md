@@ -102,15 +102,26 @@ answer is almost always in one of these:
   runs, not the dead fallback (removed 6 false `O.depth`/`shadow_direct` failures). Baseline note: the
   gate dropped 148→117 when GBUFFER_OPTIMIZATION was added — expected, it exposed real gbuffer-path ES
   errors the minimal define-set had skipped; 117 is the honest starting point for family C.
-- **Result: local gate 117 → 230/286 (80%).** glslang 16.4.0 local vs CI's apt glslang differ by a
-  few in absolute count — trend is what matters. Pushed as 4.8 parts 1–4; CI build carrying all of it
-  is running.
-- **Remaining 56 (next session, fast now with local glslang):** ~41 scattered `wrong operand` +
-  9 `cannot convert` + 6 `no matching overload` (more int/float, per-shader); `fxaa.ps`/`ssao_hdao_new.ps`
-  undefined-macro-in-#if (need `#ifndef FXAA_360/MSAA_SAMPLES … 0` defaults — deferred, post-process AA
-  not critical-path); the deferred-ATOC `_main` signature mismatch (structural); and 3 include-only
-  files (`gather.ps`, `ssao_blur.ps`, `ssao_hbao.ps`) the gate compiles standalone = false positives
-  (TODO: teach the gate to skip files with no `main`/`_main`).
+- **Result: local gate 117 → 265/279 (95%).** (parts 1–8; the denominator dropped 286→279 because the
+  gate now skips 6 include-only helper files + 1 dead file — see below.) glslang 16.4.0 local matched
+  CI's apt glslang exactly at the 230 checkpoint, so the local loop is faithful.
+- **Method that carried it:** dedup the *first-error source line* across all failing shaders — repeatedly
+  it was 2–18 unique offending expressions covering 30–90 shaders, mostly in shared headers (skin.h
+  `v.N.w*255`/`1-w0-w1`/`v.ind[i]*255` was ~14 shaders each; shared/watermove.h, hmodel.h, cloudconfig.h).
+  Batches applied via small print-every-change transforms. Also fixed structurally: `p_flat_atoc.h`
+  forward-declared `_main(p_bumped)` instead of `p_flat` (copy-paste, broke the 4 ATOC-flat shaders);
+  `v.uv` int2 → `float2(v.uv)` for unpack_tc_base; CLOUD_SPEED macro `(2*0.05)`→`(2.0*…)`.
+- **Gate accuracy improvements (part 5/8):** skip include-only helpers (no generated `void main()`:
+  gather/fxaa/ssao*.ps — #included by real entries, referenced by no blender); skip the dead
+  `ssao_hdao_new.ps` (DX-only HDAO compute, its include is commented out); define `USE_HWSMAP`,
+  `SKIN_NONE`, `SSAO_QUALITY`/`SSAO_OPT_DATA` defaults so it models the path CoP actually compiles.
+- **The 14 remaining (deferred, ONE issue not fourteen):** every failing shader is a **model vertex
+  shader** doing `I.N = v_model_N` where the NORMAL attribute is `float4` (packs a skin index/weight in
+  .w) but `v_model.N` is `float3` → strict ES rejects vec4→vec3 (lenient desktop drivers tolerate it).
+  It's a **skinning-variant vector-width inconsistency** (struct N is float3 for v_model/skinned_0/1 but
+  float4 for skinned_2/3/4; the attribute is float3 only under SKIN_0) — no single-line fix, and it
+  touches the vertex-format contract, so it needs a variant-aware change + on-device verification rather
+  than a rushed edit. This is the next family (call it "family D: skinning vertex-format").
 
 ### 2026-07-14 — Phase 4 Slice 4.5c: guard `gl_FragCoord`/`gl_SampleID` redeclaration for ES (first real on-device compile error)
 
