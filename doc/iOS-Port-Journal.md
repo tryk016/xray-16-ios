@@ -63,6 +63,55 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-14 — Phase 4 Slice 4.8: local glslang + family C grind (int/float strictness), gate 117→230
+
+- **Unlocked a fully-offline fix loop.** Downloaded the official Khronos `glslangValidator`
+  (16.4.0) to `tools/glslang/` (gitignored via `/tools/`), so the shader gate now runs locally in
+  seconds instead of one CI round-trip per fix. Built a diagnosis helper (`scratchpad/diag.py`):
+  it assembles a shader exactly like the gate, runs local glslang, and prints each ERROR with the
+  offending assembled-source line — the whole family-C grind runs on this.
+- **Family C = GLSL ES 3.00 int/float strictness.** ES (like WebGL2) has **no implicit int→float
+  in operators / function args / assignments**; desktop GLSL 1.20+ does, which is exactly why these
+  shaders compile on desktop and not on ES. Confirmed glslang is a faithful proxy for this (Apple's
+  ES compiler enforces the same). The errors come as a *chain* per shader (fix one, the next
+  surfaces), so the compile count only moves when a shader's whole chain is clean — the trick was to
+  drive one representative shader to green, fixing the **shared headers** it pulls, which then clears
+  every shader sharing that chain at once.
+- **Fixes (mostly in shared headers → high leverage):**
+  - `gather.ps`: `sm_gather`/`sm_minmax_gather` did `float * int2 offset` and passed int `0` LOD to
+    `textureLodOffset` → `float2(offset)` + `0.0`. (Unblocked ~90 accum/shadow shaders at once.)
+  - `shadow.h`: `-2*J0.xy`→`-2.0*`, `minmax < 0`→`< 0.0`, and the `textureLod(...,0)` LODs → `0.0`.
+  - `sload.h`: `S.height = 0`→`0.0`, `* detail.rgb * 2`→`* 2.0`, parallax `textureLod(...,0)`→`0.0`.
+  - Batch int-literal transform (`scratchpad/fix_intlit.py`, 26 edits, each prints before→after):
+    `textureLod(...,0)`→`0.0`, `pow(x,N)`→`pow(x,N.0)`, `step(x,0)`→`0.0`, aref remap
+    `/(1-def_aref*0.5)`→`/(1.0-...)`, across hmodel/lmodel/rain_layer/ssao/water/deffer_*.
+  - `accum_volumetric.ps`: `saturate(1 - rsqr*…)`→`1.0 -` (covers _msaa/_nomsaa which include it).
+- **Structural / non-int-float fixes in the same slice:**
+  - **VARYING relocation:** the `VARYING()` macro lived in `gl/common.h`, but `stub_notransform_*.vs`
+    include only `common_iostructs.h` → `shared/common.h` (never `gl/common.h`), so they saw VARYING
+    undefined → parse error. **Moved VARYING into `shared/common.h`** (transitively still present for
+    common.h users). Fixes all 3 stubs.
+  - **gl_ClipDistance:** `v_volumetric.h` wrote `gl_ClipDistance[]` (a desktop/EXT built-in absent in
+    ES 3.00) in an unguarded loop → guarded the loop `#ifndef GL_ES` (the array decl was already
+    guarded). ES just skips frustum-clipping the light volume — minor overdraw, not a failure.
+  - **Misnamed file:** `accum_volumetric_sun_normal .ps` had a **trailing space before .ps** so the
+    engine (blender references `accum_volumetric_sun_normal`) could never load it on-device — renamed
+    to drop the space; also `#unfdef`→`#undef` (invalid directive; "normal" = non-minmax variant).
+- **Gate accuracy:** added `GBUFFER_OPTIMIZATION=1` (from 4.5c), plus `USE_HWSMAP`/`USE_HWSMAP_PCF=1`
+  (the device log shows all three) so the gate compiles the r3/deferred + HW-shadow path CoP actually
+  runs, not the dead fallback (removed 6 false `O.depth`/`shadow_direct` failures). Baseline note: the
+  gate dropped 148→117 when GBUFFER_OPTIMIZATION was added — expected, it exposed real gbuffer-path ES
+  errors the minimal define-set had skipped; 117 is the honest starting point for family C.
+- **Result: local gate 117 → 230/286 (80%).** glslang 16.4.0 local vs CI's apt glslang differ by a
+  few in absolute count — trend is what matters. Pushed as 4.8 parts 1–4; CI build carrying all of it
+  is running.
+- **Remaining 56 (next session, fast now with local glslang):** ~41 scattered `wrong operand` +
+  9 `cannot convert` + 6 `no matching overload` (more int/float, per-shader); `fxaa.ps`/`ssao_hdao_new.ps`
+  undefined-macro-in-#if (need `#ifndef FXAA_360/MSAA_SAMPLES … 0` defaults — deferred, post-process AA
+  not critical-path); the deferred-ATOC `_main` signature mismatch (structural); and 3 include-only
+  files (`gather.ps`, `ssao_blur.ps`, `ssao_hbao.ps`) the gate compiles standalone = false positives
+  (TODO: teach the gate to skip files with no `main`/`_main`).
+
 ### 2026-07-14 — Phase 4 Slice 4.5c: guard `gl_FragCoord`/`gl_SampleID` redeclaration for ES (first real on-device compile error)
 
 - **The definitive build finally delivered the port to the device.** On-device log

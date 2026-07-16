@@ -68,18 +68,36 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     device log: pre-fix shader source had none of our edits.
   - **`#version 410` is confirmed unsupported** on the ES 3.0 context (driver error at `0:1`,
     independent of the stale-cache issue) → exactly what 4.3 fixes.
-  - **NEXT STEP (resume here):** build **`29359246431`** (commit `488cc8c47`, the 4.5c fix) went
-    **GREEN** — all jobs incl. the shader-check gate passed, and **SideStore version
-    `1.6.02.10019049` is published** and ready. So resume is simply: user does **SideStore Update
-    (→ 1.6.02.10019049) → run → sends `Documents/xray_*.log`**. Read that log: expect
-    `accum_sun_mask_nomsaa.ps` to **compile now** and the engine to march to the **next** ES class
-    (one class per round — this is the grind). Watch specifically whether the `unsupported uniform`
-    fatal is gone (it should be) and whether the **monolithic program LINKS** — the deferred **A2**
-    problem (paired vs `v2p_*` out vs fs `p_*` in have DIFFERENT names; ES matches varyings by name,
-    not location) is the next unknown. Then: finish **family C** (~90 int/float casts — the gate
-    wall) and, if A2 linking is painful, adopt **ANGLE/ES-3.1-SSO** (avoids the varying rename; it's
-    the A2 fallback — does NOT help family C). **Decisions + FSR 1.0 (Plan Phase 6) in the journal.**
-    Build speed: full engine build ≈30 min (no caching yet — TODO incremental cache).
+  - **4.8 — local glslang + family C grind, gate 117→230/286 (80%).** Downloaded the official
+    Khronos `glslangValidator` (16.4.0) to `tools/glslang/` (gitignored) so **the gate runs LOCALLY
+    in seconds** — no CI round-trip per fix. Helpers in scratchpad: `diag.py` (assemble like the gate
+    + local glslang + show the offending source line; `--list` = first-error per failing shader),
+    `fix_intlit.py` (batch the safe int-literal→float edits, prints before→after). Family C is
+    GLSL ES 3.00 **int/float strictness** (no implicit int→float in operators/args/assign; desktop
+    GLSL 1.20+ has it — that's why these compile on desktop). Errors chain per shader, so the method
+    is: drive one representative to green by fixing the **shared headers** it pulls, which clears
+    every shader on that chain. Fixed: `gather.ps` (`float*int2`, int LOD), `shadow.h`/`sload.h`/
+    `hmodel.h`/`lmodel.h` int-literals, `accum_volumetric.ps` `1-`→`1.0-`; **moved `VARYING()` into
+    `shared/common.h`** (the `stub_notransform_*.vs` include only common_iostructs→shared, not
+    gl/common.h); guarded `gl_ClipDistance` write under `#ifndef GL_ES` (`v_volumetric.h`); renamed
+    the space-typo file `accum_volumetric_sun_normal .ps` + `#unfdef`→`#undef`. Gate now also defines
+    `USE_HWSMAP`/`USE_HWSMAP_PCF` (device uses HW shadows) to compile the real path.
+  - **NEXT STEP (resume here):** two tracks.
+    (a) **Device test still pending from 4.5c** — SideStore build carrying the gl_FragCoord fix is
+    live; a NEW build (run **`29506572965`**, the 4.8 family-C batch) is finishing. Once green,
+    user does **SideStore Update → run → send `Documents/xray_*.log`** to see how far the engine now
+    marches on Apple's ES compiler and whether the monolithic program **LINKS** (the deferred **A2**
+    varying-name problem — `v2p_*` out vs `p_*` in differ; ES matches by name — is the next unknown;
+    the `unsupported uniform` fatal should be gone once fragments compile).
+    (b) **Continue family C offline** (fast now): remaining **56** = ~41 `wrong operand` + 9
+    `cannot convert` + 6 `no matching overload` (scattered per-shader int/float — same method,
+    `python scratchpad/diag.py <shader>` then fix); plus deferred `fxaa.ps`/`ssao_hdao_new.ps`
+    undefined-macro `#if` (need `#ifndef FXAA_360/MSAA_SAMPLES … 0` defaults), the ATOC `_main`
+    signature mismatch (structural), and 3 include-only files (`gather.ps`/`ssao_blur.ps`/
+    `ssao_hbao.ps`) that are gate false-positives (teach the gate to skip files with no main/_main).
+    Run the gate locally: `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`.
+    Then A2 (adopt ANGLE/ES-3.1-SSO only if A2 linking is painful — does NOT help family C).
+    **FSR 1.0 = Plan Phase 6.** Build ≈30 min (no caching — TODO incremental).
 
 ## On-device testing (the loop)
 
