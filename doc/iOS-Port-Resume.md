@@ -88,22 +88,31 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     (fxaa FXAA_360/PS3, common.h SSAO_QUALITY/SSAO_OPT_DATA), and gate accuracy (skip include-only
     + dead files, define USE_HWSMAP/SKIN_NONE). Method: dedup the *first-error source line* across all
     failures → 2–18 unique expressions cover 30–90 shaders, almost all in shared headers.
-  - **NEXT STEP (resume here):** two tracks.
-    (a) **Device test** — SideStore build carrying gl_FragCoord (4.5c) + the whole family-C batch
-    (4.8) is live (a new build pushes with parts 5–8). Once green, **SideStore Update → run → send
-    `Documents/xray_*.log`** to see how far the engine marches on Apple's ES compiler and whether the
-    monolithic program **LINKS** (the deferred **A2** varying-name problem — `v2p_*` out vs `p_*` in
-    differ, ES matches by name — is the next unknown; the `unsupported uniform` fatal should be gone).
-    (b) **Family D: skinning vertex-format (the only offline item left, 14 shaders).** Every remaining
-    gate failure is a **model vertex shader** doing `I.N = v_model_N` where the NORMAL attribute is
-    `float4` (packs a skin index/weight in .w) but `v_model.N` is `float3` → strict ES rejects vec4→vec3.
-    It's variant-dependent (struct N is float3 for v_model/skinned_0/1, float4 for skinned_2/3/4; the
-    attribute is float3 only under SKIN_0), so no single-line fix — needs a variant-aware change to the
-    v_model_*.h headers (or the skin.h structs / vertex-format) **verified on-device**, not rushed,
-    because it touches how the engine binds model vertex buffers. Run the gate locally:
-    `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`
-    (`scratchpad/diag.py <shader>` shows the offending line). Then A2 (adopt ANGLE/ES-3.1-SSO only if
-    A2 linking is painful — does NOT help family C/D). **FSR 1.0 = Plan Phase 6.** Build ≈30 min.
+  - **4.9 (A2) — slot-based varying names for ES monolithic linking.** Device build 10021 (family C)
+    compiled shaders on Apple ES but failed at LINK: `Output of vertex shader 'v2p_TL_Tex0' not read
+    by fragment shader` — ES links varyings by NAME, desktop SSO by LOCATION, so paired VS/FS use
+    different names on purpose. Fix: renamed EVERY vs→fs varying to a slot-encoded name
+    `xrvary<location>` (TEXCOORD0→xrvary8, COLOR→xrvary0) in both `out`/`in` decls + `main()` uses
+    (304 names, 82 files) so name==slot ⇒ VS-out and FS-in at the same slot match by name on ES and by
+    location on desktop. New offline tool `misc/ios/shadercheck/link_check.py` checks the ES varying
+    interface over blender pairs (glslang's own linker is too lenient) — **40/49 pairs link clean now
+    (from ~0)**, incl. boot-critical accum_sun_mask. `find_include` made case-insensitive (fixes CI
+    under-count vs local).
+  - **NEXT STEP (resume here):** **device test build 10021+A2** (a new build is finishing after the
+    A2 push). **SideStore Update → run → send `Documents/xray_*.log`.** Expect the engine to march
+    past the accum blenders into more RT/shader compiles. Two known follow-ups:
+    (a) **A2 tail — 9 effect pairs** the rename exposes as genuine interface mismatches (FS reads a
+    wider type or a varying the VS never writes; SSO tolerated it): `model_distort*|particle_*`,
+    `model_def_lplanes|base_lplanes`, `stub_notransform_2uv|accum_volumetric_sun_normal`. Fix per-pair
+    (narrow FS input or widen VS output to what components are actually used); run
+    `python misc/ios/shadercheck/link_check.py` to see them. Effects, not boot-critical.
+    (b) **Family D — skinning vertex-format (14 model VS, offline).** `I.N = v_model_N`: NORMAL
+    attribute is `float4` (skin index/weight in .w) but `v_model.N` is `float3` → strict ES rejects
+    vec4→vec3. Variant-dependent (struct N float3 for v_model/skinned_0/1, float4 for skinned_2/3/4),
+    needs a variant-aware change to v_model_*.h/skin.h **verified on-device** (touches vertex-buffer
+    binding). Gate: `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`.
+    Then Plan 4.7–4.10 (runtime GL calls, RT formats, textures) as the device surfaces them. **ANGLE
+    is the A2 fallback only if native linking proves worse than expected. FSR 1.0 = Plan Phase 6.**
 
 ## On-device testing (the loop)
 

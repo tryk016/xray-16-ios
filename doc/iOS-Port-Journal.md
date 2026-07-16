@@ -63,6 +63,43 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-16 — Phase 4 Slice 4.9 (A2): slot-based varying names for ES monolithic linking
+
+- **The family-C build (10021) got PAST shader compilation on Apple ES** — first time both stages
+  of `accum_sun_mask_nomsaa` compile on-device. Then it hit **A2 exactly as predicted**, at link:
+  `Output of vertex shader 'v2p_TL_Tex0' not read by fragment shader` / `Input of fragment shader
+  'p_TL_Tex0' not written by vertex shader` → the `unsupported uniform` fatal (confirmed cascade of
+  the broken link). GLSL ES 3.00 links varyings **by name**; desktop SSO linked **by location**, so
+  the paired VS/FS deliberately use *different* names (`v2p_*` vs `p_*`).
+- **Scope investigation (user asked first):** it's NOT a cosmetic prefix swap. Comparing all 25
+  varying structs, only 15 have matching field names/slots; the rest are pure location bridges — e.g.
+  blender `("accum_volumetric","accum_volumetric")` has the FS read slot 0 as a different name/width
+  than the VS writes. So manual per-name renaming is out; the fix must map to locations.
+- **Decision (user chose native over ANGLE):** rename EVERY vs→fs varying to a **slot-encoded name**
+  `xrvary<location>` (TEXCOORD0→xrvary8, COLOR→xrvary0, …) in both the VS `out` and FS `in` decls and
+  their `main()` uses. Then any VS-out and FS-in at the same slot share a name → ES links them by name
+  exactly as desktop links them by location. Verified collision-free (no two varyings share a slot in
+  a file), **304 names across 82 files**, done by a deterministic transform. Desktop unaffected (still
+  matches by the `layout(location=)` the VARYING macro keeps). glslang single-stage compile still
+  265/279 — no regression.
+- **New offline tool `misc/ios/shadercheck/link_check.py`:** glslang's own linker is too lenient to
+  catch cross-stage varying mismatches (it returned rc=0 on the very pair the device rejected), so this
+  parses the blender `shader:begin("<vs>","<fs>")` pairs and checks the ES interface rule (every FS
+  `in` has a same-name, same-type VS `out`). After the rename: **40/49 pairs link clean, up from ~0**,
+  incl. the boot-critical `accum_sun_mask`.
+- **The 9 remaining pairs are genuine interface mismatches the rename exposes** (FS reads a wider type
+  or a varying the VS never writes — SSO silently tolerated it): `model_distort*|particle_*` (heat-haze/
+  anomaly effects), `model_def_lplanes|base_lplanes`, `stub_notransform_2uv|accum_volumetric_sun_normal`.
+  These are effects, not the deferred-base boot path — deferred for per-pair fixes (narrow the FS input
+  or widen the VS output per what components are actually used) informed by which ones the device hits.
+- **Also:** `glsl_es_check.py find_include` made case-INSENSITIVE — several shaders `#include` mixed-case
+  names (`iostructs\p_TL.h`, file is `p_tl.h`) that Windows + iOS APFS resolve but a case-sensitive Linux
+  CI did not, mis-skipping ~30 real entries as include-only (CI reported 235/249 vs local 265/279; now
+  they'll agree).
+- **NEXT:** device test build 10021+A2. Expect the engine to march past the accum blenders into more
+  render-target / shader compiles; watch whether any of the 9 effect-pairs block, and whether NEW ES
+  issues appear beyond varyings (uniform introspection, RT formats, draw calls — Plan 4.7–4.10).
+
 ### 2026-07-14 — Phase 4 Slice 4.8: local glslang + family C grind (int/float strictness), gate 117→230
 
 - **Unlocked a fully-offline fix loop.** Downloaded the official Khronos `glslangValidator`
