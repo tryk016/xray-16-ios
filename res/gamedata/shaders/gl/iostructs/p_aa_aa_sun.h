@@ -16,7 +16,7 @@ VARYING(TEXCOORD1) in float2	xrvary9	; // TEXCOORD1;
 VARYING(TEXCOORD2) in float2 	xrvary10		; // TEXCOORD2;
 VARYING(TEXCOORD3) in float2	xrvary11		; // TEXCOORD3;
 VARYING(TEXCOORD4) in float2 	xrvary12		; // TEXCOORD4;
-VARYING(TEXCOORD5) in float2	xrvary13		; // TEXCOORD5;
+VARYING(TEXCOORD5) in float4	xrvary13		; // TEXCOORD5; (VS writes float4 here; read .xy)
 
 #ifdef MSAA_OPTIMIZATION
 #ifdef GBUFFER_OPTIMIZATION
@@ -40,7 +40,7 @@ void main()
 	I.LT		= xrvary10;
 	I.RT		= xrvary11;
 	I.LB		= xrvary12;
-	I.RB		= xrvary13;
+	I.RB		= xrvary13.xy;
 
 #ifdef MSAA_OPTIMIZATION
 #ifdef GBUFFER_OPTIMIZATION

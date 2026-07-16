@@ -52,6 +52,24 @@ def main() -> int:
             for vs, fs in BEGIN.findall(open(os.path.join(root, f), encoding="utf-8", errors="replace").read()):
                 pairs.add((vs, fs))
 
+    # The core render-target passes are hard-coded C++ blenders (CBlender_*::Compile) that
+    # call r_Pass("<vs>", "<ps>", ...) — NOT .s scripts — and they are exactly the ones
+    # created at boot (CRenderTarget). Scan them too so the boot-critical vs/fs pairs are
+    # covered. Only literal-string pairs are found (a few blenders build names dynamically).
+    CPP_RPASS = re.compile(r'r_Pass\s*\(\s*"([^"]+)"\s*,\s*"([^"]+)"')
+    for base in ("src/Layers/xrRender/blenders", "src/Layers/xrRender",
+                 "src/Layers/xrRender_R2", "src/Layers/xrRenderPC_GL"):
+        if not os.path.isdir(base):
+            continue
+        for dirpath, _dirs, files in os.walk(base):
+            for f in files:
+                if not f.endswith(".cpp"):
+                    continue
+                txt = open(os.path.join(dirpath, f), encoding="utf-8", errors="replace").read()
+                for vs, fs in CPP_RPASS.findall(txt):
+                    if vs != "null" and fs != "null":
+                        pairs.add((vs, fs))
+
     ok = 0
     bad: list[tuple[str, str, list[str]]] = []
     for vs, fs in sorted(pairs):
