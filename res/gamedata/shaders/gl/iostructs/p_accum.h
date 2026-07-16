@@ -11,7 +11,7 @@ in int gl_SampleID;
 #endif
 #endif
 
-VARYING(TEXCOORD0) in float4 	p_accum_omni_tc		; // TEXCOORD0;
+VARYING(TEXCOORD0) in float4 	xrvary8		; // TEXCOORD0;
 
 #ifdef MSAA_OPTIMIZATION
 #ifdef GBUFFER_OPTIMIZATION
@@ -31,15 +31,15 @@ void main()
 {
 #ifdef MSAA_OPTIMIZATION
 #ifdef GBUFFER_OPTIMIZATION
-	SV_Target = _main ( p_accum_omni_tc, gl_FragCoord, gl_SampleID );
+	SV_Target = _main ( xrvary8, gl_FragCoord, gl_SampleID );
 #else
-	SV_Target = _main ( p_accum_omni_tc, gl_SampleID );
+	SV_Target = _main ( xrvary8, gl_SampleID );
 #endif
 #else
 #ifdef GBUFFER_OPTIMIZATION
-	SV_Target = _main ( p_accum_omni_tc, gl_FragCoord );
+	SV_Target = _main ( xrvary8, gl_FragCoord );
 #else
-	SV_Target = _main ( p_accum_omni_tc );
+	SV_Target = _main ( xrvary8 );
 #endif
 #endif
 }

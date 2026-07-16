@@ -21,9 +21,9 @@ layout(location = TEXCOORD1)		in float2	v_static_lmh		; // TEXCOORD1;		// (lmu,l
 #endif
 
 
-VARYING(TEXCOORD0) out float2	v2p_wmark_tc0		; // TEXCOORD0;
-VARYING(COLOR0) out float3	v2p_wmark_c0		; // COLOR0;		// c0=all lighting
-VARYING(FOG) out float	v2p_wmark_fog		; // FOG;
+VARYING(TEXCOORD0) out float2	xrvary8		; // TEXCOORD0;
+VARYING(COLOR0) out float3	xrvary0		; // COLOR0;		// c0=all lighting
+VARYING(FOG) out float	xrvary7		; // FOG;
 
 v2p _main ( v_static v );
 
@@ -41,8 +41,8 @@ void main()
 
 	v2p O 		= _main (I);
 
-	v2p_wmark_tc0	= O.tc0;
-	v2p_wmark_c0	= O.c0;
-	v2p_wmark_fog	= O.fog;
+	xrvary8	= O.tc0;
+	xrvary0	= O.c0;
+	xrvary7	= O.fog;
 	gl_Position	= O.hpos;
 }

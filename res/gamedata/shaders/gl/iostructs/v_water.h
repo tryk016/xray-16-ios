@@ -39,21 +39,21 @@ layout(location = BINORMAL)		in float4	v_vert_B		; // BINORMAL;		// binormal
 layout(location = COLOR0)		in float4	v_vert_color		; // COLOR0;		// (r,g,b,dir-occlusion)
 layout(location = TEXCOORD0)		in float2	v_vert_uv		; // TEXCOORD0;		// (u0,v0)
 
-VARYING(TEXCOORD0) out float2	v2p_vert_tbase		; // TEXCOORD0;
-VARYING(TEXCOORD1) out float2	v2p_vert_tnorm0		; // TEXCOORD1;
-VARYING(TEXCOORD2) out float2	v2p_vert_tnorm1		; // TEXCOORD2;
-VARYING(TEXCOORD3) out float3	v2p_vert_M1		; // TEXCOORD3;
-VARYING(TEXCOORD4) out float3	v2p_vert_M2		; // TEXCOORD4;
-VARYING(TEXCOORD5) out float3	v2p_vert_M3		; // TEXCOORD5;
-VARYING(TEXCOORD6) out float3	v2p_vert_v2point	; // TEXCOORD6;
+VARYING(TEXCOORD0) out float2	xrvary8		; // TEXCOORD0;
+VARYING(TEXCOORD1) out float2	xrvary9		; // TEXCOORD1;
+VARYING(TEXCOORD2) out float2	xrvary10		; // TEXCOORD2;
+VARYING(TEXCOORD3) out float3	xrvary11		; // TEXCOORD3;
+VARYING(TEXCOORD4) out float3	xrvary12		; // TEXCOORD4;
+VARYING(TEXCOORD5) out float3	xrvary13		; // TEXCOORD5;
+VARYING(TEXCOORD6) out float3	xrvary14	; // TEXCOORD6;
 #if defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
-VARYING(TEXCOORD7) out float4	v2p_vert_tctexgen	; // TEXCOORD7;
+VARYING(TEXCOORD7) out float4	xrvary15	; // TEXCOORD7;
 #endif	// defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
 #if SSR_QUALITY > 0
-VARYING(POSITION0) out float4	v2p_vert_pos	; // POSITION0;
+VARYING(POSITION0) out float4	xrvary3	; // POSITION0;
 #endif
-VARYING(COLOR0) out float4	v2p_vert_c0		; // COLOR0;
-VARYING(FOG) out float	v2p_vert_fog		; // FOG;
+VARYING(COLOR0) out float4	xrvary0		; // COLOR0;
+VARYING(FOG) out float	xrvary7		; // FOG;
 
 v2p _main (v_vert v);
 
@@ -69,20 +69,20 @@ void main()
 
 	v2p O 		= _main (I);
 
-	v2p_vert_tbase	= O.tbase;
-	v2p_vert_tnorm0	= O.tnorm0;
-	v2p_vert_tnorm1	= O.tnorm1;
-	v2p_vert_M1	= O.M1;
-	v2p_vert_M2	= O.M2;
-	v2p_vert_M3	= O.M3;
-	v2p_vert_v2point= O.v2point;
+	xrvary8	= O.tbase;
+	xrvary9	= O.tnorm0;
+	xrvary10	= O.tnorm1;
+	xrvary11	= O.M1;
+	xrvary12	= O.M2;
+	xrvary13	= O.M3;
+	xrvary14= O.v2point;
 #if defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
-	v2p_vert_tctexgen = O.tctexgen;
+	xrvary15 = O.tctexgen;
 #endif	// defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
-	v2p_vert_c0	= O.c0;
-	v2p_vert_fog	= O.fog;
+	xrvary0	= O.c0;
+	xrvary7	= O.fog;
 #if SSR_QUALITY > 0
-	v2p_vert_pos	=  O.position_w;
+	xrvary3	=  O.position_w;
 #endif
 	gl_Position	= O.hpos;
 }

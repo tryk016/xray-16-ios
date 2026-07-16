@@ -14,10 +14,10 @@ struct 	v2p
 //	float2	tNoise 		; // TEXCOORD3;	// projective noise
 };
 
-VARYING(TEXCOORD0) in float3 	v2p_lightToPos	; // TEXCOORD0;		// light center to plane vector
-VARYING(TEXCOORD1) in float3 	v2p_vPos		; // TEXCOORD1;		// position in camera space
-VARYING(TEXCOORD2) in float 	v2p_fDensity	; // TEXCOORD2;		// plane density along Z axis
-//VARYING(TEXCOORD3) in float2	v2p_tNoise 		; // TEXCOORD3;		// projective noise
+VARYING(TEXCOORD0) in float3 	xrvary8	; // TEXCOORD0;		// light center to plane vector
+VARYING(TEXCOORD1) in float3 	xrvary9		; // TEXCOORD1;		// position in camera space
+VARYING(TEXCOORD2) in float 	xrvary10	; // TEXCOORD2;		// plane density along Z axis
+//VARYING(TEXCOORD3) in float2	xrvary11 		; // TEXCOORD3;		// projective noise
 
 #ifdef MSAA_OPTIMIZATION
 float4 _main ( v2p I, uint iSample );
@@ -28,10 +28,10 @@ float4 _main ( v2p I );
 void main()
 {
 	v2p	I;
-	I.lightToPos = v2p_lightToPos;
-	I.vPos		= v2p_vPos;
-	I.fDensity	= v2p_fDensity;
-//	I.tNoise	= v2p_tNoise;
+	I.lightToPos = xrvary8;
+	I.vPos		= xrvary9;
+	I.fDensity	= xrvary10;
+//	I.tNoise	= xrvary11;
 
 #ifdef MSAA_OPTIMIZATION
 	SV_Target	= _main ( I, gl_SampleID );

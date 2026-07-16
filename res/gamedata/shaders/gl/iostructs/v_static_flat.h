@@ -22,17 +22,17 @@ layout(location = COLOR0)		in float4	v_static_C	; // COLOR0;	// (r,g,b,dir-occlu
 layout(location = POSITION)		in float4	v_static_P		; // POSITION;	// (float,float,float,1)
 
 #if defined(USE_R2_STATIC_SUN) && !defined(USE_LM_HEMI)
-VARYING(TEXCOORD0) out float4	v2p_flat_tcdh	; // TEXCOORD0;	// Texture coordinates,         w=sun_occlusion
+VARYING(TEXCOORD0) out float4	xrvary8	; // TEXCOORD0;	// Texture coordinates,         w=sun_occlusion
 #else
-VARYING(TEXCOORD0) out float2	v2p_flat_tcdh	; // TEXCOORD0;	// Texture coordinates
+VARYING(TEXCOORD0) out float2	xrvary8	; // TEXCOORD0;	// Texture coordinates
 #endif
-VARYING(TEXCOORD1) out float4	v2p_flat_position; // TEXCOORD1;	// position + hemi
-VARYING(TEXCOORD2) out float3	v2p_flat_N		; // TEXCOORD2;	// Eye-space normal        (for lighting)
+VARYING(TEXCOORD1) out float4	xrvary9; // TEXCOORD1;	// position + hemi
+VARYING(TEXCOORD2) out float3	xrvary10		; // TEXCOORD2;	// Eye-space normal        (for lighting)
 #ifdef USE_TDETAIL
-VARYING(TEXCOORD3) out float2	v2p_flat_tcdbump; // TEXCOORD3;	// d-bump
+VARYING(TEXCOORD3) out float2	xrvary11; // TEXCOORD3;	// d-bump
 #endif
 #ifdef USE_LM_HEMI
-VARYING(TEXCOORD4) out float2	v2p_flat_lmh	; // TEXCOORD4;	// lm-hemi
+VARYING(TEXCOORD4) out float2	xrvary12	; // TEXCOORD4;	// lm-hemi
 #endif
 
 v2p_flat _main( v_in I );
@@ -54,14 +54,14 @@ void main()
 
 	v2p_flat O	= _main (I);
 
-	v2p_flat_tcdh = O.tcdh;
-	v2p_flat_position = O.position;
-	v2p_flat_N	= O.N;
+	xrvary8 = O.tcdh;
+	xrvary9 = O.position;
+	xrvary10	= O.N;
 #ifdef USE_TDETAIL
-	v2p_flat_tcdbump = O.tcdbump;
+	xrvary11 = O.tcdbump;
 #endif
 #ifdef USE_LM_HEMI
-	v2p_flat_lmh = O.lmh;
+	xrvary12 = O.lmh;
 #endif
 	gl_Position = O.hpos;
 }

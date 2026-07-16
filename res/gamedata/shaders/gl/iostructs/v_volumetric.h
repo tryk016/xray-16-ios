@@ -20,20 +20,20 @@ struct v2p
 
 layout(location = POSITION)		in float3	v_volumetric_P;
 
-VARYING(TEXCOORD0) out float3 	v2p_lightToPos	; // TEXCOORD0;		// light center to plane vector
-VARYING(TEXCOORD1) out float3 	v2p_vPos		; // TEXCOORD1;		// position in camera space
-VARYING(TEXCOORD2) out float 	v2p_fDensity	; // TEXCOORD2;		// plane density alon Z axis
-//VARYING(TEXCOORD3) out float2	v2p_tNoise 		; // TEXCOORD3;		// projective noise
+VARYING(TEXCOORD0) out float3 	xrvary8	; // TEXCOORD0;		// light center to plane vector
+VARYING(TEXCOORD1) out float3 	xrvary9		; // TEXCOORD1;		// position in camera space
+VARYING(TEXCOORD2) out float 	xrvary10	; // TEXCOORD2;		// plane density alon Z axis
+//VARYING(TEXCOORD3) out float2	xrvary11 		; // TEXCOORD3;		// projective noise
 
 v2p _main ( float3 P );
 
 void main()
 {
 	v2p O	= _main ( v_volumetric_P );
-	v2p_lightToPos	= O.lightToPos;
-	v2p_vPos		= O.vPos;
-	v2p_fDensity	= O.fDensity;
-//	v2p_tNoise		= O.tNoise;
+	xrvary8	= O.lightToPos;
+	xrvary9		= O.vPos;
+	xrvary10	= O.fDensity;
+//	xrvary11		= O.tNoise;
 	gl_Position		= O.hpos;
 	// gl_ClipDistance is a desktop/EXT_clip_cull_distance built-in; GLSL ES 3.00 has no
 	// hardware clip planes. Skip writing them on ES (the light volume just isn't frustum-

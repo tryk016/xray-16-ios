@@ -20,8 +20,8 @@ layout(location = TEXCOORD1)		in float2	v_static_lmh		; // TEXCOORD1;		// (lmu,l
 #endif
 
 
-VARYING(TEXCOORD0) out float2	v2p_lplanes_tc0		; // TEXCOORD0;		// base
-VARYING(COLOR0) out float4	v2p_lplanes_c0		; // COLOR0;		// color
+VARYING(TEXCOORD0) out float2	xrvary8		; // TEXCOORD0;		// base
+VARYING(COLOR0) out float4	xrvary0		; // COLOR0;		// color
 
 v2p _main ( v_static v );
 
@@ -39,7 +39,7 @@ void main()
 
 	v2p O 		= _main (I);
 
-	v2p_lplanes_tc0	= O.tc0;
-	v2p_lplanes_c0	= O.c0;
+	xrvary8	= O.tc0;
+	xrvary0	= O.c0;
 	gl_Position	= O.hpos;
 }

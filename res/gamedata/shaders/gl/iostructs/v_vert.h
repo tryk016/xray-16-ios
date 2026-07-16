@@ -22,9 +22,9 @@ layout(location = TEXCOORD1)		in float2	v_static_color_lmh	; // TEXCOORD1;		// (
 layout(location = COLOR0)		in float4	v_static_color_c	; // COLOR0;		// (r,g,b,dir-occlusion)
 
 
-VARYING(TEXCOORD0) out float2	v2p_vert_tc		; // TEXCOORD0;
-VARYING(COLOR0) out float3	v2p_vert_c		; // COLOR0;		// c0=all lighting
-VARYING(FOG) out float	v2p_vert_fog		; // FOG;
+VARYING(TEXCOORD0) out float2	xrvary8		; // TEXCOORD0;
+VARYING(COLOR0) out float3	xrvary0		; // COLOR0;		// c0=all lighting
+VARYING(FOG) out float	xrvary7		; // FOG;
 
 v2p _main ( v_static_color I );
 
@@ -43,8 +43,8 @@ void main()
 
 	v2p O 		= _main (I);
 
-	v2p_vert_tc	= O.Tex0;
-	v2p_vert_c	= O.c0;
-	v2p_vert_fog	= O.fog;
+	xrvary8	= O.Tex0;
+	xrvary0	= O.c0;
+	xrvary7	= O.fog;
 	gl_Position	= O.hpos;
 }

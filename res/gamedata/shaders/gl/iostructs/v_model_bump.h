@@ -26,19 +26,19 @@ layout(location = TEXCOORD1)	in float4	v_model_ind		; // (x=m-index0, y=m-index1
 #endif
 
 #if defined(USE_R2_STATIC_SUN) && !defined(USE_LM_HEMI)
-VARYING(TEXCOORD0) out float4	v2p_bumped_tcdh	; // TEXCOORD0;	// Texture coordinates,         w=sun_occlusion
+VARYING(TEXCOORD0) out float4	xrvary8	; // TEXCOORD0;	// Texture coordinates,         w=sun_occlusion
 #else
-VARYING(TEXCOORD0) out float2	v2p_bumped_tcdh	; // TEXCOORD0;	// Texture coordinates
+VARYING(TEXCOORD0) out float2	xrvary8	; // TEXCOORD0;	// Texture coordinates
 #endif
-VARYING(TEXCOORD1) out float4	v2p_bumped_position; // TEXCOORD1;	// position + hemi
-VARYING(TEXCOORD2) out float3	v2p_bumped_M1	; // TEXCOORD2;	// nmap 2 eye - 1
-VARYING(TEXCOORD3) out float3	v2p_bumped_M2	; // TEXCOORD3;	// nmap 2 eye - 2
-VARYING(TEXCOORD4) out float3	v2p_bumped_M3	; // TEXCOORD4;	// nmap 2 eye - 3
+VARYING(TEXCOORD1) out float4	xrvary9; // TEXCOORD1;	// position + hemi
+VARYING(TEXCOORD2) out float3	xrvary10	; // TEXCOORD2;	// nmap 2 eye - 1
+VARYING(TEXCOORD3) out float3	xrvary11	; // TEXCOORD3;	// nmap 2 eye - 2
+VARYING(TEXCOORD4) out float3	xrvary12	; // TEXCOORD4;	// nmap 2 eye - 3
 #ifdef USE_TDETAIL
-VARYING(TEXCOORD5) out float2	v2p_bumped_tcdbump; // TEXCOORD5;	// d-bump
+VARYING(TEXCOORD5) out float2	xrvary13; // TEXCOORD5;	// d-bump
 #endif
 #ifdef USE_LM_HEMI
-VARYING(TEXCOORD6) out float2	v2p_bumped_lmh	; // TEXCOORD6;	// lm-hemi
+VARYING(TEXCOORD6) out float2	xrvary14	; // TEXCOORD6;	// lm-hemi
 #endif
 
 v2p_bumped _main( v_model I );
@@ -91,16 +91,16 @@ void main()
 	O = _main(skinning_4(I));
 #endif
 
-	v2p_bumped_tcdh		= O.tcdh;
-	v2p_bumped_position	= O.position;
-	v2p_bumped_M1		= O.M1;
-	v2p_bumped_M2		= O.M2;
-	v2p_bumped_M3		= O.M3;
+	xrvary8		= O.tcdh;
+	xrvary9	= O.position;
+	xrvary10		= O.M1;
+	xrvary11		= O.M2;
+	xrvary12		= O.M3;
 #ifdef USE_TDETAIL
-	v2p_bumped_tcdbump	= O.tcdbump;
+	xrvary13	= O.tcdbump;
 #endif
 #ifdef USE_LM_HEMI
-	v2p_bumped_lmh		= O.lmh;
+	xrvary14		= O.lmh;
 #endif
 	gl_Position			= O.hpos;
 }

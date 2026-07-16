@@ -20,10 +20,10 @@ struct v2p
 #endif // USE_SOFT_PARTICLES
 };
 
-VARYING(TEXCOORD0) in float2	p_particle_tc	; // TEXCOORD0;
-VARYING(COLOR0) in float4	p_particle_c	; // COLOR0;
+VARYING(TEXCOORD0) in float2	xrvary8	; // TEXCOORD0;
+VARYING(COLOR0) in float4	xrvary0	; // COLOR0;
 #ifdef	USE_SOFT_PARTICLES
-VARYING(TEXCOORD1) in float4	p_particle_tctexgen; // TEXCOORD1;
+VARYING(TEXCOORD1) in float4	xrvary9; // TEXCOORD1;
 #endif	//	USE_SOFT_PARTICLES
 
 float4 _main ( v2p I );
@@ -31,10 +31,10 @@ float4 _main ( v2p I );
 void main()
 {
 	v2p			I;
-	I.tc0		= p_particle_tc;
-	I.c 		= p_particle_c;
+	I.tc0		= xrvary8;
+	I.c 		= xrvary0;
 #ifdef USE_SOFT_PARTICLES
-	I.tctexgen 	= p_particle_tctexgen;
+	I.tctexgen 	= xrvary9;
 #endif // USE_SOFT_PARTICLES
 #ifdef GBUFFER_OPTIMIZATION
 	I.hpos		= gl_FragCoord;

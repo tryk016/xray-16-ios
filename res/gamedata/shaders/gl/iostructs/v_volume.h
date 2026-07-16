@@ -5,9 +5,9 @@ out gl_PerVertex { vec4 gl_Position; };
 
 layout(location = POSITION)		in float4	v_volume_P;
 
-VARYING(TEXCOORD0) out float4 	v2p_volume_tc	; // TEXCOORD0;
+VARYING(TEXCOORD0) out float4 	xrvary8	; // TEXCOORD0;
 #ifdef 	USE_SJITTER
-VARYING(TEXCOORD1) out float4 	v2p_volume_tcJ	; // TEXCOORD1;
+VARYING(TEXCOORD1) out float4 	xrvary9	; // TEXCOORD1;
 #endif
 
 v2p_volume _main ( float4 P );
@@ -15,9 +15,9 @@ v2p_volume _main ( float4 P );
 void main()
 {
 	v2p_volume O	= _main ( v_volume_P );
-	v2p_volume_tc	= O.tc;
+	xrvary8	= O.tc;
 #ifdef 	USE_SJITTER
-	v2p_volume_tcJ	= O.tcJ;
+	xrvary9	= O.tcJ;
 #endif
 	gl_Position		= O.hpos;
 }

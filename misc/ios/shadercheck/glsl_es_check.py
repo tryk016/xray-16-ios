@@ -81,17 +81,25 @@ def find_include(name: str, roots: list[str]) -> str | None:
     includes use Windows separators (e.g. `#include "shared\\common.h"`), so
     normalise backslashes to forward slashes — otherwise on Linux CI the whole
     `shared\\common.h` string is one literal filename and never resolves, which
-    silently drops the type shims and makes every downstream decl look broken."""
+    silently drops the type shims and makes every downstream decl look broken.
+
+    Matching is CASE-INSENSITIVE: several shaders #include a mixed-case name
+    (`iostructs\\p_TL.h`, `combine_2_AA.ps`) whose file on disk is lower-case.
+    Windows dev and the iOS runtime FS (case-insensitive APFS) resolve these; a
+    case-sensitive Linux CI would not, mis-dropping the iostructs header that
+    supplies main() and skipping the shader as if it were an include-only helper.
+    Resolve case-insensitively so CI matches Windows and the device."""
     name = name.replace("\\", "/")
     for root in roots:
         cand = os.path.normpath(os.path.join(root, name))
         if os.path.isfile(cand):
             return cand
-    base = os.path.basename(name)
+    base = os.path.basename(name).lower()
     for root in roots:
         for dirpath, _dirs, files in os.walk(root):
-            if base in files:
-                return os.path.join(dirpath, base)
+            for fn in files:
+                if fn.lower() == base:
+                    return os.path.join(dirpath, fn)
     return None
 
 

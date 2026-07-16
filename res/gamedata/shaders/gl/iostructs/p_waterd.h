@@ -19,11 +19,11 @@ struct v2p
 #endif
 };
 
-VARYING(TEXCOORD0) in float2	v2p_waterd_tbase		; // TEXCOORD0;
-VARYING(TEXCOORD1) in float2	v2p_waterd_tdist0		; // TEXCOORD1;
-VARYING(TEXCOORD2) in float2	v2p_waterd_tdist1		; // TEXCOORD2;		
+VARYING(TEXCOORD0) in float2	xrvary8		; // TEXCOORD0;
+VARYING(TEXCOORD1) in float2	xrvary9		; // TEXCOORD1;
+VARYING(TEXCOORD2) in float2	xrvary10		; // TEXCOORD2;		
 #if defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
-VARYING(TEXCOORD3) in float4	v2p_waterd_tctexgen		; // TEXCOORD3;
+VARYING(TEXCOORD3) in float4	xrvary11		; // TEXCOORD3;
 #endif	// defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
 
 float4 _main ( v2p I );
@@ -31,11 +31,11 @@ float4 _main ( v2p I );
 void main()
 {
 	v2p		I;
-	I.tbase		= v2p_waterd_tbase;
-	I.tdist0	= v2p_waterd_tdist0;
-	I.tdist1	= v2p_waterd_tdist1;
+	I.tbase		= xrvary8;
+	I.tdist0	= xrvary9;
+	I.tdist1	= xrvary10;
 #if defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
-	I.tctexgen	= v2p_waterd_tctexgen;
+	I.tctexgen	= xrvary11;
 #endif	// defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
 #ifdef GBUFFER_OPTIMIZATION
 	I.hpos	= gl_FragCoord;

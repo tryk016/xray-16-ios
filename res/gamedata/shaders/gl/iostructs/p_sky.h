@@ -14,18 +14,18 @@ struct        _out
 	float4	high	; // SV_Target1;
 };
 
-VARYING(COLOR0) in float4	p_sky_factor; // COLOR0;        // for SM3 - factor.rgb - tonemap-prescaled
-VARYING(TEXCOORD0) in float3	p_sky_tc0	; // TEXCOORD0;
-VARYING(TEXCOORD1) in float3	p_sky_tc1	; // TEXCOORD1;
+VARYING(COLOR0) in float4	xrvary0; // COLOR0;        // for SM3 - factor.rgb - tonemap-prescaled
+VARYING(TEXCOORD0) in float3	xrvary8	; // TEXCOORD0;
+VARYING(TEXCOORD1) in float3	xrvary9	; // TEXCOORD1;
 
 _out _main( v2p I );
 
 void main()
 {
 	v2p			I;
-	I.factor	= p_sky_factor;
-	I.tc0 		= p_sky_tc0;
-	I.tc1 		= p_sky_tc1;
+	I.factor	= xrvary0;
+	I.tc0 		= xrvary8;
+	I.tc1 		= xrvary9;
 
 	_out O		= _main (I);
 

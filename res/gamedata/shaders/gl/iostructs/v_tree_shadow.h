@@ -9,7 +9,7 @@ layout(location = TEXCOORD0)	in float4	v_shadow_tc		; // TEXCOORD0;	// (u,v,frac
 #endif	//	USE_AREF
 
 #ifdef	USE_AREF
-VARYING(TEXCOORD1) out float2	v2p_shadow_tc0	; // TEXCOORD1;	// Diffuse map for aref
+VARYING(TEXCOORD1) out float2	xrvary9	; // TEXCOORD1;	// Diffuse map for aref
 #endif	//	USE_AREF
 
 #ifdef	USE_AREF
@@ -30,7 +30,7 @@ void main()
 
 #ifdef	USE_AREF
 	v2p_shadow_direct_aref O = _main (I);
-	v2p_shadow_tc0 = O.tc0;
+	xrvary9 = O.tc0;
 #else	//	USE_AREF
 	v2p_shadow_direct O = _main (I);
 #endif	//	USE_AREF

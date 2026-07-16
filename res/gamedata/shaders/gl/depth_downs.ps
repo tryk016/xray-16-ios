@@ -20,14 +20,14 @@ struct	_input
 	float4	pos2d		; // SV_Position;
 };
 
-VARYING(TEXCOORD0) in float4 	p_depth_tc0	; // TEXCOORD0;
-VARYING(TEXCOORD1) in float2	p_depth_tcJ	; // TEXCOORD1;
+VARYING(TEXCOORD0) in float4 	xrvary8	; // TEXCOORD0;
+VARYING(TEXCOORD1) in float2	xrvary9	; // TEXCOORD1;
 
 void main ()
 {
 	_input		I;
-	I.tc0			= p_depth_tc0;
-	I.tcJ			= p_depth_tcJ;
+	I.tc0			= xrvary8;
+	I.tcJ			= xrvary9;
 	I.pos2d		= gl_FragCoord;
 
 	//	TODO: move it to C++ code to save maths in PS

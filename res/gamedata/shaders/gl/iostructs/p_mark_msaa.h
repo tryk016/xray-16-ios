@@ -15,18 +15,18 @@ struct	p_TL2uv_msaa
 #endif // GBUFFER_OPTIMIZATION
 };
 
-VARYING(TEXCOORD0) in float2	p_TL0uv_Tex0	; // TEXCOORD0;
-VARYING(TEXCOORD1) in float2	p_TL0uv_Tex1	; // TEXCOORD1;
-VARYING(COLOR) in float4	p_TL0uv_Color	; // COLOR;
+VARYING(TEXCOORD0) in float2	xrvary8	; // TEXCOORD0;
+VARYING(TEXCOORD1) in float2	xrvary9	; // TEXCOORD1;
+VARYING(COLOR) in float4	xrvary0	; // COLOR;
 
 float4 _main ( p_TL2uv_msaa I );
 
 void main()
 {
 	p_TL2uv_msaa	I;
-	I.Tex0		= p_TL0uv_Tex0;
-	I.Tex1		= p_TL0uv_Tex1;
-	I.Color		= p_TL0uv_Color;
+	I.Tex0		= xrvary8;
+	I.Tex1		= xrvary9;
+	I.Color		= xrvary0;
 #ifdef GBUFFER_OPTIMIZATION
 	I.HPos		= gl_FragCoord;
 #endif // GBUFFER_OPTIMIZATION

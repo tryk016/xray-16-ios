@@ -35,10 +35,10 @@ layout(location = TEXCOORD1)		in float4	v_model_ind		; // (x=m-index0, y=m-index
 #endif
 
 
-VARYING(TEXCOORD0) out float2	v2p_model_tc0		; // TEXCOORD0;		// base
-VARYING(TEXCOORD1) out float3	v2p_model_tc1		; // TEXCOORD1;		// environment
-VARYING(COLOR0) out float3	v2p_model_c0		; // COLOR0;		// color
-VARYING(FOG) out float	v2p_model_fog		; // FOG;
+VARYING(TEXCOORD0) out float2	xrvary8		; // TEXCOORD0;		// base
+VARYING(TEXCOORD1) out float3	xrvary9		; // TEXCOORD1;		// environment
+VARYING(COLOR0) out float3	xrvary0		; // COLOR0;		// color
+VARYING(FOG) out float	xrvary7		; // FOG;
 
 v2p _main ( v_model v );
 
@@ -90,9 +90,9 @@ void main()
 	O		= _main(skinning_4(I));
 #endif
 
-	v2p_model_tc0	= O.tc0;
-	v2p_model_tc1	= O.tc1;
-	v2p_model_c0	= O.c0;
-	v2p_model_fog	= O.fog;
+	xrvary8	= O.tc0;
+	xrvary9	= O.tc1;
+	xrvary0	= O.c0;
+	xrvary7	= O.fog;
 	gl_Position	= O.hpos;
 }

@@ -24,11 +24,11 @@ layout(location = POSITIONT)	in float4	v_combine_P	; // POSITIONT;	// xy=pos, zw
 layout(location = TEXCOORD0)	in float2	v_combine_tcJ	; // TEXCOORD0;	// jitter coords
 
 #ifdef USE_VTF
-VARYING(TEXCOORD0) out float4	v2p_combine_tc0	; // TEXCOORD0;	// tc.xy, tc.w = tonemap scale
+VARYING(TEXCOORD0) out float4	xrvary8	; // TEXCOORD0;	// tc.xy, tc.w = tonemap scale
 #else // USE_VTF
-VARYING(TEXCOORD0) out float2	v2p_combine_tc0	; // TEXCOORD0;	// tc.xy
+VARYING(TEXCOORD0) out float2	xrvary8	; // TEXCOORD0;	// tc.xy
 #endif // USE_VTF
-VARYING(TEXCOORD1) out float2	v2p_combine_tcJ	; // TEXCOORD1;	// jitter coords
+VARYING(TEXCOORD1) out float2	xrvary9	; // TEXCOORD1;	// jitter coords
 
 v2p _main (_in v);
 
@@ -40,7 +40,7 @@ void main()
 
 	v2p O		= _main (I);
 
-	v2p_combine_tc0	= O.tc0;
-	v2p_combine_tcJ	= O.tcJ;
+	xrvary8	= O.tc0;
+	xrvary9	= O.tcJ;
 	gl_Position	= O.hpos;
 }

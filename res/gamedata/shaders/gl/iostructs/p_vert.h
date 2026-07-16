@@ -8,18 +8,18 @@ struct v2p
 	float  fog	; // FOG;
 };
 
-VARYING(TEXCOORD0) in float2	v2p_vert_tc		; // TEXCOORD0;
-VARYING(COLOR0) in float3	v2p_vert_c		; // COLOR0;		// c0=all lighting
-VARYING(FOG) in float	v2p_vert_fog		; // FOG;
+VARYING(TEXCOORD0) in float2	xrvary8		; // TEXCOORD0;
+VARYING(COLOR0) in float3	xrvary0		; // COLOR0;		// c0=all lighting
+VARYING(FOG) in float	xrvary7		; // FOG;
 
 float4 _main ( v2p I );
 
 void main()
 {
 	v2p		I;
-	I.Tex0		= v2p_vert_tc;
-	I.c0	 	= v2p_vert_c;
-	I.fog		= v2p_vert_fog;
+	I.Tex0		= xrvary8;
+	I.c0	 	= xrvary0;
+	I.fog		= xrvary7;
 
 	SV_Target	= _main (I);
 }

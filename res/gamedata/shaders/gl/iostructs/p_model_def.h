@@ -8,18 +8,18 @@ struct 	v2p
   	float3	c0; //			COLOR0;		// sun
 };
 
-VARYING(TEXCOORD0) in float2	p_model_tc0	; // TEXCOORD0;	// base
-//VARYING(TEXCOORD1) in float2	p_model_tc1	; // TEXCOORD1;	// lmap
-VARYING(COLOR0) in float3	p_model_c0	; // COLOR0; 	// sun
+VARYING(TEXCOORD0) in float2	xrvary8	; // TEXCOORD0;	// base
+//VARYING(TEXCOORD1) in float2	xrvary9	; // TEXCOORD1;	// lmap
+VARYING(COLOR0) in float3	xrvary0	; // COLOR0; 	// sun
 
 float4 _main ( v2p I );
 
 void main()
 {
 	v2p			I;
-	I.tc0		= p_model_tc0;
-//	I.tc1		= p_model_tc1;
-	I.c0	 	= p_model_c0;
+	I.tc0		= xrvary8;
+//	I.tc1		= xrvary9;
+	I.c0	 	= xrvary0;
 
 	SV_Target	= _main (I);
 }

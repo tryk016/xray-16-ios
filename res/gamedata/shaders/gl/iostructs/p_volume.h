@@ -11,9 +11,9 @@ in int gl_SampleID;
 #endif
 #endif
 
-VARYING(TEXCOORD0) in 	float4 	p_volume_tc		; // TEXCOORD0;
+VARYING(TEXCOORD0) in 	float4 	xrvary8		; // TEXCOORD0;
 #ifdef 	USE_SJITTER
-VARYING(TEXCOORD1) in 	float4 	p_volume_tcJ	; // TEXCOORD1;
+VARYING(TEXCOORD1) in 	float4 	xrvary9	; // TEXCOORD1;
 #endif
 
 #ifdef MSAA_OPTIMIZATION
@@ -33,9 +33,9 @@ float4 _main( p_volume I );
 void main()
 {
 	p_volume	I;
-	I.tc		= p_volume_tc;
+	I.tc		= xrvary8;
 #ifdef 	USE_SJITTER
-	I.tcJ 		= p_volume_tcJ;
+	I.tcJ 		= xrvary9;
 #endif
 
 #ifdef MSAA_OPTIMIZATION

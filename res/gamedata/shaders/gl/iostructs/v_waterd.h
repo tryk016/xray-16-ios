@@ -30,11 +30,11 @@ layout(location = BINORMAL)		in float4	v_vert_B		; // BINORMAL;		// binormal
 layout(location = COLOR0)		in float4	v_vert_color		; // COLOR0;		// (r,g,b,dir-occlusion)
 layout(location = TEXCOORD0)		in int2		v_vert_uv		; // TEXCOORD0;		// (u0,v0)
 
-VARYING(TEXCOORD0) out float2	v2p_vert_tbase		; // TEXCOORD0;
-VARYING(TEXCOORD1) out float2	v2p_vert_tdist0		; // TEXCOORD1;
-VARYING(TEXCOORD2) out float2	v2p_vert_tdist1		; // TEXCOORD2;		
+VARYING(TEXCOORD0) out float2	xrvary8		; // TEXCOORD0;
+VARYING(TEXCOORD1) out float2	xrvary9		; // TEXCOORD1;
+VARYING(TEXCOORD2) out float2	xrvary10		; // TEXCOORD2;		
 #if defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
-VARYING(TEXCOORD3) out float4	v2p_vert_tctexgen	; // TEXCOORD3;
+VARYING(TEXCOORD3) out float4	xrvary11	; // TEXCOORD3;
 #endif	// defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
 
 v2p _main (v_vert v);
@@ -51,11 +51,11 @@ void main()
 
 	v2p O 		= _main (I);
 
-	v2p_vert_tbase	= O.tbase;
-	v2p_vert_tdist0	= O.tdist0;
-	v2p_vert_tdist1	= O.tdist1;
+	xrvary8	= O.tbase;
+	xrvary9	= O.tdist0;
+	xrvary10	= O.tdist1;
 #if defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
-	v2p_vert_tctexgen = O.tctexgen;
+	xrvary11 = O.tctexgen;
 #endif	// defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
 	gl_Position	= O.hpos;
 }

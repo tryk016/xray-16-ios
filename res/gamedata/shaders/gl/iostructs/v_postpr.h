@@ -10,11 +10,11 @@ layout(location = TEXCOORD2)	in float2	v_postpr_Tex2	; // TEXCOORD2;	// base  (n
 layout(location = COLOR0)		in float4	v_postpr_Color	; // COLOR0;		// multiplier, color.w = noise_amount
 layout(location = COLOR1)		in float4	v_postpr_Gray	; // COLOR1;		// (.3,.3,.3.,amount)
 
-VARYING(TEXCOORD0) out float2 	v2p_postpr_Tex0	; // TEXCOORD0;	// base1 (duality)	
-VARYING(TEXCOORD1) out float2	v2p_postpr_Tex1	; // TEXCOORD1;	// base2 (duality)
-VARYING(TEXCOORD2) out float2	v2p_postpr_Tex2	; // TEXCOORD2;	// base  (noise)
-VARYING(COLOR0) out float4	v2p_postpr_Color; // COLOR0;		// multiplier, color.w = noise_amount
-VARYING(COLOR1) out float4	v2p_postpr_Gray	; // COLOR1;		// (.3,.3,.3.,amount)
+VARYING(TEXCOORD0) out float2 	xrvary8	; // TEXCOORD0;	// base1 (duality)	
+VARYING(TEXCOORD1) out float2	xrvary9	; // TEXCOORD1;	// base2 (duality)
+VARYING(TEXCOORD2) out float2	xrvary10	; // TEXCOORD2;	// base  (noise)
+VARYING(COLOR0) out float4	xrvary0; // COLOR0;		// multiplier, color.w = noise_amount
+VARYING(COLOR1) out float4	xrvary1	; // COLOR1;		// (.3,.3,.3.,amount)
 
 v2p_postpr _main ( v_postpr I );
 
@@ -30,10 +30,10 @@ void main()
 
 	v2p_postpr O = _main (I);
 
-	v2p_postpr_Tex0 = O.Tex0;
-	v2p_postpr_Tex1 = O.Tex1;
-	v2p_postpr_Tex2 = O.Tex2;
-	v2p_postpr_Color = O.Color;
-	v2p_postpr_Gray = O.Gray;
+	xrvary8 = O.Tex0;
+	xrvary9 = O.Tex1;
+	xrvary10 = O.Tex2;
+	xrvary0 = O.Color;
+	xrvary1 = O.Gray;
 	gl_Position = O.HPos;
 }

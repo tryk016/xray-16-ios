@@ -14,17 +14,17 @@ in vec4 gl_FragCoord;
 #endif
 
 #if defined(USE_R2_STATIC_SUN) && !defined(USE_LM_HEMI)
-VARYING(TEXCOORD0) in float4	p_flat_tcdh		; // TEXCOORD0;	// Texture coordinates,         w=sun_occlusion
+VARYING(TEXCOORD0) in float4	xrvary8		; // TEXCOORD0;	// Texture coordinates,         w=sun_occlusion
 #else
-VARYING(TEXCOORD0) in float2	p_flat_tcdh		; // TEXCOORD0;	// Texture coordinates
+VARYING(TEXCOORD0) in float2	xrvary8		; // TEXCOORD0;	// Texture coordinates
 #endif
-VARYING(TEXCOORD1) in float4	p_flat_position; // TEXCOORD1;	// position + hemi
-VARYING(TEXCOORD2) in float3	p_flat_N		; // TEXCOORD2;	// Eye-space normal        (for lighting)
+VARYING(TEXCOORD1) in float4	xrvary9; // TEXCOORD1;	// position + hemi
+VARYING(TEXCOORD2) in float3	xrvary10		; // TEXCOORD2;	// Eye-space normal        (for lighting)
 #ifdef USE_TDETAIL
-VARYING(TEXCOORD3) in float2	p_flat_tcdbump	; // TEXCOORD3;	// d-bump
+VARYING(TEXCOORD3) in float2	xrvary11	; // TEXCOORD3;	// d-bump
 #endif
 #ifdef USE_LM_HEMI
-VARYING(TEXCOORD4) in float2	p_flat_lmh		; // TEXCOORD4;	// lm-hemi
+VARYING(TEXCOORD4) in float2	xrvary12		; // TEXCOORD4;	// lm-hemi
 #endif
 
 #ifdef	MSAA_ALPHATEST_DX10_1_ATOC
@@ -36,14 +36,14 @@ f_deffer 	_main	( p_flat I );
 void main()
 {
 	p_flat		I;
-	I.tcdh		= p_flat_tcdh;
-	I.position 	= p_flat_position;
-	I.N			= p_flat_N;
+	I.tcdh		= xrvary8;
+	I.position 	= xrvary9;
+	I.N			= xrvary10;
 #ifdef USE_TDETAIL
-	I.tcdbump 	= p_flat_tcdbump;
+	I.tcdbump 	= xrvary11;
 #endif
 #ifdef USE_LM_HEMI
-	I.lmh		= p_flat_lmh;
+	I.lmh		= xrvary12;
 #endif
 
 #ifdef	MSAA_ALPHATEST_DX10_1_ATOC

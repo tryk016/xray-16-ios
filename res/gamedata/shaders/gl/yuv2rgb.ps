@@ -2,11 +2,11 @@
 
 out vec4 SV_Target;
 
-VARYING(TEXCOORD0) in float2 uv;
+VARYING(TEXCOORD0) in float2 xrvary8;
 
 void main()
 {
-	float3	YUV	= tex2D	(s_base, uv).bgr;
+	float3	YUV	= tex2D	(s_base, xrvary8).bgr;
 
 	float	Y	= YUV.z;
 	float	U	= YUV.y;
