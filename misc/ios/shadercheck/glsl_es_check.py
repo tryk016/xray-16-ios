@@ -62,6 +62,23 @@ BASE_DEFINES = [
     # exactly one defined. Pick the non-skinned variant so `I` is declared — otherwise every
     # deffer_model_*/model_* VS fails with a cascade of "I undeclared".
     ("SKIN_NONE", "1"),
+    # The rest of the define set the device actually compiles with (copied from the shader
+    # preamble the engine dumps in xr_boot.log on an A17 at default settings). Without these
+    # the gate skips whole feature paths (sun shafts, SSR, DOF, soft water/particles) that
+    # then fail only on-device — accum_volumetric_sun's SUN_SHAFTS block was the first.
+    ("FP16_FILTER", "1"),
+    ("FP16_BLEND", "1"),
+    ("USE_BRANCHING", "1"),
+    ("USE_SOFT_WATER", "1"),
+    ("SSR_QUALITY", "3"),
+    ("SSR_HALF_DEPTH", "1"),
+    ("SSR_JITTER", "1"),
+    ("USE_SOFT_PARTICLES", "1"),
+    ("USE_DOF", "1"),
+    ("SUN_SHAFTS_QUALITY", "2"),
+    ("SSAO_QUALITY", "3"),
+    ("SUN_QUALITY", "1"),
+    ("ALLOW_STEEPPARALLAX", "1"),
 ]
 
 # Only the float/int floor goes in the preamble — matching what the engine's ES

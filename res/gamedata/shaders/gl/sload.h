@@ -42,8 +42,8 @@ void UpdateTC( inout p_bumped I )
 {
 	if (I.position.z < fParallaxStopFade)
 	{
-		const float maxSamples = 25;
-		const float minSamples = 5;
+		const float maxSamples = 25.0;
+		const float minSamples = 5.0;
 		const float fParallaxOffset = -0.013;
 
 		float3	 eye = mul (float3x3(I.M1.x, I.M2.x, I.M3.x,
@@ -64,7 +64,7 @@ void UpdateTC( inout p_bumped I )
 		float	fCurrHeight			= 0.0;
 		float	fCurrentBound		= 1.0;
 
-		for( int i=0; i<nNumSteps; ++i )
+		for( int i=0; float(i)<nNumSteps; ++i )
 		{
 			if (fCurrHeight < fCurrentBound)
 			{	
@@ -91,7 +91,7 @@ void UpdateTC( inout p_bumped I )
 		float	fDelta1 = (fCurrentBound - fCurrHeight);
 		float	fParallaxAmount = (fCurrentBound * fDelta2 - (fCurrentBound + fStepSize) * fDelta1 ) / ( fDelta2 - fDelta1 );
 		float	fParallaxFade 	= smoothstep(fParallaxStopFade, fParallaxStartFade, I.position.z);
-		float2	vParallaxOffset = vDelta * ((1- fParallaxAmount )*fParallaxFade);
+		float2	vParallaxOffset = vDelta * ((1.0- fParallaxAmount )*fParallaxFade);
 		float2	vTexCoord = I.tcdh + vParallaxOffset;
 	
 		//	Output the result

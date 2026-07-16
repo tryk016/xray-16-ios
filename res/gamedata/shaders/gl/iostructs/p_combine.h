@@ -1,6 +1,6 @@
 
-out vec4 SV_Target0;
-out vec4 SV_Target1;
+layout(location = 0) out vec4 SV_Target0;
+layout(location = 1) out vec4 SV_Target1;
 #ifndef GL_ES
 in vec4 gl_FragCoord;
 #endif
