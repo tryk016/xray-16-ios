@@ -98,21 +98,30 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     interface over blender pairs (glslang's own linker is too lenient) — **40/49 pairs link clean now
     (from ~0)**, incl. boot-critical accum_sun_mask. `find_include` made case-insensitive (fixes CI
     under-count vs local).
-  - **NEXT STEP (resume here):** **device test build 10021+A2** (a new build is finishing after the
-    A2 push). **SideStore Update → run → send `Documents/xray_*.log`.** Expect the engine to march
-    past the accum blenders into more RT/shader compiles. Two known follow-ups:
-    (a) **A2 tail — 9 effect pairs** the rename exposes as genuine interface mismatches (FS reads a
-    wider type or a varying the VS never writes; SSO tolerated it): `model_distort*|particle_*`,
-    `model_def_lplanes|base_lplanes`, `stub_notransform_2uv|accum_volumetric_sun_normal`. Fix per-pair
-    (narrow FS input or widen VS output to what components are actually used); run
-    `python misc/ios/shadercheck/link_check.py` to see them. Effects, not boot-critical.
-    (b) **Family D — skinning vertex-format (14 model VS, offline).** `I.N = v_model_N`: NORMAL
-    attribute is `float4` (skin index/weight in .w) but `v_model.N` is `float3` → strict ES rejects
-    vec4→vec3. Variant-dependent (struct N float3 for v_model/skinned_0/1, float4 for skinned_2/3/4),
-    needs a variant-aware change to v_model_*.h/skin.h **verified on-device** (touches vertex-buffer
-    binding). Gate: `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`.
-    Then Plan 4.7–4.10 (runtime GL calls, RT formats, textures) as the device surfaces them. **ANGLE
-    is the A2 fallback only if native linking proves worse than expected. FSR 1.0 = Plan Phase 6.**
+  - **4.10 — boot-log + soft-fail (2026-07-16 evening).** Device confirmed **A2 works** (engine
+    marched past the old fatal to the next C++ blender pair). New debug channel:
+    **`Documents/xr_boot.log`** — every log line mirrored to a plain file, fflush per line, works
+    even when boot fatals before CreateLog (the "no log file" mystery = the log only flushed on
+    fatal/exit AND the fatal happened before the log opened; also `idevicesyslog` can't see a 3rd-
+    party os_log, so the file mirror is THE channel). **Soft-fail:** a failed monolithic link no
+    longer kills boot (`_LinkPP` skips constant-parse on program 0 and logs
+    `! Pass '<vs|ps>' failed to link — pass disabled`; `CBackend::Render` skips draws with `pp==0`).
+    One run now lists ALL broken pairs. `link_check.py` also scans C++ blenders (`r_Pass` in
+    src/Layers/xrRender/blenders) = the boot-critical passes: **121/137 clean, 16 broken = 3 roots**.
+  - **NEXT STEP (resume here):** test the **soft-fail build**. SideStore Update → run OpenXRay →
+    send `Documents/xr_boot.log`. Expected: boot continues past broken passes — possibly ALL the way
+    to the **menu** (2D UI needs none of the broken sun/effect passes); the log lists every
+    `failed to link — pass disabled` pair in one run. Then fix the **3 known roots** (see journal
+    2026-07-16 4.10 entry for the exact fix per root): (a) `stub_notransform_2uv`↔`accum_sun_*`
+    family — widen v_TL2uv varyings to float4 (`.w=1` fullscreen), float2 consumers read `.xy`,
+    VISUALLY verify sun shafts; (b) `model_distort*`↔`particle_*` — VS must write TEXCOORD1
+    (7 pairs); (c) `model_def_lplanes|base_lplanes` — COLOR0 float4 vs float3. If type mismatches
+    keep appearing: the systematic fix is the **float4-ABI transform** (declare EVERY xrvary as
+    float4, pad on write, swizzle on read — kills the class by construction). Then **family D**
+    (skinning vertex-format, 14 model VS — see 4.8 notes) and Plan 4.7–4.10 (runtime GL, RT
+    formats, textures) as the device surfaces them. Tools: gate =
+    `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`;
+    links = `python misc/ios/shadercheck/link_check.py`. **ANGLE = plan C. FSR 1.0 = Plan Phase 6.**
 
 ## On-device testing (the loop)
 

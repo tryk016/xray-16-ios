@@ -63,6 +63,46 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-16 — Phase 4 Slice 4.10: boot-log + soft-fail passes (device confirms A2 works, tail mapped)
+
+- **Debug visibility saga (why "no new log"):** the A2 build sat on a black screen with NO log.
+  Diagnosis chain: (1) `ForceFlushLog` is off by default and iOS has no command line → log only
+  flushes on fatal/exit → made per-message flush default on iOS (`log.cpp`). Still no log →
+  (2) os_log mirror added — but the old `idevicesyslog` relay does NOT surface a third-party
+  process's os_log (only Apple frameworks dual-log) → dead end. (3) **The keeper:**
+  `Documents/xr_boot.log` — every `AddOne()` line mirrored to a plain file at a fixed path,
+  `fflush` per line, depends only on libc + Documents. Works regardless of FS/CreateLog/hangs.
+  **This is now THE on-device debug channel** (main log is redundant with it for boot issues).
+- **xr_boot.log verdict: A2 WORKS.** The engine marched PAST the old accum_sun_mask fatal (that
+  pair now links) to the NEXT C++ blender (`CBlender_accum_direct`), failing on
+  `stub_notransform_aa_AA|accum_sun_nomsaa`: TEXCOORD5 (`xrvary13`) VS writes float4, FS reads
+  float2 → link fail → same `unsupported uniform` cascade. So the black screen was a *fatal*
+  before the log ever opened — not a hang. Fixed that pair (p_aa_aa_sun.h: read float4, take .xy —
+  identical to what desktop SSO did by location).
+- **link_check now scans C++ blenders too** (`r_Pass("<vs>","<ps>")` in
+  src/Layers/xrRender/blenders/*.cpp) — those, not .s scripts, are the boot-critical
+  render-target passes. Full picture: **121/137 pairs clean; 16 broken = 3 roots:**
+  (a) `stub_notransform_2uv` (v_TL2uv float2 TEXCOORD0/1) ↔ the whole `accum_sun_*` FS family
+  reading float4 `tc` and using `tc.xy/tc.w` — the FS is shared with a float4 VS (`accum_sun`),
+  the VS struct is shared with float2 consumers (`p_TL2uv`) → inherently location-based
+  multi-consumer interface; fix = widen v_TL2uv varyings to float4 (`.w=1` for fullscreen) +
+  make float2 consumers read `.xy` — needs visual verification (sun shafts);
+  (b) `model_distort*` ↔ `particle_*` (7 pairs): FS reads TEXCOORD1 the VS never writes;
+  (c) `model_def_lplanes|base_lplanes`: float4 vs float3 COLOR0.
+- **Strategy decision (user asked for a 3rd way beyond native-vs-ANGLE):** chose **soft-fail**
+  (option 3a): a failed monolithic link no longer kills boot. Root cause of the fatal: link
+  failure returns program 0, `_LinkPP` parsed the constant table of program 0 (garbage uniforms)
+  → `fatal("unsupported uniform")`. Now: parse constants only if linked; log
+  `! Pass '<name>' failed to link — pass disabled`; `CBackend::Render` skips draws when `pp==0`.
+  **One build now surfaces ALL broken pairs in xr_boot.log at once, and the menu (2D UI) likely
+  doesn't need the broken sun/effect passes at all.** Remaining roots get fixed root-by-root;
+  the float4-ABI transform (make EVERY varying float4 — kills type mismatches by construction)
+  is the systematic fallback if mismatches keep appearing; ANGLE stays plan C.
+- Also: pymobiledevice3 doesn't build on this Windows box (native wheels); idevicescreenshot
+  needs a Developer Disk Image on iOS 17 — neither is part of the loop. SideStore suffix quirk:
+  both OpenGothic and OpenXRay share the `.RMJWWPF379` team suffix — an earlier "no log" was
+  the user launching Gothic by mistake; check `fgApp` in syslog when in doubt.
+
 ### 2026-07-16 — Phase 4 Slice 4.9 (A2): slot-based varying names for ES monolithic linking
 
 - **The family-C build (10021) got PAST shader compilation on Apple ES** — first time both stages
