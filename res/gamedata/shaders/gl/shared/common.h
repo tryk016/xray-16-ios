@@ -6,6 +6,19 @@
 #ifndef SHARED_COMMON_H
 #define SHARED_COMMON_H
 
+// vs->fs varyings carry an explicit `layout(location=...)` so the desktop separable-
+// program path can match them across stages. OpenGL ES 3.00 forbids location qualifiers
+// on vertex outputs / fragment inputs (they match by name in a monolithic program), so
+// VARYING() drops the qualifier under ES and keeps it on desktop. Vertex *attribute*
+// inputs keep their raw layout(location=) — ES allows and needs those. Defined here (not
+// in gl/common.h) so shaders that include only common_iostructs.h -> shared/common.h
+// (the stub_notransform_*.vs) still get it. glslang + the ES driver predefine GL_ES.
+#ifdef GL_ES
+#  define VARYING(loc)
+#else
+#  define VARYING(loc) layout(location = loc)
+#endif
+
 #define half        float
 #define half2       vec2
 #define half3       vec3

@@ -732,8 +732,8 @@ half 	shadow_high 	(float4 tc)			// jittered sampling
 	r1.x 	= test 	(tc,-J0.xy+half2(-k1,0)).x;
 	r1.y 	= test 	(tc,-J0.wz+half2( 0,-k1)).y;
 
-	r1.z	= test	(tc,-2*J0.xy+half2( k1, 0)).z;
-	r1.w	= test	(tc,-2*J0.wz+half2( 0, k1)).x;
+	r1.z	= test	(tc,-2.0*J0.xy+half2( k1, 0)).z;
+	r1.w	= test	(tc,-2.0*J0.wz+half2( 0, k1)).x;
 
 	return ( r.x + r.y + r.z + r.w + r1.x + r1.y + r1.z + r1.w )*1.0/8.0;
 }

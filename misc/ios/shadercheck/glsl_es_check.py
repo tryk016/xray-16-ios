@@ -51,6 +51,12 @@ BASE_DEFINES = [
     # path and silently passes shaders that fail on-device (that redeclaration is
     # illegal in GLSL ES 3.00). Model it so the gate catches this class offline.
     ("GBUFFER_OPTIMIZATION", "1"),
+    # Modern iPhones use hardware shadow maps + PCF (the device log shows USE_HWSMAP /
+    # USE_HWSMAP_PCF defined). The `#ifndef USE_HWSMAP` fallback path (e.g. O.depth in
+    # shadow_direct_*.vs, a field the v2p struct doesn't have) is dead on the device,
+    # so define these to compile the path CoP actually runs instead of the dead one.
+    ("USE_HWSMAP", "1"),
+    ("USE_HWSMAP_PCF", "1"),
 ]
 
 # Only the float/int floor goes in the preamble — matching what the engine's ES

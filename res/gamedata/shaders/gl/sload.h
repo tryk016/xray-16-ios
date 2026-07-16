@@ -225,7 +225,7 @@ surface_bumped sload ( p_bumped I)
 		S.normal.z			*=	0.5;		//. make bump twice as contrast (fake, remove me if possible)
 
 #ifdef	GBUFFER_OPTIMIZATION
-	   S.height = 0;
+	   S.height = 0.0;
 #endif	//	GBUFFER_OPTIMIZATION
       return              S;
 }
@@ -235,7 +235,7 @@ surface_bumped sload ( p_bumped I, float2 pixeloffset )
       surface_bumped      S   = sload_i	(I, pixeloffset );
 		S.normal.z			*=	0.5;		//. make bump twice as contrast (fake, remove me if possible)
 #ifdef	GBUFFER_OPTIMIZATION
-	   S.height = 0;
+	   S.height = 0.0;
 #endif	//	GBUFFER_OPTIMIZATION
       return              S;
 }
