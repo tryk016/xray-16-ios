@@ -63,6 +63,40 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-16 — Phase 4 Slices 4.11+4.12: THE ENGINE RUNS — MRT locations, real-define shader fixes, DXT→RGBA8 decode
+
+- **Soft-fail build verdict (xr_boot.log, 8307 lines, ZERO fatals):** the engine boots to the
+  **main loop** — `Starting engine...`, intro movie AUDIO plays (bitcomposer/AMD oggs — what the
+  user heard), **Lua scripts load** (`xr_s.script`), memory stats print. Soft-fail worked exactly
+  as designed: broken passes logged + disabled, boot continues. Black screen root cause now
+  explicit in the log: `! OpenGL: 0x501: Invalid 2D texture ... intro_back.dds` — **Apple ES 3.0
+  has no S3TC/DXT**, so every CoP .dds upload failed. (App backgrounded after ~40s — likely
+  jetsam/watchdog while the intro-video loop spins; to observe after textures land.)
+- **Shader failures left on device were just TWO roots (4.11):**
+  (a) `GLSL 300 requires that all fragment shader outputs have a location if there is more than
+  one output` — sky2/combine_1/deffer_particle/etc.; desktop got locations via
+  glBindFragDataLocation (guarded out on ES in 4.6a). Added `layout(location = N)` to all 18
+  `SV_Target0/1/2` declarations across 7 iostructs headers (valid on desktop 4.10 too, same values
+  as the API binding).
+  (b) accum_volumetric_sun int/float in the SUN_SHAFTS path — **the gate had never compiled that
+  path**: its define set lacked the device's real options. Gate now uses the exact device define
+  set (from the engine's dumped preamble: FP16_*, USE_BRANCHING, USE_SOFT_WATER, SSR_QUALITY 3,
+  USE_DOF, SUN_SHAFTS_QUALITY 2, SSAO_QUALITY 3, SUN_QUALITY 1, ALLOW_STEEPPARALLAX). That
+  exposed + fixed: RAY_SAMPLES float uses (define stays int for the loop), sload.h steep-parallax
+  (maxSamples/minSamples, `float(i)<nNumSteps`, `1.0-fParallaxAmount`). **Gate: 265/279 on the
+  real device paths** (14 left = family D).
+- **4.12 — textures (Plan 4.9 runtime fallback):** software **BC1/2/3/4/5 → RGBA8 decoder** in
+  glTexture.cpp (`ios_upload_dxt_as_rgba8`): decodes every face/mip, uploads GL_RGBA8 (2D+cube),
+  edge-safe for small mips. Memory 4-8x per texture — correctness first; offline ASTC transcode
+  stays the long-term plan. Non-DXT path on iOS now translates via gli `PROFILE_ES30` (ES has no
+  GL_BGRA upload; ES profile maps BGRA8→RGBA+swizzle). Desktop untouched (PROFILE_GL33).
+- **Known follow-ups:** Theora/AVI video textures use the D3D-wrapper `CreateTexture(A8R8G8B8)`
+  and still fail on ES (`Invalid video stream`, non-fatal — intro movies stay audio-only; menu
+  doesn't depend on them). A2-tail effect pairs (accum_sun↔2uv, distort↔particle, lplanes) are
+  soft-failed, to fix root-by-root. Family D skinning. The ~40s backgrounding to re-observe.
+- **Expectation for the next device run: the MAIN MENU renders.** All menu UI is DDS/DXT → now
+  decodable; menu shaders compile+link; engine main loop confirmed running.
+
 ### 2026-07-16 — Phase 4 Slice 4.10: boot-log + soft-fail passes (device confirms A2 works, tail mapped)
 
 - **Debug visibility saga (why "no new log"):** the A2 build sat on a black screen with NO log.
