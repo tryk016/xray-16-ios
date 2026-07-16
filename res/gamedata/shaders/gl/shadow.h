@@ -777,7 +777,7 @@ float shadow_dx10_1_sunshafts( float4 tc, float2 pos2d )
 {
    float3 t         = tc.xyz / tc.w;
    float minmax     = textureLod( s_smap_minmax, t.xy, 0.0).x;
-   bool   umbra     = ( ( minmax < 0 ) && ( t.z > -minmax ) );
+   bool   umbra     = ( ( minmax < 0.0 ) && ( t.z > -minmax ) );
 
    if( umbra )
    {
