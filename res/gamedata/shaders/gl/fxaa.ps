@@ -36,6 +36,17 @@
 #ifndef FXAA_HLSL_5
     #define FXAA_HLSL_5 0
 #endif
+/*--------------------------------------------------------------------------*/
+// The GL port dropped the upstream FXAA_360 / FXAA_PS3 platform defaults, so they were
+// undefined. Desktop GLSL treats an undefined macro in #if as 0, but GLSL ES rejects it
+// ("undefined macro in expression not allowed in es profile"). Restore the 0 defaults.
+#ifndef FXAA_360
+    #define FXAA_360 0
+#endif
+/*--------------------------------------------------------------------------*/
+#ifndef FXAA_PS3
+    #define FXAA_PS3 0
+#endif
 /*==========================================================================*/
 #ifndef FXAA_GREEN_AS_LUMA
     //

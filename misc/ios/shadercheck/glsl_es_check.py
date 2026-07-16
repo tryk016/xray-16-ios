@@ -178,24 +178,50 @@ def main() -> int:
         return 2
     roots = [root, os.path.join(root, "shared"), os.path.join(root, "iostructs")]
 
+    # Files with a main() the engine nevertheless never compiles in the GL tree — dead/
+    # disabled. ssao_hdao_new.ps is a DX-only HDAO *compute* path (RWTexture2D, groupshared,
+    # register(u0)); combine_1.ps's include of it is commented out (`//#_include`) and no
+    # blender references it. Not GL-portable and not shipped, so don't score it.
+    DEAD_FILES = {"ssao_hdao_new.ps"}
+
     shaders: list[tuple[str, str]] = []
     for dirpath, _dirs, files in os.walk(root):
         for f in sorted(files):
+            if f in DEAD_FILES:
+                continue
             if f.endswith(".vs"):
                 shaders.append((os.path.join(dirpath, f), "vert"))
             elif f.endswith(".ps"):
                 shaders.append((os.path.join(dirpath, f), "frag"))
     shaders.sort()
 
-    passed, failed = 0, []
+    # A .ps/.vs is only a real shader *stage* if its assembled source produces an entry
+    # point. The engine generates `void main(){…_main…}` from the iostructs p_*.h / v_*.h
+    # header that an entry shader includes; pure helper files that are only ever #included
+    # (gather.ps, fxaa.ps, ssao*.ps — confirmed: included by other .ps, referenced by no
+    # blender) have no main() and are meaningless to compile standalone. Skip them so the
+    # gate scores only real entry shaders; they still get validated via their includers.
+    ENTRY_RE = re.compile(r'\bvoid\s+main\s*\(')
+
+    passed, failed, skipped = 0, [], []
     full_reports: list[tuple[str, str]] = []
     for path, stage in shaders:
+        rel = os.path.relpath(path, root)
         try:
             src = assemble(path, stage, roots)
-            ok, report = validate(args.glslang, stage, src)
         except Exception as e:  # noqa: BLE001 — report, don't abort the sweep
+            failed.append((rel, f"[assemble error] {e}"))
+            full_reports.append((rel, str(e)))
+            continue
+        if not ENTRY_RE.search(src):
+            skipped.append(rel)  # include-only helper — no shader entry point
+            if args.verbose:
+                print(f"  SKIP {rel} (include-only, no main())")
+            continue
+        try:
+            ok, report = validate(args.glslang, stage, src)
+        except Exception as e:  # noqa: BLE001
             ok, report = False, f"[shadercheck exception] {e}"
-        rel = os.path.relpath(path, root)
         if ok:
             passed += 1
             if args.verbose:
@@ -212,9 +238,10 @@ def main() -> int:
         print(f"\n===== full glslang output: {rel} =====")
         print(report)
 
-    total = len(shaders)
+    total = len(shaders) - len(skipped)
     print("")
-    print(f"GLSL ES 3.00 shader check: {passed}/{total} compile, {len(failed)} fail")
+    print(f"GLSL ES 3.00 shader check: {passed}/{total} compile, {len(failed)} fail"
+          f" ({len(skipped)} include-only skipped)")
 
     if failed:
         from collections import Counter
