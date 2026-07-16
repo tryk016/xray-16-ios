@@ -30,6 +30,9 @@ precision highp sampler2DShadow;
 #ifndef SSAO_QUALITY
 #  define SSAO_QUALITY 0
 #endif
+#ifndef SSAO_OPT_DATA
+#  define SSAO_OPT_DATA 0
+#endif
 #ifndef MSAA_SAMPLES
 #  define MSAA_SAMPLES 0
 #endif

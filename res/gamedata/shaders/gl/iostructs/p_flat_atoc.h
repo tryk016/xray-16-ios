@@ -15,7 +15,7 @@ VARYING(TEXCOORD3) in float2	p_flat_tcdbump	; // TEXCOORD3;	// d-bump
 VARYING(TEXCOORD4) in float2	p_flat_lmh		; // TEXCOORD4;	// lm-hemi
 #endif
 
-float4 	_main	( p_bumped I );
+float4 	_main	( p_flat I );
 
 void main()
 {

@@ -207,16 +207,16 @@ for (int rad=0; rad < RINGS; rad++)
 //		float	range_att = 1/(occ_factor+0.1);
 		float	range_att = saturate(1.0-dist*0.5);
 		{
-//			occ += lerp( 1, occ_factor, infl);
+//			occ += lerp( 1.0, occ_factor, infl);
 //			num_dir += 1;		
 
-			occ += (infl+0.01)*lerp( 1, occ_factor, infl)*range_att;
+			occ += (infl+0.01)*lerp( 1.0, occ_factor, infl)*range_att;
 			num_dir += (infl+0.01)*range_att;
 
-//			occ += (infl+0.1)*lerp( 1, occ_factor, infl)*range_att;
+//			occ += (infl+0.1)*lerp( 1.0, occ_factor, infl)*range_att;
 //			num_dir += (infl+0.1)*range_att;
 
-//			occ += (infl+0.1)*lerp( 1, occ_factor, infl);
+//			occ += (infl+0.1)*lerp( 1.0, occ_factor, infl);
 //			num_dir += (infl+0.1);
 		}
 
@@ -236,7 +236,7 @@ for (int rad=0; rad < RINGS; rad++)
 #if SSAO_QUALITY==1
 	occ = (occ+0.3)/(1+0.3);
 #else	//	SSAO_QUALITY==1
-	occ = (occ+0.2)/(1+0.2);
+	occ = (occ+0.2)/(1.0+0.2);
 #endif	//	SSAO_QUALITY==1
 //	occ = 1;
 

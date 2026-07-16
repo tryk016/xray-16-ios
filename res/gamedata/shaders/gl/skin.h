@@ -166,7 +166,7 @@ v_model skinning_3 	(v_model_skinned_3	v)
 	float4  m0_1 	= sbones_array[id_1+0];
 	float4  m1_1 	= sbones_array[id_1+1];
 	float4  m2_1 	= sbones_array[id_1+2];
-	int 	id_2 	= int(v.B.w*255+0.3);
+	int 	id_2 	= int(v.B.w*255.0+0.3);
 	float4  m0_2 	= sbones_array[id_2+0];
 	float4  m1_2 	= sbones_array[id_2+1];
 	float4  m2_2 	= sbones_array[id_2+2];
@@ -174,7 +174,7 @@ v_model skinning_3 	(v_model_skinned_3	v)
 	// lerp
 	float 	w0 	= v.N.w;
 	float 	w1 	= v.T.w;
-	float 	w2 	= 1-w0-w1;
+	float 	w2 	= 1.0-w0-w1;
 	float4  m0 	= m0_0*w0;
 	float4  m1 	= m1_0*w0;
 	float4  m2 	= m2_0*w0;

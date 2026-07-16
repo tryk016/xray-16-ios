@@ -98,16 +98,16 @@ float4 _main ( float2 tc, float2 tcJ )
 	float s		= shadow_rain( PS, WorldP.xz*1.1 - WorldN.xz*0.035 );	
 	
 	//	Apply distance falloff
-	//float	fAtten = 1 - smoothstep( 10, 30, length( _P.xyz ));
+	//float	fAtten = 1.0 - smoothstep( 10, 30, length( _P.xyz ));
 	// Using fixed fallof factors according to float16 depth coordinate precision.
-	float	fAtten = 1 - smoothstep( 5, 20, _P.z );
+	float	fAtten = 1.0 - smoothstep( 5.0, 20.0, _P.z );
 	s	*= fAtten*fAtten;
 
 	//	Apply rain density
 	s	*= RainDensity.x;
 
 	float fIsUp = -dot( Ldynamic_dir.xyz, _N.xyz );
-	s *= saturate(fIsUp*10+(10*0.5)+0.5);
+	s *= saturate(fIsUp*10.0+(10.0*0.5)+0.5);
 	fIsUp = max(0, fIsUp);
 
 	float fIsX = WorldN.x;
