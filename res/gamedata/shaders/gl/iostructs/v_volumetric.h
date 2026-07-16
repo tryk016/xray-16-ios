@@ -35,9 +35,15 @@ void main()
 	v2p_fDensity	= O.fDensity;
 //	v2p_tNoise		= O.tNoise;
 	gl_Position		= O.hpos;
+	// gl_ClipDistance is a desktop/EXT_clip_cull_distance built-in; GLSL ES 3.00 has no
+	// hardware clip planes. Skip writing them on ES (the light volume just isn't frustum-
+	// clipped in the vertex stage — minor overdraw, not a failure). Matches the gl_PerVertex
+	// guard above that also drops the gl_ClipDistance[6] declaration on ES.
+#ifndef GL_ES
 	for (int i=0; i<3; ++i)
 	{
 		gl_ClipDistance[i] = O.clip0[i];
 		gl_ClipDistance[i+3] = O.clip1[i];
 	}
+#endif
 }
