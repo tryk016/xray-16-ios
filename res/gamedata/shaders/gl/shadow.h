@@ -333,10 +333,10 @@ float shadow_extreme_quality_fused( float3 tc )
 #ifndef PS_4            
             d4 = textureGather( s_dmap, tc.xy + (1.0/float(SMAP_size)) * float2( col, row ) );
 #else
-			d4.w = textureLod( s_dmap, tc.xy + (1.0/float(SMAP_size)) * float2( col, row ), 0 ).x;
-			d4.z = textureLod( s_dmap, tc.xy + (1.0/float(SMAP_size)) * float2( col+1, row ) , 0 ).x;
-			d4.y = textureLod( s_dmap, tc.xy + (1.0/float(SMAP_size)) * float2( col+1, row+1 ), 0 ).x;
-			d4.x = textureLod( s_dmap, tc.xy + (1.0/float(SMAP_size)) * float2( col, row+1 ), 0 ).x;
+			d4.w = textureLod( s_dmap, tc.xy + (1.0/float(SMAP_size)) * float2( col, row ), 0.0).x;
+			d4.z = textureLod( s_dmap, tc.xy + (1.0/float(SMAP_size)) * float2( col+1, row ) , 0.0).x;
+			d4.y = textureLod( s_dmap, tc.xy + (1.0/float(SMAP_size)) * float2( col+1, row+1 ), 0.0).x;
+			d4.x = textureLod( s_dmap, tc.xy + (1.0/float(SMAP_size)) * float2( col, row+1 ), 0.0).x;
 #endif
             float4 b4  = all( lessThanEqual( tc.zzzz, d4 )) ? float4(0.0) : float4(1.0);   
 
@@ -776,7 +776,7 @@ float shadow_dx10_1( float4 tc, float2 tcJ, float2 pos2d )
 float shadow_dx10_1_sunshafts( float4 tc, float2 pos2d ) 
 {
    float3 t         = tc.xyz / tc.w;
-   float minmax     = textureLod( s_smap_minmax, t.xy, 0 ).x;
+   float minmax     = textureLod( s_smap_minmax, t.xy, 0.0).x;
    bool   umbra     = ( ( minmax < 0 ) && ( t.z > -minmax ) );
 
    if( umbra )

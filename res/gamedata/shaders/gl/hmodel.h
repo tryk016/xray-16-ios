@@ -39,7 +39,7 @@ void hmodel
 	// material	// sample material
 	//float4	light	= tex3D( s_material, float3(hscale, hspec, m) );
 //	float4	light	= s_material.Sample( smp_material, float3( hscale, hspec, m ) ).xxxy;
-	float4	light	= textureLod(s_material, float3( hscale, hspec, m ), 0 ).xxxy;
+	float4	light	= textureLod(s_material, float3( hscale, hspec, m ), 0.0).xxxy;
 //	float4	light	= float4(1,1,1,1);
 
 	// diffuse color
@@ -47,8 +47,8 @@ void hmodel
 //	float3	e1d		= texCUBE( env_s1, nw );
 //	float3	e0d		= env_s0.Sample( smp_rtlinear, nw );
 //	float3	e1d		= env_s1.Sample( smp_rtlinear, nw );
-	float3	e0d		= textureLod( env_s0, nw, 0 ).rgb;
-	float3	e1d		= textureLod( env_s1, nw, 0 ).rgb;
+	float3	e0d		= textureLod( env_s0, nw, 0.0).rgb;
+	float3	e1d		= textureLod( env_s1, nw, 0.0).rgb;
 	float3	env_d	= env_color.xyz * lerp( e0d, e1d, env_color.w );
 			env_d	*=env_d;	// contrast
 			hdiffuse= env_d * light.xyz + L_ambient.rgb;
@@ -59,8 +59,8 @@ void hmodel
 //	float3	e1s		= texCUBE( env_s1, vreflect );
 //	float3	e0s		= env_s0.Sample( smp_rtlinear, vreflect );
 //	float3	e1s		= env_s1.Sample( smp_rtlinear, vreflect );
-	float3	e0s		= textureLod( env_s0, vreflect, 0 ).rgb;
-	float3	e1s		= textureLod( env_s1, vreflect, 0 ).rgb;
+	float3	e0s		= textureLod( env_s0, vreflect, 0.0).rgb;
+	float3	e1s		= textureLod( env_s1, vreflect, 0.0).rgb;
 	float3	env_s	= env_color.xyz * lerp( e0s, e1s, env_color.w);
 			env_s	*=env_s;	// contrast
 		hspecular	= env_s*light.w*s;                //*h*m*s        ;        //env_s        *light.w         * s;

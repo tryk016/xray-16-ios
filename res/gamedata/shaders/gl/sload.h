@@ -69,7 +69,7 @@ void UpdateTC( inout p_bumped I )
 			if (fCurrHeight < fCurrentBound)
 			{	
 				vTexCurrentOffset += vTexOffsetPerStep;		
-				fCurrHeight = textureLod( s_bumpX, vTexCurrentOffset.xy, 0 ).a; 
+				fCurrHeight = textureLod( s_bumpX, vTexCurrentOffset.xy, 0.0).a; 
 				fCurrentBound -= fStepSize;
 			}
 		}
@@ -84,7 +84,7 @@ void UpdateTC( inout p_bumped I )
 */
 		//	Reconstruct previouse step's data
 		vTexCurrentOffset -= vTexOffsetPerStep;
-		float fPrevHeight = textureLod( s_bumpX, vTexCurrentOffset.xy, 0 ).a;
+		float fPrevHeight = textureLod( s_bumpX, vTexCurrentOffset.xy, 0.0).a;
 
 		//	Smooth tc position between current and previouse step
 		float	fDelta2 = ((fCurrentBound + fStepSize) - fPrevHeight);
@@ -155,7 +155,7 @@ surface_bumped sload_i( p_bumped I)
 	S.normal			+= NDetail.wzy + NDetailX.xyz - 1.0; //	(Nu.wzyx - 0.5) + (E-0.5)
 
 	float4 detail		= tex2D( s_detail, I.tcdbump);
-	S.base.rgb			= S.base.rgb * detail.rgb * 2;
+	S.base.rgb			= S.base.rgb * detail.rgb * 2.0;
 
 //	S.base.rgb			= float3(1,0,0);
 #else        //	USE_TDETAIL_BUMP
@@ -203,7 +203,7 @@ surface_bumped sload_i( p_bumped I, float2 pixeloffset )
 	S.normal			+= NDetail.wzy + NDetailX.xyz - 1.0; //	(Nu.wzyx - 0.5) + (E-0.5)
 
 	float4 detail		= tex2D( s_detail, I.tcdbump);
-	S.base.rgb			= S.base.rgb * detail.rgb * 2;
+	S.base.rgb			= S.base.rgb * detail.rgb * 2.0;
 
 //	S.base.rgb			= float3(1,0,0);
 #else        //	USE_TDETAIL_BUMP

@@ -26,7 +26,7 @@ float plight_infinity2( float m, float3 pnt, float3 normal, float3 light_directi
 	float 	f 	= saturate(dot(-V,R));
 			s  *= f;
 	float4	r	= tex3D 			(s_material,	float3( dot(L,N), s, m ) ).xxxy;	// sample material
-			r.w	= pow(saturate(s),4);
+			r.w	= pow(saturate(s), 4.0);
   	return	r	;
 }
 */
