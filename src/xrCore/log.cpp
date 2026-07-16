@@ -8,13 +8,33 @@
 
 #if defined(XR_PLATFORM_APPLE_IOS)
 #include <os/log.h>
-// Mirror every engine log line to Apple's unified log. The on-disk log file only exists
-// after CreateLog() (which needs the FS up), so a hang during early boot — SDL init, the
-// gamedata seed copy, FS cache/archive-mount — leaves NO file log at all. os_log is
-// unbuffered and visible LIVE over the wire (idevicesyslog / Console), from message #1,
-// so we can always see how far a device boot actually got even when it never reaches a
-// fatal, a clean exit, or even the log-file open.
-static inline void ios_oslog(const char* s) { os_log(OS_LOG_DEFAULT, "[xr] %{public}s", s); }
+#include <cstdio>
+#include <cstdlib>
+// The real log file only exists after CreateLog() (which needs the FS up), so a hang during
+// early boot — SDL init, the every-launch gamedata seed copy, FS cache / CoP archive mount —
+// leaves NO file log at all. And the old idevicesyslog relay does NOT surface a third-party
+// process's os_log. So mirror every line, from message #1, straight to a plain file at a
+// fixed path ($HOME/Documents/xr_boot.log) with an fflush per line. It depends on nothing but
+// libc + the always-present Documents dir, so it survives a hang anywhere and shows exactly
+// how far boot got. (Also emit os_log for Console.app users.)
+static FILE* s_ios_bootlog = nullptr;
+static inline void ios_oslog(const char* s)
+{
+    if (!s_ios_bootlog)
+    {
+        const char* home = getenv("HOME");
+        char path[1024];
+        snprintf(path, sizeof path, "%s/Documents/xr_boot.log", home ? home : ".");
+        s_ios_bootlog = fopen(path, "w"); // truncate once per process
+    }
+    if (s_ios_bootlog)
+    {
+        fputs(s, s_ios_bootlog);
+        fputc('\n', s_ios_bootlog);
+        fflush(s_ios_bootlog); // unbuffered: the line is on disk before the next one runs
+    }
+    os_log(OS_LOG_DEFAULT, "[xr] %{public}s", s);
+}
 #endif
 
 bool LogExecCB = true;
