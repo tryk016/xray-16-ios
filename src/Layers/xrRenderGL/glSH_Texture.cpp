@@ -299,7 +299,7 @@ void CTexture::Load()
             {
                 // Load another texture
                 u32 mem = 0;
-                pSurface = RImplementation.texture_load(buffer, mem, desc);
+                pSurface = RImplementation.texture_load(buffer, mem, desc, m_width, m_height);
                 if (pSurface)
                 {
                     // pSurface->SetPriority	(PRIORITY_LOW);
@@ -315,7 +315,7 @@ void CTexture::Load()
     {
         // Normal texture
         u32 mem = 0;
-        pSurface = RImplementation.texture_load(cName.c_str(), mem, desc);
+        pSurface = RImplementation.texture_load(cName.c_str(), mem, desc, m_width, m_height);
 
         // Calc memory usage and preload into vid-mem
         if (pSurface)
@@ -360,7 +360,11 @@ void CTexture::Unload()
 void CTexture::desc_update()
 {
     desc_cache = pSurface;
-    if (pSurface && (GL_TEXTURE_2D == desc || GL_TEXTURE_2D_MULTISAMPLE == desc))
+    // glGetTexLevelParameteriv doesn't exist in OpenGL ES 3.0 (it's 3.1+) — the glad
+    // entry is NULL on device and calling it crashed the font renderer. On ES the
+    // dimensions are recorded at load time (texture_load reports the level-0 extent);
+    // keep the GL query for desktop paths that bypass texture_load (e.g. RT wraps).
+    if (glGetTexLevelParameteriv && pSurface && (GL_TEXTURE_2D == desc || GL_TEXTURE_2D_MULTISAMPLE == desc))
     {
         glBindTexture(desc, pSurface);
         CHK_GL(glGetTexLevelParameteriv(desc, 0, GL_TEXTURE_WIDTH, &m_width));

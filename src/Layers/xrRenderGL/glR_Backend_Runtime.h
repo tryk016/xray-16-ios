@@ -463,7 +463,8 @@ ICF void CBackend::set_FillMode(u32 _mode)
     if (fill_mode != _mode)
     {
         fill_mode = _mode;
-        glPolygonMode(GL_FRONT_AND_BACK, glStateUtils::ConvertFillMode(_mode));
+        if (glPolygonMode) // absent in OpenGL ES (NULL glad entry) — wireframe just unsupported
+            glPolygonMode(GL_FRONT_AND_BACK, glStateUtils::ConvertFillMode(_mode));
     }
 }
 

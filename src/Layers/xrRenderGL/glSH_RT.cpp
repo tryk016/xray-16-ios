@@ -88,7 +88,10 @@ void CRT::reset_end()
 void CRT::resolve_into(CRT& destination) const
 {
     glReadBuffer(GL_COLOR_ATTACHMENT0);
-    glDrawBuffer(GL_COLOR_ATTACHMENT1);
+    // Singular glDrawBuffer doesn't exist in OpenGL ES — use the plural form (core in
+    // both), which the code below re-issues with the full attachment list anyway.
+    constexpr GLenum draw1[] = { GL_COLOR_ATTACHMENT1 };
+    glDrawBuffers(1, draw1);
 
     constexpr GLenum buffers[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
     RCache.set_RT(pRT, 0);

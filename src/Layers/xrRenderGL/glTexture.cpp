@@ -260,8 +260,12 @@ u32 calc_texture_size(int lod, u32 mip_cnt, size_t orig_size)
     return iFloor(res);
 }
 
-GLuint CRender::texture_load(LPCSTR fRName, u32& ret_msize, GLenum& ret_desc)
+GLuint CRender::texture_load(LPCSTR fRName, u32& ret_msize, GLenum& ret_desc, GLint& ret_width, GLint& ret_height)
 {
+    // Level-0 extents are reported from the image itself: OpenGL ES 3.0 has no
+    // glGetTexLevelParameteriv (it's 3.1+), so CTexture::desc_update can't query them
+    // back from GL on device — the font renderer crashed to a NULL glad entry doing so.
+    ret_width = ret_height = 0;
     ret_msize = 0;
     R_ASSERT1_CURE(fRName && fRName[0], { return 0; });
 
@@ -322,6 +326,9 @@ GLuint CRender::texture_load(LPCSTR fRName, u32& ret_msize, GLenum& ret_desc)
         FS.r_close(S);
         xr_strlwr(fn);
         ret_desc = texture.target() == gli::TARGET_CUBE ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
+        const glm::tvec3<GLsizei> dec_extent(texture.extent());
+        ret_width = dec_extent.x;
+        ret_height = dec_extent.y;
         const int lod = is_target_cube(texture.target()) ? 0 : get_texture_load_lod(fn);
         ret_msize = calc_texture_size(lod, static_cast<u32>(texture.levels()), img_size);
         return decoded;
@@ -465,6 +472,8 @@ GLuint CRender::texture_load(LPCSTR fRName, u32& ret_msize, GLenum& ret_desc)
 
     xr_strlwr(fn);
     ret_desc = target;
+    ret_width = tex_extent.x;
+    ret_height = tex_extent.y;
     int img_loaded_lod = is_target_cube(texture.target()) ? 0 : get_texture_load_lod(fn);
     ret_msize = calc_texture_size(img_loaded_lod, mip_cnt, img_size);
     return pTexture;
