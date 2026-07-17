@@ -7,6 +7,10 @@
 #include "glHW.h"
 #include "xrEngine/XR_IOConsole.h"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include <SDL_syswm.h>
+#endif
+
 namespace xray::render::RENDER_NAMESPACE
 {
 CHW HW;
@@ -256,11 +260,33 @@ void CHW::Present()
 #if 0 // kept for historical reasons
     RImplementation.Target->phase_flip();
 #else
+    // The final image lives in the engine's own FBO (pFB); presenting means blitting it
+    // to the window's framebuffer. On desktop that is FBO 0 — but iOS HAS NO default
+    // framebuffer: the screen is the FBO SDL's GL view created (SysWM uikit.framebuffer).
+    // Blitting to 0 on iOS raised GL_INVALID_FRAMEBUFFER_OPERATION every frame and left
+    // the screen black under a perfectly running menu.
+    GLuint screenFB = 0;
+    GLint dstW = Device.dwWidth, dstH = Device.dwHeight;
+#if defined(XR_PLATFORM_APPLE_IOS)
+    {
+        SDL_SysWMinfo info;
+        SDL_VERSION(&info.version);
+        if (SDL_GetWindowWMInfo(m_window, &info))
+            screenFB = info.info.uikit.framebuffer;
+        int dw = 0, dh = 0;
+        SDL_GL_GetDrawableSize(m_window, &dw, &dh);
+        if (dw && dh)
+        {
+            dstW = dw;
+            dstH = dh;
+        }
+    }
+#endif
     glBindFramebuffer(GL_READ_FRAMEBUFFER, pFB);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, screenFB);
     glBlitFramebuffer(
         0, 0, Device.dwWidth, Device.dwHeight,
-        0, 0, Device.dwWidth, Device.dwHeight,
+        0, 0, dstW, dstH,
         GL_COLOR_BUFFER_BIT, GL_NEAREST);
 #endif
 
