@@ -115,25 +115,27 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     gate 265/279 on real paths), and **CPU DXT→RGBA8 decode** in glTexture.cpp (BC1-5, all
     mips/faces; Apple ES has no S3TC — this was the black-screen root) + gli PROFILE_ES30 for
     non-DXT (no GL_BGRA on ES). **Build 10021058 verdict: ZERO shader errors on device.**
-  - **NEXT STEP (resume here), in order:**
-    1. **Pull crash reports FIRST** (phone via USB; `./tools/libimobiledevice/idevicecrashreport.exe
-       -u <udid> <dir>`, look for fresh `xr_3da-*.ips`): the app is HARD-KILLED at the exact moment
-       the intro movies end (~40s, when the menu would appear) — no fatal in xr_boot.log. Watchdog
-       (0x8badf00d) vs jetsam (OOM) vs GPU fault decides the fix.
-    2. **Skip intro movies on iOS**: they can't render (video textures go through the D3D wrapper
-       `CreateTexture(A8R8G8B8)` — unported to ES), cost 40s per boot iteration, spam GL errors,
-       and bracket the kill. Find the trigger: grep configs/scripts for `bitcomposer`/`intro`
-       (CUISequencer in xrGame plays the logo movies) and guard it out on iOS.
-    3. **Fix DXT-decoder error scoping** (glTexture.cpp `ios_upload_dxt_as_rgba8`): drain
-       glGetError() BEFORE uploading and check per-stage — the lone `0x506 intro_back.dds` report
-       was almost certainly a sticky error from the video path, not the decode itself.
-    4. Menu render test → then: video-texture wrapper port (PDA/TVs need it in-game), A2-tail
-       effect pairs (accum_sun↔2uv widen-to-float4 / distort↔particle missing varying / lplanes),
-       **family D** skinning (14 model VS), Phase 5 touch input (menu needs taps!).
+  - **🎉 2026-07-17 MILESTONE (build 10022063): THE MAIN MENU RENDERS ON THE iPHONE.** Full
+    crash-ladder day (each .ips one step deeper, all in the journal): 4.13 skip intros +
+    decoder error scoping → 4.14 glMapBuffer→glMapBufferRange (menu-bg video crash) + the
+    **float4 varying ABI** (A2 finished; link_check **137/137**) → 4.15 ES-absent GL call sweep
+    (glGetTexLevelParameteriv font crash — dims now from texture_load; glPolygonMode;
+    glDrawBuffer) → 4.16 **the draw call itself was NULL** (glDrawElementsBaseVertex is ES 3.2;
+    classic-path base-vertex fallback + latent VAO/pointer bug fix) → 4.17 **iOS has no FBO 0**:
+    Present now blits to SDL's uikit view framebuffer at drawable size. Screenshot: menu list +
+    fonts + version label perfect; two green quads = the two .ogm VIDEO textures (logo + animated
+    background) — the unported D3D-wrapper video path, known and non-blocking.
+  - **NEXT STEP (resume here): Phase 5 — TOUCH INPUT.** The menu is visible but taps do nothing.
+    Adapt the user's own OpenGothic iOS pad/touch system (see memory: opengothic-ios-controller-
+    prior-art) to X-Ray/SDL: menu needs tap→mouse mapping first (SDL touch events → engine mouse),
+    then in-game virtual pad. Loose ends to pick up alongside/after:
+    (a) video-texture wrapper port (green quads + in-game PDA/TVs) — CreateTexture(A8R8G8B8)
+    D3D-wrapper path to ES formats; (b) `ui_magnifier2.dds` 0x500 on the non-DXT path (one
+    texture — dump its gli format); (c) A2-tail visual verification in-game (sun shafts etc.);
+    (d) family D skinning (14 model VS — blocks 3D models, needed before in-game); (e) RT-wrapped
+    CTexture dims on ES; (f) build-speed caching (~30 min); (g) FSR 1.0 = Plan Phase 6.
     Tools: gate = `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`;
     links = `python misc/ios/shadercheck/link_check.py`; debug channel = `Documents/xr_boot.log`.
-    **Float4-ABI transform = systematic fallback for varying mismatches. ANGLE = plan C.
-    FSR 1.0 = Plan Phase 6.**
 
 ## On-device testing (the loop)
 

@@ -63,6 +63,41 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-17 — 🎉 MILESTONE: THE MAIN MENU RENDERS ON iPhone (build 10022063)
+
+**S.T.A.L.K.E.R. Call of Pripyat's main menu is visible and stable on an iPhone 15 Pro Max —
+native X-Ray engine, OpenGL ES 3.0 on Metal, no ANGLE.** The day's crash-ladder, each .ips
+leading exactly one step deeper:
+
+1. **4.13** skip logo intros on iOS (`allow_intro()` returns false — no cmdline for -nointro;
+   movies can't render and wasted 40s/boot) + DXT-decoder per-stage error scoping (sticky
+   glGetError pollution from the video path).
+2. **4.14** menu crash #1: the animated .ogm menu background hit **glMapBuffer — which does
+   not exist in ES** (NULL glad entry → PC=0, the CODESIGNING "Invalid Page" kill). Fixed:
+   glMapBufferRange (core in GL 3.0+ AND ES 3.0), null-guards, RGBA+BGRA-swizzle frame upload
+   (ES has no GL_BGRA). Plus the **float4 varying ABI** completing A2 for good: every varying
+   declared float4 both sides (pad on write / swizzle on read, `.w=1` so projective `tc.xy/tc.w`
+   is exact) — dual-type (USE_R2_STATIC_SUN/USE_VTF) branches made branch-aware after the
+   transform initially corrupted them. **link_check 137/137 pairs clean.**
+3. **4.15** menu crash #2: font renderer died on **glGetTexLevelParameteriv (ES 3.1+)**.
+   Swept the whole renderer for ES-3.0-absent calls — exactly 4 (that one, glPolygonMode,
+   singular glDrawBuffer, glMapBuffer) — all fixed/guarded; texture dims now reported by
+   texture_load from the image (RT-wrapped CTexture dims-on-ES noted as a gap).
+4. **4.16** menu crash #3, the big one: **the draw call itself — glDrawElementsBaseVertex is
+   ES 3.2**. No draw had EVER executed on device. Added the classic-path base-vertex fallback
+   (fold baseV*stride into attrib pointers via new SetGLVertexPointerBase + vb_base cache,
+   plain glDrawElements) and fixed a latent fallback bug (VAO switch with unchanged VB left
+   the new VAO pointer-less).
+5. **4.17** the black screen with a *running* menu (menu music, zero crashes): **iOS has no
+   framebuffer 0** — CHW::Present blitted the engine FBO to 0 (the recurring 0x506) and the
+   image went nowhere. Present now targets SDL's view FBO (SysWM `uikit.framebuffer`) scaled
+   to the retina drawable. **Next build: the menu appeared. 🎉**
+- Loose ends carried forward: `ui_magnifier2.dds` still 0x500 on the non-DXT path (one
+  texture); menu background video doesn't create (D3D-wrapper CreateTexture → ES formats);
+  A2-tail visual verification in-game; family D skinning; RT-wrapped texture dims on ES.
+- **NEXT: Phase 5 — touch input.** The menu is visible but taps do nothing yet. Prior art:
+  the user's own OpenGothic iOS pad/touch system (see memory note) to adapt for X-Ray.
+
 ### 2026-07-16 (end of day) — Build 10021058 verdict: ALL SHADERS PASS on device; kill-at-menu is the next wall
 
 - **The shader layer is DONE on-device (for now):** the 10021058 xr_boot.log has **zero**
