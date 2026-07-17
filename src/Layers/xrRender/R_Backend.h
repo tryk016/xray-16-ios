@@ -109,6 +109,11 @@ private:
     VertexBufferHandle vb;
     IndexBufferHandle ib;
     u32 vb_stride;
+#ifdef USE_OGL
+    // Base vertex currently folded into the classic attrib pointers (OpenGL ES 3.0 has no
+    // glDrawElementsBaseVertex; see CBackend::Render). Reset when the VB/format rebinds.
+    u32 vb_base{};
+#endif
 
     // Pixel/Vertex constants
     alignas(16) R_constants constants;

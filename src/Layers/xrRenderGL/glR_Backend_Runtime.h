@@ -156,6 +156,14 @@ ICF void CBackend::set_Format(SDeclaration* _decl)
 
         // Clear cached index buffer
         ib = 0;
+        if (!GLAD_GL_ARB_vertex_attrib_binding)
+        {
+            // Classic path: attrib pointers live inside the VAO we just switched to, and
+            // they are only (re)specified by set_Vertices. Invalidate the VB cache so the
+            // next set_Vertices re-points even when the buffer itself didn't change.
+            vb = 0;
+            vb_base = 0;
+        }
     }
 }
 
@@ -256,6 +264,7 @@ ICF void CBackend::set_Vertices(GLuint _vb, u32 _vb_stride)
         {
             CHK_GL(glBindBuffer(GL_ARRAY_BUFFER, vb));
             SetGLVertexPointer(decl);
+            vb_base = 0; // pointers just re-specified at offset 0
         }
     }
 }
@@ -331,7 +340,20 @@ ICF void CBackend::Render(D3DPRIMITIVETYPE T, u32 baseV, u32 startV, u32 countV,
     stat.render.verts += countV;
     stat.render.polys += PC;
     constants.flush();
-    CHK_GL(glDrawElementsBaseVertex(Topology, iIndexCount, GL_UNSIGNED_SHORT, (void*)(startI * sizeof(GLushort)), baseV));
+    if (glDrawElementsBaseVertex)
+        CHK_GL(glDrawElementsBaseVertex(Topology, iIndexCount, GL_UNSIGNED_SHORT, (void*)(startI * sizeof(GLushort)), baseV));
+    else
+    {
+        // OpenGL ES 3.0 has no base-vertex draws (glDrawElementsBaseVertex is ES 3.2) —
+        // fold baseV into the classic attrib pointers instead and issue a plain draw.
+        if (vb_base != baseV)
+        {
+            vb_base = baseV;
+            CHK_GL(glBindBuffer(GL_ARRAY_BUFFER, vb));
+            SetGLVertexPointerBase(decl, intptr_t(baseV) * vb_stride);
+        }
+        CHK_GL(glDrawElements(Topology, iIndexCount, GL_UNSIGNED_SHORT, (void*)(startI * sizeof(GLushort))));
+    }
     PGO(Msg("PGO:DIP:%dv/%df", countV, PC));
 }
 

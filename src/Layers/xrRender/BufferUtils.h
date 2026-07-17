@@ -23,6 +23,10 @@ void ConvertVertexDeclaration(const xr_vector<VertexElement>& declIn, xr_vector<
 
 #ifdef USE_OGL
 void SetGLVertexPointer(SDeclaration* decl);
+// Re-point the classic vertex attribs with an extra byte offset — the OpenGL ES 3.0
+// substitute for glDrawElementsBaseVertex (ES 3.2+): base_vertex*stride is folded into
+// each attribute's pointer so a plain glDrawElements draws the right vertices.
+void SetGLVertexPointerBase(SDeclaration* decl, intptr_t base_offset);
 #endif
 
 namespace BufferUtils
