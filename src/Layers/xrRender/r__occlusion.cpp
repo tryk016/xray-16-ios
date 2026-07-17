@@ -9,7 +9,18 @@ R_occlusion::~R_occlusion(void) { occq_destroy(); }
 void R_occlusion::occq_create(u32 limit)
 {
     ZoneScoped;
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // OpenGL ES 3.0 has no GL_SAMPLES_PASSED query target and no glGetQueryObjectiv/i64v
+    // (desktop-GL only — the glad entries are NULL and calling them crashes; see
+    // QueryHelper.h). This fired on the first 3D frame after "New Game" (light visibility).
+    // Disable occlusion queries entirely — everything is treated as visible, exactly like
+    // the -no_occq switch. A proper ES path (GL_ANY_SAMPLES_PASSED + glGetQueryObjectuiv,
+    // which returns a 0/1 that maps onto the existing "0 == fragments" cull test) can be
+    // wired later as an optimization.
+    enabled = false;
+#else
     enabled = strstr(Core.Params, "-no_occq") ? false : true;
+#endif
     pool.reserve(limit);
     used.reserve(limit);
     fids.reserve(limit);

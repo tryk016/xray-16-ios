@@ -164,7 +164,13 @@ GLint ConvertTextureAddressMode(u32 Mode)
     case D3DTADDRESS_CLAMP:
         return (GLint)GL_CLAMP_TO_EDGE;
     case D3DTADDRESS_BORDER:
+#if defined(XR_PLATFORM_APPLE_IOS)
+        // GL_CLAMP_TO_BORDER needs EXT_texture_border_clamp, absent in core OpenGL ES 3.0
+        // (GL_INVALID_ENUM). Fall back to edge clamp; the border color is skipped too.
+        return (GLint)GL_CLAMP_TO_EDGE;
+#else
         return (GLint)GL_CLAMP_TO_BORDER;
+#endif
         //case D3DTADDRESS_MIRRORONCE:
         //	return ;
     default:
