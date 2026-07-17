@@ -120,6 +120,34 @@ inline std::pair<char, GLuint> GLUseBinary(pcstr* buffer, size_t size, const GLe
     return { 'p', program };
 }
 
+// OpenGL ES requires a linked program to have BOTH a vertex and a fragment shader.
+// Desktop GL allows a vertex-only (depth-only) program, which X-Ray uses for shadow-map
+// passes: their pixel shader is "null" (sh == 0). On ES that link fails ("requires exactly
+// one vertex and one fragment shader"), disabling every shadow_direct_* pass. Substitute a
+// shared do-nothing fragment shader (writes depth only) so these passes link and render.
+// This monolithic path is ES-only (desktop takes the SSO pipeline branch), so a hardcoded
+// "#version 300 es" stub is safe here.
+static GLuint GLDepthOnlyStubFS()
+{
+    static GLuint stub = 0;
+    if (stub)
+        return stub;
+    static const char* const src = "#version 300 es\nprecision highp float;\nvoid main(){}\n";
+    stub = glCreateShader(GL_FRAGMENT_SHADER);
+    R_ASSERT(stub);
+    CHK_GL(glShaderSource(stub, 1, &src, nullptr));
+    CHK_GL(glCompileShader(stub));
+    GLint status{};
+    CHK_GL(glGetShaderiv(stub, GL_COMPILE_STATUS, &status));
+    if (GLboolean(status) == GL_FALSE)
+    {
+        show_compile_errors("depth_only_stub.fs", 0, stub);
+        CHK_GL(glDeleteShader(stub));
+        stub = 0;
+    }
+    return stub;
+}
+
 static GLuint GLLinkMonolithicProgram(pcstr name, GLuint ps, GLuint vs, GLuint gs)
 {
     const GLuint program = glCreateProgram();
@@ -130,7 +158,13 @@ static GLuint GLLinkMonolithicProgram(pcstr name, GLuint ps, GLuint vs, GLuint g
     //if (HW.ShaderBinarySupported)
     //    CHK_GL(glProgramParameteri(program, GL_PROGRAM_BINARY_RETRIEVABLE_HINT, (GLint)GL_TRUE));
 
-    CHK_GL(glAttachShader(program, ps));
+    // Depth-only passes (shadow maps) come in with a "null" fragment shader (ps == 0);
+    // ES needs a real one — attach the shared stub so the program links.
+    if (ps == 0)
+        ps = GLDepthOnlyStubFS();
+
+    if (ps)
+        CHK_GL(glAttachShader(program, ps));
     CHK_GL(glAttachShader(program, vs));
     if (gs)
         CHK_GL(glAttachShader(program, gs));
@@ -145,7 +179,8 @@ static GLuint GLLinkMonolithicProgram(pcstr name, GLuint ps, GLuint vs, GLuint g
         CHK_GL(glBindFragDataLocation(program, 2, "SV_Target2"));
     }
     CHK_GL(glLinkProgram(program));
-    CHK_GL(glDetachShader(program, ps));
+    if (ps)
+        CHK_GL(glDetachShader(program, ps)); // stub FS is cached/shared — detach, never delete
     CHK_GL(glDetachShader(program, vs));
     if (gs)
         CHK_GL(glDetachShader(program, gs));
