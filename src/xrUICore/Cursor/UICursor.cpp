@@ -28,6 +28,13 @@ void CUICursor::OnDeviceReset()
     correction.x = UI_BASE_WIDTH  / (float)Device.m_rcWindowClient.w;
     correction.y = UI_BASE_HEIGHT / (float)Device.m_rcWindowClient.h;
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // iOS drives the cursor from absolute touch positions (CInput::TouchUpdate feeds
+    // iGetAsyncMousePos); the display-bounds check below compares logical points against
+    // the retina pixel dwHeight and would wrongly pick the relative path, freezing the
+    // cursor under a tap. Always take the absolute path here.
+    m_bound_to_system_cursor = true;
+#else
     SDL_Rect display;
     if (0 == SDL_GetDisplayBounds(0, &display))
     {
@@ -37,6 +44,7 @@ void CUICursor::OnDeviceReset()
     }
     if (m_bound_to_system_cursor) // sanity
         Device.UpdateWindowRects();
+#endif
 }
 
 void CUICursor::OnUIReset()

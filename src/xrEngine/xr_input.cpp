@@ -65,6 +65,16 @@ CInput::CInput(const bool exclusive)
 
     exclusiveInput = exclusive;
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // A touchscreen has no exclusive/relative-mouse concept: exclusive mode would keep the
+    // UI cursor in delta-accumulation mode (it never moves under a tap). Force the absolute
+    // path and own the touch->cursor mapping ourselves (TouchUpdate) instead of relying on
+    // SDL's synthetic mouse events, which we disable to avoid duplicate/again-relative input.
+    exclusiveInput = false;
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+    SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "0");
+#endif
+
     Log("Starting INPUT device...");
 
     mouseState.reset();
@@ -244,6 +254,65 @@ void CInput::MouseUpdate()
             cbStack.back()->IR_OnMouseWheel(scroll[0], scroll[1]);
     }
 }
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+void CInput::TouchUpdate()
+{
+    ZoneScoped;
+
+    SDL_Event events[MAX_MOUSE_EVENTS];
+    SDL_PumpEvents();
+    const auto count = SDL_PeepEvents(events, MAX_MOUSE_EVENTS,
+        SDL_GETEVENT, SDL_FINGERDOWN, SDL_FINGERMOTION);
+
+    for (int i = 0; i < count; ++i)
+    {
+        const SDL_TouchFingerEvent& tf = events[i].tfinger;
+        const bool isDown = events[i].type == SDL_FINGERDOWN;
+
+        // Single-finger drives the pointer. While one finger is active, ignore every other
+        // finger; while none is active, only a new finger-down starts tracking.
+        if (m_ios_finger_active)
+        {
+            if (tf.fingerId != m_ios_active_finger)
+                continue;
+        }
+        else if (!isDown)
+            continue;
+
+        // tfinger.x/y are normalized [0,1] over the window; map to logical points.
+        const Ivector2 prev = m_ios_touch_pos;
+        m_ios_touch_pos.x = iFloor(tf.x * Device.m_rcWindowClient.w);
+        m_ios_touch_pos.y = iFloor(tf.y * Device.m_rcWindowClient.h);
+        const int dx = (prev.x < 0) ? 0 : m_ios_touch_pos.x - prev.x;
+        const int dy = (prev.y < 0) ? 0 : m_ios_touch_pos.y - prev.y;
+
+        switch (events[i].type)
+        {
+        case SDL_FINGERDOWN:
+            m_ios_active_finger = tf.fingerId;
+            m_ios_finger_active = true;
+            // Place the cursor absolutely under the finger (bound path reads
+            // iGetAsyncMousePos == m_ios_touch_pos), then click — same press path desktop
+            // uses for a left mouse button (IR_OnMousePress -> IR_OnKeyboardPress(MOUSE_1)).
+            cbStack.back()->IR_OnMouseMove(dx, dy);
+            cbStack.back()->IR_OnMousePress(MOUSE_1);
+            break;
+
+        case SDL_FINGERMOTION:
+            if (dx || dy)
+                cbStack.back()->IR_OnMouseMove(dx, dy);
+            break;
+
+        case SDL_FINGERUP:
+            cbStack.back()->IR_OnMouseRelease(MOUSE_1);
+            if (tf.fingerId == m_ios_active_finger)
+                m_ios_finger_active = false;
+            break;
+        }
+    }
+}
+#endif
 
 void CInput::KeyUpdate()
 {
@@ -595,6 +664,15 @@ void CInput::iGetAsyncScrollPos(Ivector2& p) const
 
 bool CInput::iGetAsyncMousePos(Ivector2& p, bool global /*= false*/) const
 {
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // There is no OS mouse on iOS — report the tracked touch position (logical points) so
+    // CUICursor's absolute (bound) path places the cursor under the finger.
+    if (m_ios_touch_pos.x >= 0)
+    {
+        p = m_ios_touch_pos;
+        return !global;
+    }
+#endif
     if (global)
     {
 #if SDL_HAS_CAPTURE_AND_GLOBAL_MOUSE
@@ -773,6 +851,9 @@ void CInput::OnFrame(void)
         ControllerUpdate();
         KeyUpdate();
         MouseUpdate();
+#if defined(XR_PLATFORM_APPLE_IOS)
+        TouchUpdate();
+#endif
     }
 
     stats.FrameTime.End();

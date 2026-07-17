@@ -195,6 +195,16 @@ private:
     void KeyUpdate();
     void ControllerUpdate();
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    void TouchUpdate();
+    // Last touch position in logical window points (the space SDL mouse coords and
+    // Device.m_rcWindowClient use); reported back through iGetAsyncMousePos so the UI
+    // cursor is placed absolutely under the finger. -1 => no active touch yet.
+    Ivector2 m_ios_touch_pos{ -1, -1 };
+    SDL_FingerID m_ios_active_finger{};
+    bool m_ios_finger_active{ false };
+#endif
+
     void OpenController(int idx);
 
     MessageRegistry<pureKeyMapChanged> seqKeyMapChanged;
