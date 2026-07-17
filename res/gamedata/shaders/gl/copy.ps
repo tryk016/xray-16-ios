@@ -11,20 +11,20 @@ in int gl_SampleID;
 #endif
 out vec4 SV_Target;
 
-VARYING(TEXCOORD0) in float2 xrvary8;
+VARYING(TEXCOORD0) in float4 xrvary8;
 
 //////////////////////////////////////////////////////////////////////////////////////////
 // Pixel
 void main ()
 {
-	//return	tex2D		(s_base,xrvary8);
+	//return	tex2D		(s_base,xrvary8.xy);
 #ifndef USE_MSAA
-	SV_Target	=	tex2D		( s_generic, xrvary8 );
+	SV_Target	=	tex2D		( s_generic, xrvary8.xy );
 #else
 #ifndef MSAA_OPTIMIZATION
-	SV_Target	=	texelFetch	( s_generic, int2( xrvary8 * pos_decompression_params2.xy), ISAMPLE );
+	SV_Target	=	texelFetch	( s_generic, int2( xrvary8.xy * pos_decompression_params2.xy), ISAMPLE );
 #else
-	SV_Target	=	texelFetch	( s_generic, int2( xrvary8 * pos_decompression_params2.xy), gl_SampleID );
+	SV_Target	=	texelFetch	( s_generic, int2( xrvary8.xy * pos_decompression_params2.xy), gl_SampleID );
 #endif
 #endif
 }

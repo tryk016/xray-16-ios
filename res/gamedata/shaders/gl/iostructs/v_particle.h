@@ -27,7 +27,7 @@ layout(location = POSITION)		in float4	v_particle_P	; // POSITION;
 layout(location = TEXCOORD0)	in float2	v_particle_tc	; // TEXCOORD0;
 layout(location = COLOR)		in float4	v_particle_c	; // COLOR; 
 
-VARYING(TEXCOORD0) out float2	xrvary8	; // TEXCOORD0;
+VARYING(TEXCOORD0) out float4	xrvary8	; // TEXCOORD0;
 VARYING(COLOR0) out float4	xrvary0	; // COLOR0;
 #ifdef	USE_SOFT_PARTICLES
 VARYING(TEXCOORD1) out float4	xrvary9; // TEXCOORD1;
@@ -44,7 +44,7 @@ void main()
 
 	v2p O 	= _main (I);
 
-	xrvary8 = O.tc;
+	xrvary8 = float4(O.tc, 0.0, 1.0);
 	xrvary0 = O.c;
 #ifdef	USE_SOFT_PARTICLES
 	xrvary9 = O.tctexgen;

@@ -25,7 +25,7 @@ layout(location = TEXCOORD0)	in float2	v_model_tc		; // TEXCOORD0;	// (u,v)
 layout(location = TEXCOORD1)	in float4	v_model_ind		; // (x=m-index0, y=m-index1, z=m-index2, w=m-index3)
 #endif
 
-VARYING(TEXCOORD1) out float2	xrvary9	; // TEXCOORD1;	// Diffuse map for aref
+VARYING(TEXCOORD1) out float4	xrvary9	; // TEXCOORD1;	// Diffuse map for aref
 
 v2p_shadow_direct_aref _main( v_model	I );
 
@@ -77,6 +77,6 @@ void main()
 	O = _main(skinning_4(I));
 #endif
 
-	xrvary9 = O.tc0;
+	xrvary9 = float4(O.tc0, 0.0, 1.0);
 	gl_Position = O.hpos;
 }

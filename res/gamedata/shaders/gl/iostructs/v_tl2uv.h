@@ -8,8 +8,8 @@ layout(location = TEXCOORD0)	in float2	v_TL2uv_Tex0	; // TEXCOORD0;
 layout(location = TEXCOORD1)	in float2	v_TL2uv_Tex1	; // TEXCOORD1;
 layout(location = COLOR)		in float4	v_TL2uv_Color	; // COLOR; 
 
-VARYING(TEXCOORD0) out float2 	xrvary8	; // TEXCOORD0;
-VARYING(TEXCOORD1) out float2	xrvary9	; // TEXCOORD1;
+VARYING(TEXCOORD0) out float4 	xrvary8	; // TEXCOORD0;
+VARYING(TEXCOORD1) out float4	xrvary9	; // TEXCOORD1;
 VARYING(COLOR) out float4	xrvary0	; // COLOR;
 
 v2p_TL2uv _main ( v_TL2uv I );
@@ -24,8 +24,8 @@ void main()
 
 	v2p_TL2uv O 	= _main (I);
 
-	xrvary8 = O.Tex0;
-	xrvary9 = O.Tex1;
+	xrvary8 = float4(O.Tex0, 0.0, 1.0);
+	xrvary9 = float4(O.Tex1, 0.0, 1.0);
 	xrvary0 = O.Color;
 	gl_Position = O.HPos;
 }

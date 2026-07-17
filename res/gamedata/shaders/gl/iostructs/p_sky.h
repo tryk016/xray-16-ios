@@ -15,8 +15,8 @@ struct        _out
 };
 
 VARYING(COLOR0) in float4	xrvary0; // COLOR0;        // for SM3 - factor.rgb - tonemap-prescaled
-VARYING(TEXCOORD0) in float3	xrvary8	; // TEXCOORD0;
-VARYING(TEXCOORD1) in float3	xrvary9	; // TEXCOORD1;
+VARYING(TEXCOORD0) in float4	xrvary8	; // TEXCOORD0;
+VARYING(TEXCOORD1) in float4	xrvary9	; // TEXCOORD1;
 
 _out _main( v2p I );
 
@@ -24,8 +24,8 @@ void main()
 {
 	v2p			I;
 	I.factor	= xrvary0;
-	I.tc0 		= xrvary8;
-	I.tc1 		= xrvary9;
+	I.tc0 		= xrvary8.xyz;
+	I.tc1 		= xrvary9.xyz;
 
 	_out O		= _main (I);
 

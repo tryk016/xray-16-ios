@@ -21,13 +21,13 @@ struct	_input
 };
 
 VARYING(TEXCOORD0) in float4 	xrvary8	; // TEXCOORD0;
-VARYING(TEXCOORD1) in float2	xrvary9	; // TEXCOORD1;
+VARYING(TEXCOORD1) in float4	xrvary9	; // TEXCOORD1;
 
 void main ()
 {
 	_input		I;
 	I.tc0			= xrvary8;
-	I.tcJ			= xrvary9;
+	I.tcJ			= xrvary9.xy;
 	I.pos2d		= gl_FragCoord;
 
 	//	TODO: move it to C++ code to save maths in PS

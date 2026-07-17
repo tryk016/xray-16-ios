@@ -9,10 +9,10 @@ layout(location = TEXCOORD1)	in float2	v_build_Tex1	; // TEXCOORD1;
 layout(location = TEXCOORD2)	in float2 	v_build_Tex2	; // TEXCOORD2;
 layout(location = TEXCOORD3)	in float2	v_build_Tex3	; // TEXCOORD3;
 
-VARYING(TEXCOORD0) out float2 	xrvary8	; // TEXCOORD0;
-VARYING(TEXCOORD1) out float2	xrvary9	; // TEXCOORD1;
-VARYING(TEXCOORD2) out float2 	xrvary10	; // TEXCOORD2;
-VARYING(TEXCOORD3) out float2	xrvary11	; // TEXCOORD3;
+VARYING(TEXCOORD0) out float4 	xrvary8	; // TEXCOORD0;
+VARYING(TEXCOORD1) out float4	xrvary9	; // TEXCOORD1;
+VARYING(TEXCOORD2) out float4 	xrvary10	; // TEXCOORD2;
+VARYING(TEXCOORD3) out float4	xrvary11	; // TEXCOORD3;
 
 v2p_build _main ( v_build I );
 
@@ -27,9 +27,9 @@ void main()
 
 	v2p_build O = _main (I);
 
-	xrvary8 = O.Tex0;
-	xrvary9 = O.Tex1;
-	xrvary10 = O.Tex2;
-	xrvary11 = O.Tex3;
+	xrvary8 = float4(O.Tex0, 0.0, 1.0);
+	xrvary9 = float4(O.Tex1, 0.0, 1.0);
+	xrvary10 = float4(O.Tex2, 0.0, 1.0);
+	xrvary11 = float4(O.Tex3, 0.0, 1.0);
 	gl_Position = O.HPos;
 }

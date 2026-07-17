@@ -23,15 +23,15 @@ VARYING(COLOR0) in float4 	xrvary0; // COLOR0;
 #if defined(USE_R2_STATIC_SUN) && !defined(USE_LM_HEMI)
 VARYING(TEXCOORD0) in float4	xrvary8		; // TEXCOORD0;	// Texture coordinates,         w=sun_occlusion
 #else
-VARYING(TEXCOORD0) in float2	xrvary8		; // TEXCOORD0;	// Texture coordinates
+VARYING(TEXCOORD0) in float4	xrvary8		; // TEXCOORD0;	// Texture coordinates
 #endif
 VARYING(TEXCOORD1) in float4	xrvary9; // TEXCOORD1;	// position + hemi
-VARYING(TEXCOORD2) in float3	xrvary10		; // TEXCOORD2;	// Eye-space normal        (for lighting)
+VARYING(TEXCOORD2) in float4	xrvary10		; // TEXCOORD2;	// Eye-space normal        (for lighting)
 #ifdef USE_TDETAIL
-VARYING(TEXCOORD3) in float2	xrvary11	; // TEXCOORD3;	// d-bump
+VARYING(TEXCOORD3) in float4	xrvary11	; // TEXCOORD3;	// d-bump
 #endif
 #ifdef USE_LM_HEMI
-VARYING(TEXCOORD4) in float2	xrvary12		; // TEXCOORD4;	// lm-hemi
+VARYING(TEXCOORD4) in float4	xrvary12		; // TEXCOORD4;	// lm-hemi
 #endif
 
 #ifdef	MSAA_ALPHATEST_DX10_1_ATOC
@@ -44,14 +44,18 @@ void main()
 {
 	p_particle		I;
 	I.color			= xrvary0;
+#if defined(USE_R2_STATIC_SUN) && !defined(USE_LM_HEMI)
 	I.base.tcdh		= xrvary8;
+#else
+	I.base.tcdh		= xrvary8.xy;
+#endif
 	I.base.position = xrvary9;
-	I.base.N		= xrvary10;
+	I.base.N		= xrvary10.xyz;
 #ifdef USE_TDETAIL
-	I.base.tcdbump 	= xrvary11;
+	I.base.tcdbump 	= xrvary11.xy;
 #endif
 #ifdef USE_LM_HEMI
-	I.base.lmh		= xrvary12;
+	I.base.lmh		= xrvary12.xy;
 #endif
 
 #ifdef	MSAA_ALPHATEST_DX10_1_ATOC

@@ -11,8 +11,8 @@ in vec4 gl_FragCoord;
 #endif
 #endif
 
-VARYING(TEXCOORD0) in float2	xrvary8	; // TEXCOORD0;
-VARYING(TEXCOORD1) in float2	xrvary9	; // TEXCOORD1; 
+VARYING(TEXCOORD0) in float4	xrvary8	; // TEXCOORD0;
+VARYING(TEXCOORD1) in float4	xrvary9	; // TEXCOORD1; 
 VARYING(COLOR) in float4	xrvary0; // COLOR; 
 
 #ifdef GBUFFER_OPTIMIZATION
@@ -33,15 +33,15 @@ void main()
 {
 #ifdef GBUFFER_OPTIMIZATION
 #ifdef MSAA_OPTIMIZATION
-	SV_Target	= _main ( xrvary8, xrvary9, xrvary0, gl_FragCoord, gl_SampleID  );
+	SV_Target	= _main ( xrvary8.xy, xrvary9.xy, xrvary0, gl_FragCoord, gl_SampleID  );
 #else
-	SV_Target	= _main ( xrvary8, xrvary9, xrvary0, gl_FragCoord );
+	SV_Target	= _main ( xrvary8.xy, xrvary9.xy, xrvary0, gl_FragCoord );
 #endif
 #else
 #ifdef MSAA_OPTIMIZATION
-	SV_Target	= _main ( xrvary8, xrvary9, gl_SampleID );
+	SV_Target	= _main ( xrvary8.xy, xrvary9.xy, gl_SampleID );
 #else
-	SV_Target	= _main ( xrvary8, xrvary9 );
+	SV_Target	= _main ( xrvary8.xy, xrvary9.xy );
 #endif
 #endif
 }

@@ -25,13 +25,13 @@ layout(location = TEXCOORD1)		in float2	v_static_lmh		; // TEXCOORD1;		// (lmu,l
 #endif
 
 
-VARYING(TEXCOORD0) out float2	xrvary8		; // TEXCOORD0;		// base
-VARYING(TEXCOORD1) out float2	xrvary9		; // TEXCOORD1;		// lmap
-VARYING(TEXCOORD2) out float2	xrvary10		; // TEXCOORD2;		// hemi
-VARYING(TEXCOORD3) out float3	xrvary11		; // TEXCOORD3;		// env
-VARYING(COLOR0) out float3	xrvary0		; // COLOR0;
-VARYING(COLOR1) out float3	xrvary1		; // COLOR1;
-VARYING(FOG) out float	xrvary7		; // FOG;
+VARYING(TEXCOORD0) out float4	xrvary8		; // TEXCOORD0;		// base
+VARYING(TEXCOORD1) out float4	xrvary9		; // TEXCOORD1;		// lmap
+VARYING(TEXCOORD2) out float4	xrvary10		; // TEXCOORD2;		// hemi
+VARYING(TEXCOORD3) out float4	xrvary11		; // TEXCOORD3;		// env
+VARYING(COLOR0) out float4	xrvary0		; // COLOR0;
+VARYING(COLOR1) out float4	xrvary1		; // COLOR1;
+VARYING(FOG) out float4	xrvary7		; // FOG;
 
 v2p _main ( v_static I );
 
@@ -49,12 +49,12 @@ void main()
 
 	v2p O 		= _main (I);
 
-	xrvary8	= O.tc0;
-	xrvary9	= O.tc1;
-	xrvary10	= O.tc2;
-	xrvary11	= O.tc3;
-	xrvary0	= O.c0;
-	xrvary1	= O.c1;
-	xrvary7	= O.fog;
+	xrvary8	= float4(O.tc0, 0.0, 1.0);
+	xrvary9	= float4(O.tc1, 0.0, 1.0);
+	xrvary10	= float4(O.tc2, 0.0, 1.0);
+	xrvary11	= float4(O.tc3, 1.0);
+	xrvary0	= float4(O.c0, 1.0);
+	xrvary1	= float4(O.c1, 1.0);
+	xrvary7	= float4(O.fog, 0.0, 0.0, 1.0);
 	gl_Position	= O.hpos;
 }

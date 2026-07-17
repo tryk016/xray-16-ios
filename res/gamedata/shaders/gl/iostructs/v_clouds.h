@@ -23,8 +23,8 @@ layout(location = COLOR0)		in float4	v_clouds_dir	; // COLOR0;	// dir0,dir1(w<->
 layout(location = COLOR1)		in float4	v_clouds_color	; // COLOR1;	// rgb. intensity
 
 VARYING(COLOR0) out float4	xrvary0	; // COLOR0;	// rgb. intensity, for SM3 - tonemap-prescaled, HI-res
-VARYING(TEXCOORD0) out float2	xrvary8		; // TEXCOORD0;
-VARYING(TEXCOORD1) out float2	xrvary9		; // TEXCOORD1;
+VARYING(TEXCOORD0) out float4	xrvary8		; // TEXCOORD0;
+VARYING(TEXCOORD1) out float4	xrvary9		; // TEXCOORD1;
 
 vf _main (vi v);
 
@@ -38,7 +38,7 @@ void main()
 	vf O 	= _main (I);
 
 	xrvary0 = O.color;
-	xrvary8 = O.tc0;
-	xrvary9 = O.tc1;
+	xrvary8 = float4(O.tc0, 0.0, 1.0);
+	xrvary9 = float4(O.tc1, 0.0, 1.0);
 	gl_Position 	= O.hpos;
 }

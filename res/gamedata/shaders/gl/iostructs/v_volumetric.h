@@ -20,9 +20,9 @@ struct v2p
 
 layout(location = POSITION)		in float3	v_volumetric_P;
 
-VARYING(TEXCOORD0) out float3 	xrvary8	; // TEXCOORD0;		// light center to plane vector
-VARYING(TEXCOORD1) out float3 	xrvary9		; // TEXCOORD1;		// position in camera space
-VARYING(TEXCOORD2) out float 	xrvary10	; // TEXCOORD2;		// plane density alon Z axis
+VARYING(TEXCOORD0) out float4 	xrvary8	; // TEXCOORD0;		// light center to plane vector
+VARYING(TEXCOORD1) out float4 	xrvary9		; // TEXCOORD1;		// position in camera space
+VARYING(TEXCOORD2) out float4 	xrvary10	; // TEXCOORD2;		// plane density alon Z axis
 //VARYING(TEXCOORD3) out float2	xrvary11 		; // TEXCOORD3;		// projective noise
 
 v2p _main ( float3 P );
@@ -30,9 +30,9 @@ v2p _main ( float3 P );
 void main()
 {
 	v2p O	= _main ( v_volumetric_P );
-	xrvary8	= O.lightToPos;
-	xrvary9		= O.vPos;
-	xrvary10	= O.fDensity;
+	xrvary8	= float4(O.lightToPos, 1.0);
+	xrvary9		= float4(O.vPos, 1.0);
+	xrvary10	= float4(O.fDensity, 0.0, 0.0, 1.0);
 //	xrvary11		= O.tNoise;
 	gl_Position		= O.hpos;
 	// gl_ClipDistance is a desktop/EXT_clip_cull_distance built-in; GLSL ES 3.00 has no

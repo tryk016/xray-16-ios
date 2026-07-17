@@ -26,9 +26,9 @@ layout(location = TEXCOORD0)	in float2	v_combine_tcJ	; // TEXCOORD0;	// jitter c
 #ifdef USE_VTF
 VARYING(TEXCOORD0) out float4	xrvary8	; // TEXCOORD0;	// tc.xy, tc.w = tonemap scale
 #else // USE_VTF
-VARYING(TEXCOORD0) out float2	xrvary8	; // TEXCOORD0;	// tc.xy
+VARYING(TEXCOORD0) out float4	xrvary8	; // TEXCOORD0;	// tc.xy
 #endif // USE_VTF
-VARYING(TEXCOORD1) out float2	xrvary9	; // TEXCOORD1;	// jitter coords
+VARYING(TEXCOORD1) out float4	xrvary9	; // TEXCOORD1;	// jitter coords
 
 v2p _main (_in v);
 
@@ -40,7 +40,11 @@ void main()
 
 	v2p O		= _main (I);
 
+#ifdef USE_VTF
 	xrvary8	= O.tc0;
-	xrvary9	= O.tcJ;
+#else
+	xrvary8	= float4(O.tc0, 0.0, 1.0);
+#endif
+	xrvary9	= float4(O.tcJ, 0.0, 1.0);
 	gl_Position	= O.hpos;
 }

@@ -75,6 +75,12 @@ void CTexture::apply_load(CBackend& cmd_list, u32 dwStage)
 
 void CTexture::apply_theora(CBackend& cmd_list, u32 dwStage)
 {
+    // A failed video-surface init used to leave this bind selected with dead members —
+    // and on ES the old glMapBuffer call below was a NULL glad pointer, which is exactly
+    // how the main menu (animated .ogm background) crashed to PC=0 on device.
+    if (!pTheora || !pSurface)
+        return;
+
     CHK_GL(glActiveTexture(GL_TEXTURE0 + dwStage));
     CHK_GL(glBindTexture(desc, pSurface));
 
@@ -84,16 +90,32 @@ void CTexture::apply_theora(CBackend& cmd_list, u32 dwStage)
         u32 _w = pTheora->Width(true);
         u32 _h = pTheora->Height(true);
 
-        // Clear and map buffer for writing
+        // Clear and map buffer for writing. glMapBufferRange is core in desktop GL 3.0+
+        // AND OpenGL ES 3.0 — plain glMapBuffer does not exist on ES (NULL loader entry).
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pBuffer);
         CHK_GL(glBufferData(GL_PIXEL_UNPACK_BUFFER, _w * _h * 4, nullptr, GL_STREAM_DRAW)); // Invalidate buffer
-        CHK_GL(pBits = (u32*)glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY));
+        CHK_GL(pBits = (u32*)glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, _w * _h * 4,
+            GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT));
+        if (!pBits)
+        {
+            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+            return;
+        }
 
         // Write to the buffer and copy it to the texture
         int _pos = 0;
         pTheora->DecompressFrame(pBits, 0, _pos);
         CHK_GL(glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER));
+#if defined(XR_PLATFORM_APPLE_IOS)
+        // ES 3.0 has no GL_BGRA external format. The decoded frame is BGRA-ordered, so
+        // upload as RGBA and let a texture swizzle put the channels right (persists on
+        // the texture object; setting it per-frame after bind is redundant but cheap).
+        const GLint bgra_swizzle[4] = { GL_BLUE, GL_GREEN, GL_RED, GL_ALPHA };
+        CHK_GL(glTexParameteriv(desc, GL_TEXTURE_SWIZZLE_RGBA, bgra_swizzle));
+        CHK_GL(glTexSubImage2D(desc, 0, 0, 0, _w, _h, GL_RGBA, GL_UNSIGNED_BYTE, nullptr));
+#else
         CHK_GL(glTexSubImage2D(desc, 0, 0, 0, _w, _h, GL_BGRA, GL_UNSIGNED_BYTE, nullptr));
+#endif
 
         // Unmap the buffer to restore normal texture functionality
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);

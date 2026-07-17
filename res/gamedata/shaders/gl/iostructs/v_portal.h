@@ -19,7 +19,7 @@ layout(location = POSITION)		in float4	v_portal_pos	; // POSITION;	// (float,flo
 layout(location = COLOR0)		in float4	v_portal_color	; // COLOR0;	// (r,g,b,dir-occlusion)
 
 VARYING(COLOR0) out float4	xrvary0	; // COLOR0;
-VARYING(FOG) out float	xrvary7	; // FOG;
+VARYING(FOG) out float4	xrvary7	; // FOG;
 
 v2p _main ( v_vert I );
 
@@ -32,6 +32,6 @@ void main()
 	v2p O 		= _main (I);
 
 	xrvary0 = O.c;
-	xrvary7 = O.fog;
+	xrvary7 = float4(O.fog, 0.0, 0.0, 1.0);
 	gl_Position = O.hpos;
 }

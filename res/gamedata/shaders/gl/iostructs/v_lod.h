@@ -35,9 +35,9 @@ layout(location = TEXCOORD3)		in float4	v_lod_rgbh1		; // TEXCOORD3;		// rgb.h
 layout(location = COLOR0)		in float4	v_lod_sun_af		; // COLOR0;		// x=sun_0, y=sun_1, z=alpha, w=factor
 
 
-VARYING(TEXCOORD0) out float3	xrvary8		; // TEXCOORD0;		// base
-VARYING(TEXCOORD1) out float2	xrvary9		; // TEXCOORD1;		// lmap
-VARYING(TEXCOORD2) out float2	xrvary10		; // TEXCOORD2;		// hemi
+VARYING(TEXCOORD0) out float4	xrvary8		; // TEXCOORD0;		// base
+VARYING(TEXCOORD1) out float4	xrvary9		; // TEXCOORD1;		// lmap
+VARYING(TEXCOORD2) out float4	xrvary10		; // TEXCOORD2;		// hemi
 VARYING(COLOR1) out float4	xrvary1		; // COLOR1;
 
 v2p _main ( v_lod I );
@@ -57,9 +57,9 @@ void main()
 
 	v2p O 		= _main (I);
 
-	xrvary8	= O.Pe;
-	xrvary9	= O.tc0;
-	xrvary10	= O.tc1;
+	xrvary8	= float4(O.Pe, 1.0);
+	xrvary9	= float4(O.tc0, 0.0, 1.0);
+	xrvary10	= float4(O.tc1, 0.0, 1.0);
 	xrvary1	= O.af;
 	gl_Position	= O.hpos;
 }

@@ -11,7 +11,7 @@ in vec4 gl_FragCoord;
 #endif
 #endif
 
-VARYING(TEXCOORD0) in float2	xrvary8	; // TEXCOORD0;
+VARYING(TEXCOORD0) in float4	xrvary8	; // TEXCOORD0;
 VARYING(COLOR) in float4	xrvary0	; // COLOR; 
 
 #ifdef MSAA_OPTIMIZATION
@@ -31,7 +31,7 @@ float4 _main ( p_TL I );
 void main()
 {
 	p_TL		I;
-	I.Tex0		= xrvary8;
+	I.Tex0		= xrvary8.xy;
 	I.Color 	= xrvary0;
 
 #ifdef MSAA_OPTIMIZATION

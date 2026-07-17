@@ -23,9 +23,9 @@ struct v2p
 	float4 	af	; 	// COLOR1;		// alpha&factor //skyloader: COLOR1? maybe COLOR0?
 };
 
-VARYING(TEXCOORD0) in float3	xrvary8		; // TEXCOORD0;		// base
-VARYING(TEXCOORD1) in float2	xrvary9		; // TEXCOORD1;		// lmap
-VARYING(TEXCOORD2) in float2	xrvary10		; // TEXCOORD2;		// hemi
+VARYING(TEXCOORD0) in float4	xrvary8		; // TEXCOORD0;		// base
+VARYING(TEXCOORD1) in float4	xrvary9		; // TEXCOORD1;		// lmap
+VARYING(TEXCOORD2) in float4	xrvary10		; // TEXCOORD2;		// hemi
 VARYING(COLOR1) in float4	xrvary1		; // COLOR1;
 
 #ifdef	ATOC
@@ -41,9 +41,9 @@ f_deffer _main ( v2p I );
 void main()
 {
 	v2p		I;
-	I.Pe		= xrvary8;
-	I.tc0		= xrvary9;
-	I.tc1		= xrvary10;
+	I.Pe		= xrvary8.xyz;
+	I.tc0		= xrvary9.xy;
+	I.tc1		= xrvary10.xy;
 	I.af		= xrvary1;
 
 #ifdef	ATOC

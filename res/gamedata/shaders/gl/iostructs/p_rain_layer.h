@@ -6,8 +6,8 @@ in vec4 gl_FragCoord;
 #endif
 #endif
 
-VARYING(TEXCOORD0) in float2	xrvary8	; // TEXCOORD0;
-VARYING(TEXCOORD1) in float2	xrvary9	; // TEXCOORD1; 
+VARYING(TEXCOORD0) in float4	xrvary8	; // TEXCOORD0;
+VARYING(TEXCOORD1) in float4	xrvary9	; // TEXCOORD1; 
 
 #ifdef GBUFFER_OPTIMIZATION
 float4 _main ( float2 tc, float2 tcJ, float4 pos2d );
@@ -18,8 +18,8 @@ float4 _main ( float2 tc, float2 tcJ );
 void main()
 {
 #ifdef GBUFFER_OPTIMIZATION
-	SV_Target	= _main ( xrvary8, xrvary9, gl_FragCoord );
+	SV_Target	= _main ( xrvary8.xy, xrvary9.xy, gl_FragCoord );
 #else
-	SV_Target	= _main ( xrvary8, xrvary9 );
+	SV_Target	= _main ( xrvary8.xy, xrvary9.xy );
 #endif
 }

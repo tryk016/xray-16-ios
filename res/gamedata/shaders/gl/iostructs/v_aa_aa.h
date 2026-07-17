@@ -12,11 +12,11 @@ layout(location = TEXCOORD4)	in float2	v_aa_AA_Tex4	; // TEXCOORD4;
 layout(location = TEXCOORD5)	in float4	v_aa_AA_Tex5	; // TEXCOORD5;
 layout(location = TEXCOORD6)	in float4	v_aa_AA_Tex6	; // TEXCOORD6;
 
-VARYING(TEXCOORD0) out float2 	xrvary8	; // TEXCOORD0;
-VARYING(TEXCOORD1) out float2	xrvary9	; // TEXCOORD1;
-VARYING(TEXCOORD2) out float2 	xrvary10	; // TEXCOORD2;
-VARYING(TEXCOORD3) out float2	xrvary11	; // TEXCOORD3;
-VARYING(TEXCOORD4) out float2	xrvary12	; // TEXCOORD4;
+VARYING(TEXCOORD0) out float4 	xrvary8	; // TEXCOORD0;
+VARYING(TEXCOORD1) out float4	xrvary9	; // TEXCOORD1;
+VARYING(TEXCOORD2) out float4 	xrvary10	; // TEXCOORD2;
+VARYING(TEXCOORD3) out float4	xrvary11	; // TEXCOORD3;
+VARYING(TEXCOORD4) out float4	xrvary12	; // TEXCOORD4;
 VARYING(TEXCOORD5) out float4	xrvary13	; // TEXCOORD5;
 VARYING(TEXCOORD6) out float4	xrvary14	; // TEXCOORD6;
 
@@ -36,11 +36,11 @@ void main()
 
 	v2p_aa_AA O = _main (I);
 
-	xrvary8 = O.Tex0;
-	xrvary9 = O.Tex1;
-	xrvary10 = O.Tex2;
-	xrvary11 = O.Tex3;
-	xrvary12 = O.Tex4;
+	xrvary8 = float4(O.Tex0, 0.0, 1.0);
+	xrvary9 = float4(O.Tex1, 0.0, 1.0);
+	xrvary10 = float4(O.Tex2, 0.0, 1.0);
+	xrvary11 = float4(O.Tex3, 0.0, 1.0);
+	xrvary12 = float4(O.Tex4, 0.0, 1.0);
 	xrvary13 = O.Tex5;
 	xrvary14 = O.Tex6;
 	gl_Position = O.HPos;

@@ -25,13 +25,13 @@ struct v2p
 	float	fog	; // FOG;
 };
 
-VARYING(TEXCOORD0) in float2	xrvary8		; // TEXCOORD0;
-VARYING(TEXCOORD1) in float2	xrvary9	; // TEXCOORD1;
-VARYING(TEXCOORD2) in float2	xrvary10	; // TEXCOORD2;
-VARYING(TEXCOORD3) in float3	xrvary11		; // TEXCOORD3;
-VARYING(TEXCOORD4) in float3	xrvary12		; // TEXCOORD4;
-VARYING(TEXCOORD5) in float3	xrvary13		; // TEXCOORD5;
-VARYING(TEXCOORD6) in float3	xrvary14	; // TEXCOORD6;
+VARYING(TEXCOORD0) in float4	xrvary8		; // TEXCOORD0;
+VARYING(TEXCOORD1) in float4	xrvary9	; // TEXCOORD1;
+VARYING(TEXCOORD2) in float4	xrvary10	; // TEXCOORD2;
+VARYING(TEXCOORD3) in float4	xrvary11		; // TEXCOORD3;
+VARYING(TEXCOORD4) in float4	xrvary12		; // TEXCOORD4;
+VARYING(TEXCOORD5) in float4	xrvary13		; // TEXCOORD5;
+VARYING(TEXCOORD6) in float4	xrvary14	; // TEXCOORD6;
 #if defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
 VARYING(TEXCOORD7) in float4	xrvary15	; // TEXCOORD7;
 #endif	// defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
@@ -39,7 +39,7 @@ VARYING(TEXCOORD7) in float4	xrvary15	; // TEXCOORD7;
 VARYING(POSITION0) in float4	xrvary3	; // POSITION0;
 #endif
 VARYING(COLOR0) in float4	xrvary0		; // COLOR0;
-VARYING(FOG) in float	xrvary7		; // FOG;
+VARYING(FOG) in float4	xrvary7		; // FOG;
 
 #ifdef GBUFFER_OPTIMIZATION
 float4 _main( v2p I, float4 pos2d );
@@ -51,13 +51,13 @@ void main()
 {
 	v2p		I;
 
-	I.tbase		= xrvary8;
-	I.tnorm0	= xrvary9;
-	I.tnorm1	= xrvary10;
-	I.M1		= xrvary11;
-	I.M2		= xrvary12;
-	I.M3		= xrvary13;
-	I.v2point	= xrvary14;
+	I.tbase		= xrvary8.xy;
+	I.tnorm0	= xrvary9.xy;
+	I.tnorm1	= xrvary10.xy;
+	I.M1		= xrvary11.xyz;
+	I.M2		= xrvary12.xyz;
+	I.M3		= xrvary13.xyz;
+	I.v2point	= xrvary14.xyz;
 #if defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
 	I.tctexgen	= xrvary15;
 #endif	// defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
@@ -65,7 +65,7 @@ void main()
     I.position_w = xrvary3;
 #endif
 	I.c0		= xrvary0;
-	I.fog		= xrvary7;
+	I.fog		= xrvary7.x;
 #ifdef GBUFFER_OPTIMIZATION
 	SV_Target	= _main ( I, gl_FragCoord );
 #else

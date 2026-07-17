@@ -30,9 +30,9 @@ layout(location = BINORMAL)		in float4	v_vert_B		; // BINORMAL;		// binormal
 layout(location = COLOR0)		in float4	v_vert_color		; // COLOR0;		// (r,g,b,dir-occlusion)
 layout(location = TEXCOORD0)		in int2		v_vert_uv		; // TEXCOORD0;		// (u0,v0)
 
-VARYING(TEXCOORD0) out float2	xrvary8		; // TEXCOORD0;
-VARYING(TEXCOORD1) out float2	xrvary9		; // TEXCOORD1;
-VARYING(TEXCOORD2) out float2	xrvary10		; // TEXCOORD2;		
+VARYING(TEXCOORD0) out float4	xrvary8		; // TEXCOORD0;
+VARYING(TEXCOORD1) out float4	xrvary9		; // TEXCOORD1;
+VARYING(TEXCOORD2) out float4	xrvary10		; // TEXCOORD2;		
 #if defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
 VARYING(TEXCOORD3) out float4	xrvary11	; // TEXCOORD3;
 #endif	// defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
@@ -51,9 +51,9 @@ void main()
 
 	v2p O 		= _main (I);
 
-	xrvary8	= O.tbase;
-	xrvary9	= O.tdist0;
-	xrvary10	= O.tdist1;
+	xrvary8	= float4(O.tbase, 0.0, 1.0);
+	xrvary9	= float4(O.tdist0, 0.0, 1.0);
+	xrvary10	= float4(O.tdist1, 0.0, 1.0);
 #if defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)
 	xrvary11 = O.tctexgen;
 #endif	// defined(USE_SOFT_WATER) && defined(NEED_SOFT_WATER)

@@ -25,8 +25,8 @@ layout(location = TEXCOORD0)	in float3	v_sky_tc0	; // TEXCOORD0;
 layout(location = TEXCOORD1)	in float3	v_sky_tc1	; // TEXCOORD1;
 
 VARYING(COLOR0) out float4	xrvary0	; // COLOR0;
-VARYING(TEXCOORD0) out float3	xrvary8	; // TEXCOORD0;
-VARYING(TEXCOORD1) out float3	xrvary9	; // TEXCOORD1;
+VARYING(TEXCOORD0) out float4	xrvary8	; // TEXCOORD0;
+VARYING(TEXCOORD1) out float4	xrvary9	; // TEXCOORD1;
 
 v2p _main (vi v);
 
@@ -41,7 +41,7 @@ void main()
 	v2p O 	= _main (I);
 
 	xrvary0	= O.c;
-	xrvary8 = O.tc0;
-	xrvary9 = O.tc1;
+	xrvary8 = float4(O.tc0, 1.0);
+	xrvary9 = float4(O.tc1, 1.0);
 	gl_Position = O.hpos;
 }

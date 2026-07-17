@@ -20,7 +20,7 @@ struct v2p
 #endif // USE_SOFT_PARTICLES
 };
 
-VARYING(TEXCOORD0) in float2	xrvary8	; // TEXCOORD0;
+VARYING(TEXCOORD0) in float4	xrvary8	; // TEXCOORD0;
 VARYING(COLOR0) in float4	xrvary0	; // COLOR0;
 #ifdef	USE_SOFT_PARTICLES
 VARYING(TEXCOORD1) in float4	xrvary9; // TEXCOORD1;
@@ -31,7 +31,7 @@ float4 _main ( v2p I );
 void main()
 {
 	v2p			I;
-	I.tc0		= xrvary8;
+	I.tc0		= xrvary8.xy;
 	I.c 		= xrvary0;
 #ifdef USE_SOFT_PARTICLES
 	I.tctexgen 	= xrvary9;

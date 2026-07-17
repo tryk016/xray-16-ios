@@ -31,9 +31,9 @@ struct	_out
 #ifdef USE_VTF
 VARYING(TEXCOORD0) in float4	xrvary8	; // TEXCOORD0;	// tc.xy, tc.w = tonemap scale
 #else // USE_VTF
-VARYING(TEXCOORD0) in float2	xrvary8	; // TEXCOORD0;	// tc.xy
+VARYING(TEXCOORD0) in float4	xrvary8	; // TEXCOORD0;	// tc.xy
 #endif // USE_VTF
-VARYING(TEXCOORD1) in float2	xrvary9	; // TEXCOORD1;	// jitter coords
+VARYING(TEXCOORD1) in float4	xrvary9	; // TEXCOORD1;	// jitter coords
 
 #ifndef MSAA_OPTIMIZATION
 _out _main ( _input I );
@@ -44,8 +44,12 @@ _out _main ( _input I, uint iSample );
 void main()
 {
 	_input		I;
+#ifdef USE_VTF
 	I.tc0 		= xrvary8;
-	I.tcJ 		= xrvary9;
+#else
+	I.tc0 		= xrvary8.xy;
+#endif
+	I.tcJ 		= xrvary9.xy;
 	I.pos2d		= gl_FragCoord;
 
 #ifndef MSAA_OPTIMIZATION

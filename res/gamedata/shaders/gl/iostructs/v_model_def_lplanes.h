@@ -33,8 +33,8 @@ layout(location = TEXCOORD1)		in float4	v_model_ind		; // (x=m-index0, y=m-index
 #endif
 
 
-VARYING(TEXCOORD0) out float2	xrvary8		; // TEXCOORD0;		// base
-VARYING(COLOR0) out float3	xrvary0		; // COLOR0;		// color
+VARYING(TEXCOORD0) out float4	xrvary8		; // TEXCOORD0;		// base
+VARYING(COLOR0) out float4	xrvary0		; // COLOR0;		// color (.a=1: FS base_lplanes multiplies by .a; ES needs the widths to match)
 
 v2p _main ( v_model v );
 
@@ -86,7 +86,7 @@ void main()
 	O		= _main(skinning_4(I));
 #endif
 
-	xrvary8	= O.tc0;
-	xrvary0	= O.c0;
+	xrvary8	= float4(O.tc0, 0.0, 1.0);
+	xrvary0	= float4(O.c0, 1.0);
 	gl_Position	= O.hpos;
 }

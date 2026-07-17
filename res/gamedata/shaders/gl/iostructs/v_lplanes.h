@@ -20,7 +20,7 @@ layout(location = TEXCOORD1)		in float2	v_static_lmh		; // TEXCOORD1;		// (lmu,l
 #endif
 
 
-VARYING(TEXCOORD0) out float2	xrvary8		; // TEXCOORD0;		// base
+VARYING(TEXCOORD0) out float4	xrvary8		; // TEXCOORD0;		// base
 VARYING(COLOR0) out float4	xrvary0		; // COLOR0;		// color
 
 v2p _main ( v_static v );
@@ -39,7 +39,7 @@ void main()
 
 	v2p O 		= _main (I);
 
-	xrvary8	= O.tc0;
+	xrvary8	= float4(O.tc0, 0.0, 1.0);
 	xrvary0	= O.c0;
 	gl_Position	= O.hpos;
 }

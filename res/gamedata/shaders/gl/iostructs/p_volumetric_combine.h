@@ -20,7 +20,7 @@ struct	_out
 #ifdef USE_VTF
 VARYING(TEXCOORD0) in float4	xrvary8;	// TEXCOORD0;	// tc.xy, tc.w = tonemap scale
 #else // USE_VTF
-VARYING(TEXCOORD0) in float2	xrvary8;	// TEXCOORD0;	// tc.xy
+VARYING(TEXCOORD0) in float4	xrvary8;	// TEXCOORD0;	// tc.xy
 #endif // USE_VTF
 
 _out _main( _input I );
@@ -28,7 +28,11 @@ _out _main( _input I );
 void main()
 {
 	_input		I;
+#ifdef USE_VTF
 	I.tc0		= xrvary8;
+#else
+	I.tc0		= xrvary8.xy;
+#endif
 
 	_out O		= _main ( I );
 

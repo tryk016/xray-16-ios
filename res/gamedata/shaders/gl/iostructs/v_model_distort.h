@@ -32,8 +32,16 @@ layout(location = TEXCOORD0)		in float2	v_model_tc		; // TEXCOORD0;	// (u,v)
 layout(location = TEXCOORD1)		in float4	v_model_ind		; // (x=m-index0, y=m-index1, z=m-index2, w=m-index3)
 #endif
 
-VARYING(TEXCOORD0) out float2	xrvary8		; // TEXCOORD0;
+VARYING(TEXCOORD0) out float4	xrvary8		; // TEXCOORD0;
 VARYING(COLOR0) out float4	xrvary0		; // COLOR0;
+#ifdef USE_SOFT_PARTICLES
+// The particle_* fragment shaders this VS gets paired with (models_pautina/xanomaly/
+// xdistort blenders) read a soft-particle texgen at TEXCOORD1 that no model VS computes.
+// Desktop SSO silently read an undefined value there for years; ES refuses to link an
+// unwritten input. Write a neutral value — deterministic, and no worse than the desktop
+// behaviour. (Proper fix later: real texgen from hpos once verified on-device.)
+VARYING(TEXCOORD1) out float4	xrvary9		; // TEXCOORD1;	// soft-particles texgen (neutral)
+#endif
 
 vf   _main (v_model v);
 
@@ -85,7 +93,10 @@ void main()
 	O = _main(skinning_4(I));
 #endif
 
-	xrvary8 = O.tc0;
+	xrvary8 = float4(O.tc0, 0.0, 1.0);
 	xrvary0 = O.c0;
+#ifdef USE_SOFT_PARTICLES
+	xrvary9 = float4(0.0, 0.0, 0.0, 1.0);
+#endif
 	gl_Position = O.hpos;
 }
