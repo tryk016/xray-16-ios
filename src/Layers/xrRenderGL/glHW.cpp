@@ -60,7 +60,11 @@ void CHW::OnAppActivate()
 {
     if (m_window)
     {
+#if defined(XR_PLATFORM_APPLE_IOS)
+        Msg("* iOS: app activate");
+#else
         SDL_RestoreWindow(m_window);
+#endif
     }
 }
 
@@ -68,8 +72,17 @@ void CHW::OnAppDeactivate()
 {
     if (m_window)
     {
+#if defined(XR_PLATFORM_APPLE_IOS)
+        // Desktop ALT-TAB behavior: minimize the fullscreen window on focus loss. On iOS
+        // minimizing IS backgrounding — any transient resign-active (notification banner,
+        // auto-lock during a long touch-less level load, control-center peek) would send
+        // the app to background for good; the process then sits suspended (seen in a
+        // JetsamEvent snapshot) and the user reads it as a crash. Never minimize here.
+        Msg("* iOS: app deactivate");
+#else
         if (psDeviceMode.WindowStyle == rsFullscreen || psDeviceMode.WindowStyle == rsFullscreenBorderless)
             SDL_MinimizeWindow(m_window);
+#endif
     }
 }
 

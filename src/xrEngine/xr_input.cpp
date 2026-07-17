@@ -73,6 +73,11 @@ CInput::CInput(const bool exclusive)
     exclusiveInput = false;
     SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
     SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "0");
+    // Keep the iOS idle timer disabled: level loads run tens of seconds with no touch and
+    // an auto-lock would resign-active mid-game (historically compounded by the desktop
+    // minimize-on-deactivate path). SDL maps this to UIApplication.idleTimerDisabled.
+    SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "0");
+    SDL_DisableScreenSaver();
 #endif
 
     Log("Starting INPUT device...");
