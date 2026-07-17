@@ -153,6 +153,33 @@ void CHW::CreateDevice(SDL_Window* hWnd)
     Msg("* GPU OpenGL shading language version: %s", ShadingVersion);
     Msg("* GPU OpenGL VTF units: [%d] CTI units: [%d]", iMaxVTFUnits, iMaxCTIUnits);
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    {
+        // The deferred renderer's G-buffer/accum/HDR targets are float (RGBA16F/R32F/...).
+        // On OpenGL ES those are only renderable with EXT_color_buffer_float / _half_float;
+        // without them every deferred FBO comes out INCOMPLETE = black world. Log the
+        // relevant caps so the first-3D-frame device log is self-diagnosing (release-safe,
+        // pure logging). glGetString(GL_EXTENSIONS) is null in core ES 3.0 — enumerate.
+        GLint numExt = 0;
+        glGetIntegerv(GL_NUM_EXTENSIONS, &numExt);
+        bool cbFloat = false, cbHalf = false, texFloatLin = false, texHalfLin = false, borderClamp = false;
+        for (GLint i = 0; i < numExt; ++i)
+        {
+            pcstr e = reinterpret_cast<pcstr>(glGetStringi(GL_EXTENSIONS, i));
+            if (!e)
+                continue;
+            if (0 == xr_strcmp(e, "GL_EXT_color_buffer_float")) cbFloat = true;
+            else if (0 == xr_strcmp(e, "GL_EXT_color_buffer_half_float")) cbHalf = true;
+            else if (0 == xr_strcmp(e, "GL_OES_texture_float_linear")) texFloatLin = true;
+            else if (0 == xr_strcmp(e, "GL_OES_texture_half_float_linear")) texHalfLin = true;
+            else if (0 == xr_strcmp(e, "GL_EXT_texture_border_clamp")) borderClamp = true;
+        }
+        Msg("* GPU ES caps: color_buffer_float[%d] color_buffer_half_float[%d] "
+            "tex_float_linear[%d] tex_half_float_linear[%d] border_clamp[%d] (of %d exts)",
+            cbFloat, cbHalf, texFloatLin, texHalfLin, borderClamp, numExt);
+    }
+#endif
+
     ComputeShadersSupported = false; // XXX: Implement compute shaders support
 
     if (glGenFramebuffers && glBindFramebuffer)
