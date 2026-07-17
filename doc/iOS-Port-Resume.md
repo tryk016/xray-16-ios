@@ -125,15 +125,40 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     Present now blits to SDL's uikit view framebuffer at drawable size. Screenshot: menu list +
     fonts + version label perfect; two green quads = the two .ogm VIDEO textures (logo + animated
     background) — the unported D3D-wrapper video path, known and non-blocking.
-  - **NEXT STEP (resume here): Phase 5 — TOUCH INPUT.** The menu is visible but taps do nothing.
-    Adapt the user's own OpenGothic iOS pad/touch system (see memory: opengothic-ios-controller-
-    prior-art) to X-Ray/SDL: menu needs tap→mouse mapping first (SDL touch events → engine mouse),
-    then in-game virtual pad. Loose ends to pick up alongside/after:
-    (a) video-texture wrapper port (green quads + in-game PDA/TVs) — CreateTexture(A8R8G8B8)
-    D3D-wrapper path to ES formats; (b) `ui_magnifier2.dds` 0x500 on the non-DXT path (one
-    texture — dump its gli format); (c) A2-tail visual verification in-game (sun shafts etc.);
-    (d) family D skinning (14 model VS — blocks 3D models, needed before in-game); (e) RT-wrapped
-    CTexture dims on ES; (f) build-speed caching (~30 min); (g) FSR 1.0 = Plan Phase 6.
+  - **🎉 2026-07-17 (later): touch works + "New Game" reaches the 3D world.** Phase 5.1 (build
+    10022064) made the menu operable (tap = absolute cursor + click). Tapping New Game loads
+    **Zaton** fully (6464 spawns, ALL gameplay Lua, HOM/portal/objspace caches, geometry) and
+    crashed on the FIRST 3D frame. Lua/luabind on arm64 = solid (hidden-wall fear dead).
+    Slices since: **4.18** stub FS for depth-only shadow passes (853 null-FS link failures);
+    **4.19** the crash = **occlusion queries** (ES has no GL_SAMPLES_PASSED / glGetQueryObjectiv
+    — forced R_occlusion off on iOS) + sampler border-color/LOD-bias/clamp-border ES guards;
+    **4.20** family D gate-clean (SKIN_NONE NORMAL float3; gate **279/279**, link_check 137/137).
+  - **12-agent AUDIT done → [iOS-Port-Audit-2026-07-17.md](iOS-Port-Audit-2026-07-17.md).**
+    Read it — it verified the plan is still valid and ranked the remaining walls with file:line.
+  - **NEXT STEP (resume here), audit-ranked, after build 4.19 verifies the world renders:**
+    1. **Float render-target renderability** (P1, likely the next black-screen wall): the whole
+       deferred G-buffer/accum/SSAO/HDR uses RGBA16F/R32F/R16F/RG16F with NO extension check.
+       If `EXT_color_buffer_float`/`_half_float` is missing, every deferred FBO = INCOMPLETE →
+       black in-game. At init: query GL_EXTENSIONS + `glCheckFramebufferStatus`+Msg after the
+       first G-buffer bind (release too, not just VERIFY); R32F→R16F fallback (LUM_pool is
+       hardcoded R32F, r2_rendertarget.cpp:639). Verify on A17/iOS26.
+    2. **AVAudioSession** (P1): no session config / interruption handling — a call/Siri/unplug
+       permanently mutes OpenAL. Needs a small `.mm` shim (Playback category + interruption/
+       route observers). Also `SDL_INIT_AUDIO` missing at x_ray.cpp:218.
+    3. **Skinned geometry runtime** (P1, untested on GL-on-Metal): short4/DWORD quantized
+       vertex format + `sbones_array[234]` per-element upload. Drive an actor model, verify.
+    4. **DXT→RGBA8 memory inflation** (P1 jetsam risk): every texture kept uncompressed on GPU
+       (cmem hit ~1.6 GB during Zaton load). Measure `phys_footprint`; plan offline ASTC
+       transcode (Plan 4.9). `psTextureLOD` is NOT wired to the iOS path.
+    5. iOS lifecycle handler (P2): `SDL_AddEventWatch` → on WILLENTERBACKGROUND run `cfg_save`
+       (settings only persist on explicit Accept today) + flush log. Fixes user.ltx never saving.
+    6. Then: proper ES occlusion (ANY_SAMPLES_PASSED); in-game virtual pad (reuse the engine's
+       kMOVE_AROUND/kLOOK_AROUND controller-axis path — synthesize ControllerAxisState, don't
+       reinvent movement; adapt the user's OpenGothic pad prior art); tree_s alpha-test shadow
+       stub; video-texture wrapper (green quads + PDA/TVs); ui_magnifier2 0x500; build caching
+       (~30 min); FSR 1.0 = Plan Phase 6.
+    Also a confirmed touch nit to fold in: reset the finger tracker + release MOUSE_1 in
+    OnAppActivate/Deactivate (stuck-finger if FINGERUP is lost on background).
     Tools: gate = `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`;
     links = `python misc/ios/shadercheck/link_check.py`; debug channel = `Documents/xr_boot.log`.
 

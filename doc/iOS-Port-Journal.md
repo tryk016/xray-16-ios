@@ -63,6 +63,51 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-17 (later) — Phase 5 touch + "New Game" reaches the 3D world; 12-agent audit; ES render-path hardening
+
+- **Phase 5.1 touch (build 10022064): the menu is OPERABLE.** User entered Options and went
+  back, then tapped New Game. Root cause of dead taps: iOS launches captureInput=true ->
+  exclusiveInput=true -> CUICursor stuck in delta-accumulation mode; also m_bound_to_system_cursor
+  mis-picked (logical points vs retina-pixel dwHeight). Fix: iOS forces exclusiveInput=false,
+  disables SDL touch<->mouse synthesis, new CInput::TouchUpdate maps SDL_FINGER* -> logical
+  points and drives the exact desktop click path (IR_OnMouseMove + IR_OnMousePress(MOUSE_1));
+  iGetAsyncMousePos returns the touch pos; OnDeviceReset forces the absolute cursor path.
+- **"New Game" loads Zaton almost completely** (build 064 boot log, 4102 lines): New game
+  created, 6464 spawns, ALL gameplay Lua (dialog_manager/smart_covers/surge_manager/...),
+  player, HOM+portal+objspace caches, level geometry. Crashed on the FIRST 3D frame. Two big
+  positives: Lua/luabind on arm64 works (the #12 hidden-wall fear is dead), and the render/
+  present chain is solid up to the world. NB: Analytics did not record a fresh .ips for 064.
+- **853 `shadow_direct_*|null|null` link failures**: depth-only shadow passes have a "null"
+  pixel shader (sh==0). Desktop links vertex-only via SSO pipeline; ES uses the monolithic
+  path and requires VS+FS. **4.18**: inject a shared do-nothing FS (`#version 300 es; void
+  main(){}`) when ps==0 in GLLinkMonolithicProgram (ES-only path). Known minor: alpha-tested
+  vegetation shadows (tree_s) lose discard until a proper alpha stub is added.
+- **12-agent audit** (`doc/iOS-Port-Audit-2026-07-17.md`, ran via Workflow; hit the account
+  spend limit mid-run, resumed on the raised limit). Verdict: plan still valid; Lua solid;
+  most iOS diffs clean. It independently pinpointed the New-Game crash and the next walls.
+- **4.19 (audit-driven ES render-path fixes):**
+  - **P0 (the crash): occlusion queries.** QueryHelper.h uses GL_SAMPLES_PASSED (not an ES
+    target) + glGetQueryObjectiv/i64v (desktop-only, NULL glad entry -> crash) in the frame-1
+    light-visibility test. Force R_occlusion disabled on iOS (== -no_occq; begin->0, get->
+    "visible"). Proper ES path (GL_ANY_SAMPLES_PASSED + glGetQueryObjectuiv, whose 0/1 maps
+    onto the existing "0==fragments" cull test) deferred as an optimization.
+  - **P1 (next crash): glSamplerParameterIuiv(GL_TEXTURE_BORDER_COLOR)** needs
+    EXT_texture_border_clamp, absent on ES 3.0 (NULL entry, crashes on sun shadow sampler) —
+    runtime-guard the pointer.
+  - **P2 (enum spam):** GL_TEXTURE_LOD_BIAS (2 sites) and GL_CLAMP_TO_BORDER guarded to iOS
+    (-> CLAMP_TO_EDGE / skip).
+- **4.20 family D (gate hygiene, shader-source only): gate 265/279 -> 279/279.** SKIN_NONE
+  model VS declared NORMAL float4 vs the float3 v_model.N; strict glslang rejected the assign,
+  Apple truncates (so never a device blocker). Extended the float3 NORMAL guard to SKIN_NONE
+  across 8 iostructs headers. link_check still 137/137.
+- **Audit's remaining ranked walls (see the audit doc):** float render-target renderability
+  (RGBA16F likely OK, R32F risky -> possible black screen in-game if EXT_color_buffer_float
+  missing); AVAudioSession unconfigured (interruptions permanently mute); skinned-geometry
+  runtime (short4/DWORD vertex format + sbones upload, untested on GL-on-Metal); DXT->RGBA8
+  memory inflation (jetsam risk on big levels, cmem hit ~1.6 GB during Zaton load); no iOS
+  lifecycle handler (settings only persist on explicit Accept). Full list + file:line in the
+  audit doc.
+
 ### 2026-07-17 — 🎉 MILESTONE: THE MAIN MENU RENDERS ON iPhone (build 10022063)
 
 **S.T.A.L.K.E.R. Call of Pripyat's main menu is visible and stable on an iPhone 15 Pro Max —
