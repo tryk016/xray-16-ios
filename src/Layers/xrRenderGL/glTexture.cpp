@@ -155,8 +155,10 @@ static void decode_level(kind k, const u8* src, int w, int h, u8* dst)
 } // namespace dxt
 
 // Upload a DXT-compressed gli texture as decoded RGBA8. Returns 0 when the format/target
-// isn't a DXT 2D/cube texture (caller falls through to the regular path).
-static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn)
+// isn't a DXT 2D/cube texture (caller falls through to the regular path). out_w/out_h
+// report the uploaded base-level size (may be smaller than the file's — see mip-skip).
+static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn,
+                                      GLint& out_w, GLint& out_h)
 {
     const dxt::kind k = dxt::classify(texture.format());
     if (k == dxt::kind::none)
@@ -167,7 +169,29 @@ static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn)
         return 0;
     }
 
-    const glm::tvec3<GLsizei> ext0(texture.extent());
+    // Decoding DXT to RGBA8 inflates GPU memory 4-8x and Apple Silicon memory is unified,
+    // so it all counts toward the ~few-GB jetsam limit — a full CoP level prefetch hit
+    // 1.6 GB and the process was killed on the first world frame. Drop top mip levels
+    // until the base fits 1024px: one skipped level = 4x less memory for that texture,
+    // and the on-screen difference on a phone display is negligible. UI textures are
+    // exempt — font atlases and HUD art are sampled by texel position and must keep
+    // their authored size.
+    constexpr GLsizei k_ios_tex_cap = 1024;
+    size_t skip = 0;
+    const bool size_sensitive = strstr(fn, "ui\\") || strstr(fn, "ui/");
+    if (!size_sensitive)
+    {
+        while (skip + 1 < texture.levels())
+        {
+            const glm::tvec3<GLsizei> e(texture.extent(skip));
+            if (e.x <= k_ios_tex_cap && e.y <= k_ios_tex_cap)
+                break;
+            ++skip;
+        }
+    }
+
+    const size_t gl_levels = texture.levels() - skip;
+    const glm::tvec3<GLsizei> ext0(texture.extent(skip));
     const GLenum target = texture.target() == gli::TARGET_CUBE ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
 
     // GL error flags are STICKY: whatever some earlier path left pending (the unported
@@ -180,17 +204,17 @@ static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn)
     glGenTextures(1, &tex);
     glBindTexture(target, tex);
     glTexParameteri(target, GL_TEXTURE_BASE_LEVEL, 0);
-    glTexParameteri(target, GL_TEXTURE_MAX_LEVEL, static_cast<GLint>(texture.levels() - 1));
-    glTexStorage2D(target, static_cast<GLint>(texture.levels()), GL_RGBA8, ext0.x, ext0.y);
+    glTexParameteri(target, GL_TEXTURE_MAX_LEVEL, static_cast<GLint>(gl_levels - 1));
+    glTexStorage2D(target, static_cast<GLint>(gl_levels), GL_RGBA8, ext0.x, ext0.y);
     GLenum err = glGetError();
     if (err != GL_NO_ERROR)
         Msg("! OpenGL: 0x%x: iOS DXT->RGBA8 storage (%dx%d, %zu levels) failed: '%s'",
-            err, ext0.x, ext0.y, texture.levels(), fn);
+            err, ext0.x, ext0.y, gl_levels, fn);
 
     xr_vector<u8> buf(size_t(ext0.x) * ext0.y * 4);
     for (size_t face = 0; face < texture.faces(); ++face)
     {
-        for (size_t level = 0; level < texture.levels(); ++level)
+        for (size_t level = skip; level < texture.levels(); ++level)
         {
             const glm::tvec3<GLsizei> ext(texture.extent(level));
             dxt::decode_level(k, static_cast<const u8*>(texture.data(0, face, level)),
@@ -198,7 +222,7 @@ static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn)
             const GLenum sub_target = texture.target() == gli::TARGET_CUBE
                 ? static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face)
                 : target;
-            glTexSubImage2D(sub_target, static_cast<GLint>(level), 0, 0, ext.x, ext.y,
+            glTexSubImage2D(sub_target, static_cast<GLint>(level - skip), 0, 0, ext.x, ext.y,
                             GL_RGBA, GL_UNSIGNED_BYTE, buf.data());
             err = glGetError();
             if (err != GL_NO_ERROR)
@@ -206,6 +230,8 @@ static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn)
                     err, face, level, fn);
         }
     }
+    out_w = ext0.x;
+    out_h = ext0.y;
     return tex;
 }
 #endif // XR_PLATFORM_APPLE_IOS
@@ -321,14 +347,11 @@ GLuint CRender::texture_load(LPCSTR fRName, u32& ret_msize, GLenum& ret_desc, GL
 
 #if defined(XR_PLATFORM_APPLE_IOS)
     // DXT assets can't be uploaded on ES — decode to RGBA8 (see ios_upload_dxt_as_rgba8).
-    if (const GLuint decoded = ios_upload_dxt_as_rgba8(texture, fn))
+    if (const GLuint decoded = ios_upload_dxt_as_rgba8(texture, fn, ret_width, ret_height))
     {
         FS.r_close(S);
         xr_strlwr(fn);
         ret_desc = texture.target() == gli::TARGET_CUBE ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
-        const glm::tvec3<GLsizei> dec_extent(texture.extent());
-        ret_width = dec_extent.x;
-        ret_height = dec_extent.y;
         const int lod = is_target_cube(texture.target()) ? 0 : get_texture_load_lod(fn);
         ret_msize = calc_texture_size(lod, static_cast<u32>(texture.levels()), img_size);
         return decoded;
