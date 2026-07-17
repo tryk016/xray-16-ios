@@ -170,12 +170,22 @@ static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn)
     const glm::tvec3<GLsizei> ext0(texture.extent());
     const GLenum target = texture.target() == gli::TARGET_CUBE ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
 
+    // GL error flags are STICKY: whatever some earlier path left pending (the unported
+    // video-texture wrapper was raising 0x500/0x506 around texture loads) would show up in
+    // OUR check and mis-attribute the failure. Drain the queue first, then check per stage.
+    while (glGetError() != GL_NO_ERROR)
+        ;
+
     GLuint tex = 0;
     glGenTextures(1, &tex);
     glBindTexture(target, tex);
     glTexParameteri(target, GL_TEXTURE_BASE_LEVEL, 0);
     glTexParameteri(target, GL_TEXTURE_MAX_LEVEL, static_cast<GLint>(texture.levels() - 1));
     glTexStorage2D(target, static_cast<GLint>(texture.levels()), GL_RGBA8, ext0.x, ext0.y);
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR)
+        Msg("! OpenGL: 0x%x: iOS DXT->RGBA8 storage (%dx%d, %zu levels) failed: '%s'",
+            err, ext0.x, ext0.y, texture.levels(), fn);
 
     xr_vector<u8> buf(size_t(ext0.x) * ext0.y * 4);
     for (size_t face = 0; face < texture.faces(); ++face)
@@ -190,12 +200,12 @@ static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn)
                 : target;
             glTexSubImage2D(sub_target, static_cast<GLint>(level), 0, 0, ext.x, ext.y,
                             GL_RGBA, GL_UNSIGNED_BYTE, buf.data());
+            err = glGetError();
+            if (err != GL_NO_ERROR)
+                Msg("! OpenGL: 0x%x: iOS DXT->RGBA8 upload (face %zu level %zu) failed: '%s'",
+                    err, face, level, fn);
         }
     }
-
-    const GLenum err = glGetError();
-    if (err != GL_NO_ERROR)
-        Msg("! OpenGL: 0x%x: iOS DXT->RGBA8 upload failed: '%s'", err, fn);
     return tex;
 }
 #endif // XR_PLATFORM_APPLE_IOS

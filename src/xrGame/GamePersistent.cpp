@@ -382,10 +382,18 @@ void CGamePersistent::WeathersUpdate()
 
 bool allow_intro()
 {
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // iOS has no command line to pass -nointro, and the logo movies can't render anyway:
+    // video textures go through the D3D-wrapper CreateTexture(A8R8G8B8) path, which is not
+    // ported to ES yet — they play audio over a black screen for ~40s and spin GL errors
+    // every frame. Skip straight to the menu. Re-enable when the video path is ported.
+    return false;
+#else
     if ((0 != strstr(Core.Params, "-nointro")))
         return false;
 
     return true;
+#endif
 }
 
 bool allow_game_intro()
