@@ -17,6 +17,10 @@
 #include "CustomHUD.h"
 #endif
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include <mach/mach.h>
+#endif
+
 ENGINE_API IGame_Persistent* g_pGamePersistent = nullptr;
 
 IGame_Persistent::IGame_Persistent()
@@ -378,8 +382,15 @@ void IGame_Persistent::OnGameStart()
     ZoneScoped;
 #ifndef _EDITOR
     LoadTitle("st_prefetching_objects");
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // Skip the prefetch on iOS (== -noprefetch): it front-loads every object, model and
+    // texture at once (a ~1.6 GB spike stacked on top of level data) and the jetsam limit
+    // is what has been ending New Game. Textures/models load lazily on first use instead
+    // (CTexture::apply_load) — occasional streaming hitches beat a foreground kill.
+#else
     if (!strstr(Core.Params, "-noprefetch"))
         Prefetch();
+#endif
 #endif
 }
 
@@ -437,6 +448,16 @@ void IGame_Persistent::LoadEnd()
     {
         Msg("* phase time: %d ms", phase_timer.GetElapsed_ms());
         Msg("* phase cmem: %d K", Memory.mem_usage() / 1024);
+#if defined(XR_PLATFORM_APPLE_IOS)
+        // Jetsam judges phys_footprint, not our allocator's counter — log the real number
+        // each load phase so the device log shows how close to the kill limit we get.
+        {
+            task_vm_info_data_t vmInfo;
+            mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+            if (KERN_SUCCESS == task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&vmInfo, &count))
+                Msg("* phase phys_footprint: %llu K", (unsigned long long)vmInfo.phys_footprint / 1024);
+        }
+#endif
         Console->Execute("stat_memory");
         loaded = true;
     }
