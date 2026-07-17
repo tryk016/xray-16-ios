@@ -104,7 +104,25 @@ GLenum ConvertTextureFormat(D3DFORMAT dx9FMT)
 	for (const auto& textureFormat : TextureFormatList)
 	{
 		if (textureFormat.m_dx9FMT == dx9FMT)
-			return textureFormat.m_glFMT;
+		{
+			GLenum gl = textureFormat.m_glFMT;
+#if defined(XR_PLATFORM_APPLE_IOS)
+			// Apple's GL-on-Metal ES 3.0 exposes EXT_color_buffer_half_float but NOT
+			// EXT_color_buffer_float (device log: color_buffer_float[0] half_float[1]), so
+			// full 32-bit-float render targets — the deferred G-buffer / accum / luminance —
+			// come out FRAMEBUFFER_INCOMPLETE and the first world frame dies. Half-float is
+			// both renderable AND core-filterable on ES 3.0 (32F filtering needs the absent
+			// OES_texture_float_linear), so downgrade float RT formats to their 16F kin.
+			switch (gl)
+			{
+			case GL_R32F:    gl = GL_R16F;    break;
+			case GL_RG32F:   gl = GL_RG16F;   break;
+			case GL_RGBA32F: gl = GL_RGBA16F; break;
+			default: break;
+			}
+#endif
+			return gl;
+		}
 	}
 
     VERIFY(!"ConvertTextureFormat didn't find appropriate gl texture format!");
