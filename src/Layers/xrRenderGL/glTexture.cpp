@@ -452,6 +452,16 @@ GLuint CRender::texture_load(LPCSTR fRName, u32& ret_msize, GLenum& ret_desc, GL
     gli::gl::format const format = GL.translate(texture.format(), texture.swizzles());
     GLenum target = GL.translate(texture.target());
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // GL error flags are STICKY. The DXT branch drains them before its checks; this path
+    // did NOT — a single unchecked error from an earlier op (video path, sampler setup)
+    // gets mis-attributed to the first normal-path texture that checks. The device logged
+    // 129 identical "Invalid 2D texture" 0x500s here whose conversions never triggered —
+    // drain first so a real failure is really ours, and make the message carry the format.
+    while (glGetError() != GL_NO_ERROR)
+        ;
+#endif
+
     glGenTextures(1, &pTexture);
     glBindTexture(target, pTexture);
 
@@ -474,7 +484,9 @@ GLuint CRender::texture_load(LPCSTR fRName, u32& ret_msize, GLenum& ret_desc, GL
         if (err != GL_NO_ERROR)
         {
             VERIFY(err == GL_NO_ERROR);
-            Msg("! OpenGL: 0x%x: Invalid 2D texture: '%s'", err, fn);
+            Msg("! OpenGL: 0x%x: Invalid 2D texture (gli fmt %d, int 0x%x ext 0x%x type 0x%x, compressed %d): '%s'",
+                err, int(texture.format()), format.Internal, format.External, format.Type,
+                int(gli::is_compressed(texture.format())), fn);
         }
         break;
     case gli::TARGET_3D:

@@ -415,7 +415,8 @@ void CEnvironment::OnFrame()
         if (Device.dwTimeGlobal - s_last_env_log > 60000)
         {
             s_last_env_log = Device.dwTimeGlobal;
-            Msg("* iOS env: gt=%.2fh sun(%.2f %.2f %.2f) hemi(%.2f %.2f %.2f) amb(%.2f %.2f %.2f) sky(%.2f %.2f %.2f) sundir.y=%.2f",
+            Msg("* iOS env: weather='%s' gt=%.2fh sun(%.2f %.2f %.2f) hemi(%.2f %.2f %.2f) amb(%.2f %.2f %.2f) sky(%.2f %.2f %.2f) sundir.y=%.2f",
+                CurrentWeatherName.c_str() ? CurrentWeatherName.c_str() : "?",
                 fGameTime / (60.f * 60.f), VPUSH(CurrentEnv.sun_color),
                 CurrentEnv.hemi_color.x, CurrentEnv.hemi_color.y, CurrentEnv.hemi_color.z,
                 VPUSH(CurrentEnv.ambient), VPUSH(CurrentEnv.sky_color), CurrentEnv.sun_dir.y);
