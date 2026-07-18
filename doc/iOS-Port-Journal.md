@@ -63,6 +63,25 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-18 (later) — 🎮 FULL GAME LOOP ON A BLUETOOTH PAD (build 10022072, no code changes)
+
+Research into the console remaster's controls (S.T.A.L.K.E.R. Legends of the Zone Trilogy,
+PS5/Xbox) revealed OpenXRay already ships a near-identical default gamepad scheme in code
+(xr_level_controller.cpp:972 predefined_bindings: LS/RS move+look, RT/LT fire+ADS, A jump,
+B crouch, X reload, Y use, RB inventory, LB jobs, D-Pad quick slots, R3 torch, Back=ESC,
+full UI/PDA pad navigation) — and SDL_INIT_GAMECONTROLLER + hot-plug were already active.
+The user paired a Bluetooth pad: **everything works with zero new code.** Screenshots:
+inventory open (Degtyarev, 2500 RU, item descriptions, D-Pad slot assignment), weapon
+switching (pistol), and the IN-GAME PAUSE MENU (Return/Save/Load/Options/Quit) — save and
+clean exit through the menu confirmed by the log's full shutdown stats. In-game memory:
+heap 1.43 GB, textures 324 MB (mip-skip effective); 3.1 GB remains only as the load-time
+peak. **Phase 5 (controls) is functionally complete for pad players; the virtual touch pad
+is now an optional enhancement, not a blocker.** LotZ extras not in stock OpenXRay (L1
+weapon-wheel radial, shift-modifier D-Pad layers, gyro aim) noted as future polish.
+Next priorities: world brightness/lighting (near-black night; sun/shadow partially
+stubbed), the ~150 non-DXT 0x500 textures, virtual touch pad, load-peak memory, audio
+session, cfg_save lifecycle.
+
 ### 2026-07-18 — 🏆 THE GAME IS PLAYABLE ON iPHONE (build 10022072)
 
 **S.T.A.L.K.E.R. Call of Pripyat runs, renders, plays, and SAVES on an iPhone 15 Pro Max.**

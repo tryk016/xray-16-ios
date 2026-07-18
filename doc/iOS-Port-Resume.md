@@ -141,23 +141,26 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     32F->16F (EXT_color_buffer_float absent) -> 4.23 DXT mip-skip 1024px -> 4.24 never
     self-minimize on deactivate -> 4.25 jetsam OOM fix (skip Prefetch; JetsamEvent files
     are where these kills log, never xr_3da .ips). Details in the journal.
-  - **NEXT STEP (resume here): Phase 5.2 — VIRTUAL GAMEPAD.** The user cannot move/look/
-    exit (tap=LMB only; they force-quit to leave). Build an on-screen pad:
-    (a) movement stick (left half): synthesize ControllerAxisState and call
-        cbStack.back()->IR_OnControllerHold(XR_CONTROLLER_AXIS_LEFT, state) per frame —
-        the engine's analog path (kMOVE_AROUND, ActorInput.cpp) is ready-made; do NOT
-        reinvent movement. Right-half drag -> XR_CONTROLLER_AXIS_RIGHT (kLOOK_AROUND).
-    (b) buttons: fire (LMB), aim (RMB), use (F), sprint, jump; a PAUSE/ESC button that
-        sends IR_OnKeyboardPress(SDL_SCANCODE_ESCAPE) so the game menu opens (exit path!).
-    (c) draw via the engine UI layer or overlay quads; adapt the user's OpenGothic iOS pad
-        (memory: opengothic-ios-controller-prior-art).
-    TouchUpdate must then route: taps on buttons -> actions; left-half touches -> move
-    stick; right-half drags -> look; plain taps in menus keep the 5.1 cursor+click path
-    (menu vs game state via IsGameActive/pause state).
-  - **After 5.2:** memory headroom (ASTC transcode, Plan 4.9 — 3.1 GB is tight; also
-    consider FS cache trim), world brightness/lighting (very dark; sun/shadow passes
-    partially stubbed), ~150 non-DXT 0x500 textures (pfx/water/ui_common), AVAudioSession
-    shim, cfg_save lifecycle (user.ltx never persists), proper ES occlusion, video wrapper.
+  - **🎮 2026-07-18 (later): FULL GAME LOOP ON A BLUETOOTH PAD — zero new code.** The
+    engine's built-in default pad scheme (xr_level_controller.cpp:972) matches the console
+    remaster layout; SDL game-controller init + hot-plug were already live. Inventory,
+    weapon switching, pause menu, save and clean exit all confirmed on device. In-game
+    memory: heap 1.43 GB, textures 324 MB (mip-skip works); 3.1 GB only at load peak.
+    Phase 5 is DONE for pad players.
+  - **NEXT STEP (resume here) — pick by user preference:**
+    1. **World brightness/lighting** (top QoL): the Zone renders near-black at night —
+       sun/shadow passes partially stubbed (tree_s alpha shadow stub, disabled blenders,
+       r2 sun path unverified on ES). Investigate the deferred lighting output; quick
+       lever: gamma/brightness console vars; real fix: verify accum/sun passes on device.
+    2. **Non-DXT texture wall**: ~150 files fail 0x500 on the gli PROFILE_ES30 path
+       (pfx\*, water\*, ui_common, fonts hud) — likely uncompressed/legacy formats needing
+       conversion or a decode fallback. Dump the gli format of 2-3 failing files first.
+    3. **Virtual touch pad** (pad-less play; optional now): synthesize ControllerAxisState
+       -> IR_OnControllerHold(XR_CONTROLLER_AXIS_LEFT/RIGHT) per frame + on-screen buttons
+       mapping to the SAME default actions; adapt OpenGothic pad prior art.
+    4. Load-peak memory (3.1 GB): ASTC transcode (Plan 4.9), FS cache trim.
+    5. Polish backlog: AVAudioSession shim, cfg_save lifecycle (user.ltx), video-texture
+       wrapper (green quads), proper ES occlusion, LotZ-style weapon wheel / gyro.
     Tools: gate = `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`;
     links = `python misc/ios/shadercheck/link_check.py`; debug channel = `Documents/xr_boot.log`.
 
