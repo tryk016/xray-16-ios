@@ -66,5 +66,14 @@
     <true/>
     <key>LSSupportsOpeningDocumentsInPlace</key>
     <true/>
+    <!-- iOS 18+ Game Mode: sustained CPU/GPU priority, reduced background activity, and
+         lower Bluetooth latency for controllers/audio while the game is frontmost. The
+         games category + the GameController opt-in keys are what the system keys off. -->
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.games</string>
+    <key>GCSupportsGameMode</key>
+    <true/>
+    <key>GCSupportsControllerUserInteraction</key>
+    <true/>
 </dict>
 </plist>
