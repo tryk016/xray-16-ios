@@ -110,8 +110,12 @@ void CTexture::apply_theora(CBackend& cmd_list, u32 dwStage)
         // ES 3.0 has no GL_BGRA external format. The decoded frame is BGRA-ordered, so
         // upload as RGBA and let a texture swizzle put the channels right (persists on
         // the texture object; setting it per-frame after bind is redundant but cheap).
-        const GLint bgra_swizzle[4] = { GL_BLUE, GL_GREEN, GL_RED, GL_ALPHA };
-        CHK_GL(glTexParameteriv(desc, GL_TEXTURE_SWIZZLE_RGBA, bgra_swizzle));
+        // NB the vector GL_TEXTURE_SWIZZLE_RGBA pname is desktop-only (GL_INVALID_ENUM
+        // on ES) — set the four channels individually.
+        glTexParameteri(desc, GL_TEXTURE_SWIZZLE_R, GL_BLUE);
+        glTexParameteri(desc, GL_TEXTURE_SWIZZLE_G, GL_GREEN);
+        glTexParameteri(desc, GL_TEXTURE_SWIZZLE_B, GL_RED);
+        glTexParameteri(desc, GL_TEXTURE_SWIZZLE_A, GL_ALPHA);
         CHK_GL(glTexSubImage2D(desc, 0, 0, 0, _w, _h, GL_RGBA, GL_UNSIGNED_BYTE, nullptr));
 #else
         CHK_GL(glTexSubImage2D(desc, 0, 0, 0, _w, _h, GL_BGRA, GL_UNSIGNED_BYTE, nullptr));

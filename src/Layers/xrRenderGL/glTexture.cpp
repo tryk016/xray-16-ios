@@ -469,7 +469,21 @@ GLuint CRender::texture_load(LPCSTR fRName, u32& ret_msize, GLenum& ret_desc, GL
     glTexParameteri(target, GL_TEXTURE_MAX_LEVEL, static_cast<GLint>(texture.levels() - 1));
 
     if (gli::gl::EXTERNAL_RED != format.External) // skip for proper greyscale-alpha font textures
+    {
+#if defined(XR_PLATFORM_APPLE_IOS)
+        // The vector GL_TEXTURE_SWIZZLE_RGBA pname is desktop-GL only — OpenGL ES 3.0 has
+        // just the per-channel pnames. The vector call raised GL_INVALID_ENUM on EVERY
+        // normal-path texture (the sticky error behind all 129 phantom "Invalid 2D
+        // texture" logs) and the swizzle silently never applied (BGRA assets showed with
+        // red/blue swapped). Set the four channels individually — legal on both APIs.
+        glTexParameteri(target, GL_TEXTURE_SWIZZLE_R, format.Swizzles[gli::SWIZZLE_RED]);
+        glTexParameteri(target, GL_TEXTURE_SWIZZLE_G, format.Swizzles[gli::SWIZZLE_GREEN]);
+        glTexParameteri(target, GL_TEXTURE_SWIZZLE_B, format.Swizzles[gli::SWIZZLE_BLUE]);
+        glTexParameteri(target, GL_TEXTURE_SWIZZLE_A, format.Swizzles[gli::SWIZZLE_ALPHA]);
+#else
         glTexParameteriv(target, GL_TEXTURE_SWIZZLE_RGBA, &format.Swizzles[gli::SWIZZLE_RED]);
+#endif
+    }
 
     glm::tvec3<GLsizei> const tex_extent(texture.extent());
 
