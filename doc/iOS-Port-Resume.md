@@ -147,20 +147,26 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     weapon switching, pause menu, save and clean exit all confirmed on device. In-game
     memory: heap 1.43 GB, textures 324 MB (mip-skip works); 3.1 GB only at load peak.
     Phase 5 is DONE for pad players.
-  - **NEXT STEP (resume here) — pick by user preference:**
-    1. **World brightness/lighting** (top QoL): the Zone renders near-black at night —
-       sun/shadow passes partially stubbed (tree_s alpha shadow stub, disabled blenders,
-       r2 sun path unverified on ES). Investigate the deferred lighting output; quick
-       lever: gamma/brightness console vars; real fix: verify accum/sun passes on device.
-    2. **Non-DXT texture wall**: ~150 files fail 0x500 on the gli PROFILE_ES30 path
-       (pfx\*, water\*, ui_common, fonts hud) — likely uncompressed/legacy formats needing
-       conversion or a decode fallback. Dump the gli format of 2-3 failing files first.
-    3. **Virtual touch pad** (pad-less play; optional now): synthesize ControllerAxisState
-       -> IR_OnControllerHold(XR_CONTROLLER_AXIS_LEFT/RIGHT) per frame + on-screen buttons
-       mapping to the SAME default actions; adapt OpenGothic pad prior art.
-    4. Load-peak memory (3.1 GB): ASTC transcode (Plan 4.9), FS cache trim.
-    5. Polish backlog: AVAudioSession shim, cfg_save lifecycle (user.ltx), video-texture
-       wrapper (green quads), proper ES occlusion, LotZ-style weapon wheel / gyro.
+  - **Phase 6 (2026-07-18 evening, slices 6.1-6.4, builds 073-075):** user priority =
+    graphics -> memory -> settings -> virtual pad LAST. Landed: legacy-format fallback +
+    3D DXT (water volume) + env lighting log + **settings persistence (user.ltx CONFIRMED
+    loading)**; the 129 texture "failures" were ONE bug — vector GL_TEXTURE_SWIZZLE_RGBA
+    is desktop-only (per-channel now; BGRA R/B-swap fixed, options highlight likely same
+    root); black sky = VTF texelFetch(s_tonemap) in the VERTEX stage returns 0 on ES
+    monolithic — sky2/clouds forced to the non-VTF path under GL_ES. Full ladder in the
+    journal.
+  - **NEXT STEP (resume here):**
+    1. Verify build 075 on device: sky + clouds render? options-menu highlight/interaction
+       back? phantom texture errors gone from the log? colors fixed (R/B swap)?
+    2. If options menu still not navigable on pad: debug CUIFocusSystem / UI_CLICK routing
+       for the options dialog (kUI_CLICK_1 = RT axis; check IR_OnControllerPress axis
+       handling in CDialogHolder).
+    3. Memory (load peak 3.1 GB): per-phase phys_footprint now logged — find the spike
+       phase; candidates: FS file cache trim after load, ASTC transcode (Plan 4.9).
+    4. Polish backlog: AVAudioSession shim; proper ES vertex-sampler binding (restore VTF);
+       video-texture wrapper (green menu quads + PDA/TVs); ES occlusion
+       (ANY_SAMPLES_PASSED); LotZ-style weapon wheel; gyro aim.
+    5. **Virtual touch pad — LAST (user's explicit order), after all of the above.**
     Tools: gate = `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`;
     links = `python misc/ios/shadercheck/link_check.py`; debug channel = `Documents/xr_boot.log`.
 

@@ -63,6 +63,45 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-18 (evening) — Phase 6: graphics detective work (slices 6.1-6.4, builds 10023073-075)
+
+User priority order: graphics -> memory -> settings -> (virtual pad LAST). Four slices of
+iterative on-device diagnosis, each build's log narrowing the next fix:
+
+- **6.1 (build 073):** legacy-format fallback (whitelist ES combos + gli::convert->RGBA8 +
+  format logging), 3D DXT decode for water_sbumpvolume (per-level per-slice ->
+  glTexStorage3D/TexSubImage3D; texture_load desc maps TARGET_3D), once-a-minute env
+  lighting log (game time, sun/hemi/ambient/sky, sun_dir.y), and **settings persistence**:
+  SDL_AddEventWatch on WILLENTERBACKGROUND/TERMINATING -> cfg_save + FlushLog (iOS never
+  runs the desktop quit path).
+- **Device verdict 073:** rain + lightning visible (dynamic weather works); env log showed
+  sun(0,0,0) during RAIN = legitimate, but sky_color 0.98 with a BLACK rendered sky ->
+  the real lighting bug is the sky draw. Conversions logged: ZERO, yet the same 129
+  texture "failures" persisted -> suspicion of sticky-error mis-attribution.
+- **6.2 (build 074):** normal-path glGetError drain + format-rich failure message + weather
+  name in the env log.
+- **Device verdict 074 (three wins):** (1) **user.ltx successfully loaded — settings
+  persistence CONFIRMED working**; (2) weather='default_clear', bright sun (0.91) — env
+  fully healthy, user SEES the sun sprite, sky dome still black; (3) failures now carry
+  formats: RGBA8/RGBA/UNSIGNED_BYTE and RGB565/RGB/565 — PERFECTLY LEGAL combos "failing"
+  => the error源 is between drain and check: **the vector GL_TEXTURE_SWIZZLE_RGBA pname is
+  desktop-only (ES 3.0 has only per-channel SWIZZLE_R/G/B/A)** — every non-DXT texture
+  raised GL_INVALID_ENUM there (all 129 phantoms = simply every normal-path texture), the
+  textures actually load, but the swizzle never applied (BGRA assets rendered R/B-swapped;
+  the invisible options-menu focus highlight is plausibly the same breakage).
+- **6.3:** both SWIZZLE_RGBA call sites (glTexture gli path, glSH_Texture theora path) ->
+  four per-channel glTexParameteri calls (legal on desktop + ES).
+- **6.4 (the black sky):** sky2.vs under USE_VTF (device reports 16 VTF units) pre-scales
+  the vertex color by texelFetch(s_tonemap) in the VERTEX stage — on the ES monolithic
+  path that vertex-stage sampler read returns 0 -> sky*0 = black while the world stays lit
+  (combine samples tonemap in the FRAGMENT stage, demonstrably fine). Clouds share the
+  pattern. Fix: `#undef USE_VTF` under GL_ES in sky2.vs/ps + clouds.vs/ps BEFORE the
+  iostructs include (varyings + both stages consistently non-VTF; tonemap via tex2D in
+  PS). Gate 279/279, link_check 137/137.
+- Open items tracked: options-menu focus/interaction on pad (likely improved by 6.3 —
+  verify), non-VTF sky slightly different tone curve (acceptable), proper vertex-stage
+  sampler binding for ES monolithic programs (future — would restore VTF).
+
 ### 2026-07-18 (later) — 🎮 FULL GAME LOOP ON A BLUETOOTH PAD (build 10022072, no code changes)
 
 Research into the console remaster's controls (S.T.A.L.K.E.R. Legends of the Zone Trilogy,
