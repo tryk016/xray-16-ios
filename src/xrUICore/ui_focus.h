@@ -56,6 +56,9 @@ public:
 
     void Update(const CUIWindow* root);
 
+    [[nodiscard]]
+    size_t ValuableCount() const { return m_valuable.size(); }
+
     // Make locker's children the only valuable
     void LockToWindow(const CUIWindow* locker) { m_focus_locker = locker; }
     void Unlock() { LockToWindow(nullptr); }

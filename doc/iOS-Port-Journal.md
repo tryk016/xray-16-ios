@@ -58,12 +58,83 @@ answer is almost always in one of these:
   So any `execute_process(${CMAKE_C_COMPILER} ${CMAKE_C_FLAGS} …)` (arch probes,
   config tests) gets **no sysroot/target** under Xcode and must pass
   `-isysroot ${CMAKE_OSX_SYSROOT}` / `--target=${CMAKE_C_COMPILER_TARGET}` itself.
+- **Desktop glad FLAGS are 0 under `gladLoadGLES2`** — not just the function pointers.
+  Any `HW.Caps` capability derived from `GLAD_GL_VERSION_*` / `GLAD_GL_ARB_*` (e.g.
+  `bVTF` from `GLAD_GL_VERSION_3_0 || GLAD_GL_ARB_texture_float`) is **silently false
+  on iOS**, and every feature it gates silently disappears with no GL error (the
+  black-sky bug: the bVTF gate skipped binding the sky cubemaps entirely). When a
+  feature "does nothing" on iOS with a clean log, grep what its code path is gated on.
 
 ---
 
 ## Journal
 
-### 2026-07-18 (night) — Slice 6.6 hotfix: the iOS build links APPLE's OpenAL.framework, not our openal-soft
+### 2026-07-18 (late night) — Slice 6.7: device test of 079 → five-track worker-pool investigation
+
+Device verdict on build `1.6.02.10023079`: **audio shim CONFIRMED** (sound returns
+after Siri) and **the 129 phantom 0x500s are GONE** (0 in the log) — but sky still
+black, menu text still stacks on itself, still no options highlight, no Game Mode
+banner, and "colors look the same". (The uploaded JetsamEvent was unrelated —
+largestProcess `backboardd`, xr_3da absent.) Ran the worker-pool at full width:
+5 detectives + 5 adversarial verifiers (workflow `wf_0a1b6a6b-f8f`), 12 patches
+approved, **two hypotheses executed before they could waste a CI+device cycle**.
+
+1. **SKY — root cause CONFIRMED: the sky cubemaps were never bound on iOS.**
+   `dxEnvironmentRender::RenderSky`'s OGL path gates `set_Textures(&sky_r_textures)`
+   on `HW.Caps.geometry.bVTF`, which comes from `GLAD_GL_VERSION_3_0 ||
+   GLAD_GL_ARB_texture_float` — desktop-glad flags that are **0 under
+   `gladLoadGLES2`**, so bVTF is permanently false on iOS (new gotcha class above).
+   The skybox blender binds `s_sky0/s_sky1` to `$null`; an unbound samplerCube
+   samples (0,0,0,1) on ES with **no GL error** — black sky, spotless log. Also
+   explains why 6.4's shader-side `#undef USE_VTF` was a no-op: `rgl_shaders.cpp`
+   gates `USE_VTF` on the same false bVTF, so the shaders were already non-VTF.
+   **Fix:** iOS binds unconditionally, exactly like the DX11 path
+   (`dxEnvironmentRender.cpp`).
+2. **MENU TEXT GHOSTING — root cause CONFIRMED: nothing ever clears the presented
+   chain on iOS.** `CBackend::OnFrameBegin` (GL) binds base FB/RT/ZB with no clear;
+   `RenderMenu` draws PP-UI into `rt_Generic_0`, which desktop deliberately never
+   clears (frozen-scene backdrop for the pause menu) — desktop hides all of it
+   behind fully-covering menu art + an ephemeral swap chain. iOS presents ONE
+   persistent texture, so every unrepainted pixel keeps last frame's content:
+   loading tips over the menu, shniaga text stacking as it animates. **Fix:**
+   iOS-only `ClearRT/ClearZB` at `OnFrameBegin` (`R_Backend_Runtime.cpp`) +
+   `ClearRT(rt_Generic_0)` in `RenderMenu` (`r2_R_render.cpp`). Accepted iOS-only
+   trade-off: the in-game pause-menu backdrop is black, not the frozen scene.
+3. **OPTIONS FOCUS HIGHLIGHT — prime hypothesis DISPROVEN.** The warp-skip theory
+   (no `SDL_MOUSEMOTION` → no hover) is wrong: `CUIWindow::Update` re-polls
+   `GetCursorPosition()` **every frame** (hover is polled, not event-driven), and
+   `SetUICursorPosition` writes `vPos` directly before `iSetMousePos`. Root cause
+   not provable from code → shipped **6 diagnostic log points** bracketing the
+   entire path: SDL pad-button delivery (`xr_input.cpp`) → DialogHolder entry state
+   (binding, cursorVis, cursor pos, focused widget, focusable count) → TIR
+   consumption → focusNav candidates → `SetFocused` warp landing (`ui_focus.cpp`)
+   → ACCEPT click `handled` flag (`UIDialogHolder.cpp`). The next device log
+   discriminates all remaining hypotheses. (Spotted in passing, NOT fixed here:
+   pre-existing erase-iterator misuse in `CUIFocusSystem::Update` — separate slice.)
+4. **GAME MODE — root cause CONFIRMED: we ship a key Apple deprecated.** The plist
+   chain is alive end-to-end (CI's plutil dump proves our template reaches the
+   .ipa), but **`GCSupportsGameMode` was deprecated at iOS 18.6** — Apple's docs
+   literally say "Use `LSSupportsGameMode` instead" — and iOS 26.6 keys off the LS
+   variant. **Fix:** add `LSSupportsGameMode=true` (GC kept for 18.0–18.5);
+   CI plist dump bumped head -50 → -100 so the next run proves the key shipped.
+   **Test protocol (from Apple DTS):** Game Mode only (re)triggers when ≥5 min
+   passed since the app was last closed; ground truth is Settings → Game Mode
+   (lists eligible apps), not just the transient banner. Sideloading is likely NOT
+   a blocker (development/TestFlight builds get Game Mode per Apple forums).
+5. **COLORS — prime suspect DISPROVEN with a proof.** The iOS DXT decoder's channel
+   order is spec-correct: BC1 RGB565 extraction `r=(c>>11)&31 / g=(c>>5)&63 /
+   b=c&31`, memory order R,G,B,A — verified by transcribing the C++ to Python and
+   decoding a synthetic pure-red block → bytes `[255,0,0,255]`. The verifier also
+   re-inspected the device screenshot: dirt warm tan, AK wood red-brown, bush olive
+   — **no R/B swap is actually present on device**; the perceived wrongness is
+   lighting/sky/video territory (tracks 1-2 + the known video-texture gap).
+   Shipped a temporary diag logging avg RGBA of decoded sky/terrain/grass base
+   mips (`glTexture.cpp`) — the next device log is an end-to-end channel-order
+   proof. Remove once confirmed.
+
+Process: this is the worker-pool loop working as designed — every root cause was
+re-derived independently by an adversarial verifier before I applied anything, and
+two plausible-but-wrong fixes died in review instead of on the device.
 
 First red CI in the Phase-6 run, and a load-bearing platform discovery behind it. The
 first Objective-C++ TU in the project (ios_audio_session.mm) failed with `'alext.h' file

@@ -506,6 +506,11 @@ void CInput::ControllerUpdate()
                 controllerState.id = event.cbutton.which;
 
             controllerState.buttons[event.cbutton.button] = true;
+#if defined(XR_PLATFORM_APPLE_IOS)
+            // iOS diag (Track C): prove SDL delivers pad buttons while a menu is up.
+            Msg("* iOS diag: SDL pad button %d down -> key %d", event.cbutton.button,
+                ControllerButtonToKey[event.cbutton.button]);
+#endif
             cbStack.back()->IR_OnControllerPress(ControllerButtonToKey[event.cbutton.button], pressedAxis);
             break;
 

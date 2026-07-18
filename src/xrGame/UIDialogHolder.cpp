@@ -316,8 +316,30 @@ bool CDialogHolder::IR_UIOnKeyboardPress(int dik)
             return true;
     }
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // iOS diag (Track C): trace every gamepad button through the UI focus path.
+    // Device logs are our only telemetry - strip once options-menu pad focus works.
+    const bool ios_diag_pad = dik > XR_CONTROLLER_BUTTON_INVALID && dik < XR_CONTROLLER_BUTTON_MAX;
+    if (ios_diag_pad)
+    {
+        const auto* diag_focused = UI().Focus().GetFocused();
+        const Fvector2 diag_cp = GetUICursor().GetCursorPosition();
+        Msg("* iOS diag: padPress dik=%d uiAct=%d TIR='%s' cursorVis=%d cursor=(%.0f,%.0f) focused='%s' valuable=%zu",
+            dik, static_cast<int>(GetBindedAction(dik, EKeyContext::UI)), TIR->WindowName().c_str(),
+            UI().GetUICursor().IsVisible() ? 1 : 0, diag_cp.x, diag_cp.y,
+            diag_focused ? diag_focused->WindowName().c_str() : "none", UI().Focus().ValuableCount());
+    }
+
+    if (TIR->OnKeyboardAction(dik, WINDOW_KEY_PRESSED))
+    {
+        if (ios_diag_pad)
+            Msg("* iOS diag: padPress dik=%d CONSUMED by TIR OnKeyboardAction", dik);
+        return true;
+    }
+#else
     if (TIR->OnKeyboardAction(dik, WINDOW_KEY_PRESSED))
         return true;
+#endif
 
     if (UI().GetUICursor().IsVisible() && dik > XR_CONTROLLER_BUTTON_INVALID && dik < XR_CONTROLLER_BUTTON_MAX)
     {
@@ -336,7 +358,12 @@ bool CDialogHolder::IR_UIOnKeyboardPress(int dik)
             if (UI().Focus().GetFocused())
             {
                 const Fvector2 cp = GetUICursor().GetCursorPosition();
+#if defined(XR_PLATFORM_APPLE_IOS)
+                const bool ios_diag_handled = TIR->OnMouseAction(cp.x, cp.y, WINDOW_LBUTTON_DOWN);
+                Msg("* iOS diag: ACCEPT down-click at (%.0f,%.0f) handled=%d", cp.x, cp.y, ios_diag_handled ? 1 : 0);
+#else
                 TIR->OnMouseAction(cp.x, cp.y, WINDOW_LBUTTON_DOWN);
+#endif
                 return true;
             }
             break;
@@ -349,6 +376,12 @@ bool CDialogHolder::IR_UIOnKeyboardPress(int dik)
             const Fvector2 vec = focused ? focused->GetAbsoluteCenterPos() : UI().GetUICursor().GetCursorPosition();
             const auto [candidate, candidate2] = focus.FindClosestFocusable(vec, direction);
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+            Msg("* iOS diag: focusNav dir=%d from=(%.0f,%.0f) cand='%s' cand2='%s'",
+                static_cast<int>(direction), vec.x, vec.y,
+                candidate ? candidate->WindowName().c_str() : "none",
+                candidate2 ? candidate2->WindowName().c_str() : "none");
+#endif
             if (candidate || candidate2)
             {
                 focus.SetFocused(candidate ? candidate : candidate2);

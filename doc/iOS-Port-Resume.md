@@ -155,18 +155,36 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     root); black sky = VTF texelFetch(s_tonemap) in the VERTEX stage returns 0 on ES
     monolithic — sky2/clouds forced to the non-VTF path under GL_ES. Full ladder in the
     journal.
+  - **Slice 6.7 (2026-07-18 late): device test of 079 → 5-track worker-pool.** 079
+    CONFIRMED on device: audio resumes after Siri, phantom 0x500s gone (129→0). Still
+    broken: sky, menu-text ghosting, options highlight, Game Mode banner. Five
+    detective+adversarial-verifier tracks (12 patches): **sky = bVTF gate never binds
+    the cubemaps on iOS** (desktop glad FLAGS are 0 under gladLoadGLES2 — new gotcha
+    class; also why 6.4's shader fix was a no-op) → bind unconditionally; **ghosting =
+    nothing clears the single persistent presented texture** → iOS ClearRT/ClearZB at
+    OnFrameBegin + rt_Generic_0 clear in RenderMenu (trade-off: pause backdrop black);
+    **Game Mode = GCSupportsGameMode deprecated at iOS 18.6** → LSSupportsGameMode
+    added (banner needs ≥5 min since last close; check Settings → Game Mode);
+    **colors = DXT decoder PROVEN spec-correct** (Python transcription test; screenshot
+    re-check shows colors actually fine — perceived wrongness is lighting/sky) + avg-RGBA
+    diag; **focus highlight = warp-skip hypothesis DISPROVEN** (hover is polled
+    per-frame, not event-driven) → 6 `* iOS diag:` log points bracket the whole path.
+    Full detail in the journal (slice 6.7).
   - **NEXT STEP (resume here):**
-    1. Verify build 075 on device: sky + clouds render? options-menu highlight/interaction
-       back? phantom texture errors gone from the log? colors fixed (R/B swap)?
-    2. If options menu still not navigable on pad: debug CUIFocusSystem / UI_CLICK routing
-       for the options dialog (kUI_CLICK_1 = RT axis; check IR_OnControllerPress axis
-       handling in CDialogHolder).
-    3. Memory (load peak 3.1 GB): per-phase phys_footprint now logged — find the spike
+    1. Verify the post-6.7 build on device: sky + clouds render? menu text clean (no
+       stacking)? Game Mode: close app, wait ≥5 min, relaunch; also check Settings →
+       Game Mode. Collect `xr_boot.log` — the `* iOS diag:` lines now carry the
+       options-focus trace (press D-Pad/A in options!) and DXT channel-order proof.
+    2. From the diag log: root-cause and fix options-menu pad focus/highlight; then
+       strip the Track C/E diagnostics.
+    3. Follow-up small slice: CUIFocusSystem::Update erase-iterator misuse (UB;
+       spotted by verifier in 6.7).
+    4. Memory (load peak 3.1 GB): per-phase phys_footprint now logged — find the spike
        phase; candidates: FS file cache trim after load, ASTC transcode (Plan 4.9).
-    4. Polish backlog: AVAudioSession shim; proper ES vertex-sampler binding (restore VTF);
-       video-texture wrapper (green menu quads + PDA/TVs); ES occlusion
-       (ANY_SAMPLES_PASSED); LotZ-style weapon wheel; gyro aim.
-    5. **Virtual touch pad — LAST (user's explicit order), after all of the above.**
+    5. Polish backlog: proper ES vertex-sampler binding (restore VTF); video-texture
+       wrapper (green menu quads + PDA/TVs); ES occlusion (ANY_SAMPLES_PASSED);
+       OpenAL → static openal-soft link; LotZ-style weapon wheel; gyro aim.
+    6. **Virtual touch pad — LAST (user's explicit order), after all of the above.**
     Tools: gate = `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`;
     links = `python misc/ios/shadercheck/link_check.py`; debug channel = `Documents/xr_boot.log`.
 

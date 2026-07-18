@@ -38,6 +38,17 @@ void CBackend::OnFrameBegin()
 #endif
         set_RT(RImplementation.Target->get_base_rt());
         set_ZB(RImplementation.Target->get_base_zb());
+#if defined(USE_OGL) && defined(XR_PLATFORM_APPLE_IOS)
+        // iOS: the presented chain is ONE persistent texture (base RT -> pFB -> blit to the
+        // UIKit framebuffer in Present), and the menu/load-screen paths draw UI without any
+        // scene pass or fully-covering opaque background underneath — any pixel not repainted
+        // this frame still holds last frame's content, so loading tips and menu text visibly
+        // accumulate. Desktop hides this behind fully-covering menu art + an ephemeral swap
+        // chain. Start every frame from a known state; on a tiled GPU a full clear is free
+        // (it replaces the implicit load of previous tile contents).
+        ClearRT(get_RT(), color_rgba(0, 0, 0, 255));
+        ClearZB(get_ZB(), 1.0f, 0);
+#endif
 #endif
 
         ZeroMemory(&stat, sizeof(stat));

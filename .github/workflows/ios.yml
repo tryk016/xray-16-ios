@@ -319,7 +319,7 @@ jobs:
           rm -rf Payload && mkdir Payload
           cp -R "$APP" Payload/
           zip -qry OpenXRay.ipa Payload
-          echo "--- Info.plist ---"; plutil -p "$APP/Info.plist" 2>/dev/null | head -50 || true
+          echo "--- Info.plist ---"; plutil -p "$APP/Info.plist" 2>/dev/null | head -100 || true
           echo "--- .ipa ---"; ls -la OpenXRay.ipa; unzip -l OpenXRay.ipa | tail -5
 
       - name: Upload .ipa artifact

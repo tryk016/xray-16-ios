@@ -24,6 +24,17 @@ void CRender::RenderMenu()
     // Main Render
     {
         Target->u_setrt(RCache, Target->rt_Generic_0, nullptr, nullptr, Target->rt_Base_Depth); // LDR RT
+#if defined(XR_PLATFORM_APPLE_IOS)
+        // iOS: rt_Generic_0 is deliberately left uncleared on desktop so the frozen scene
+        // shows behind the pause menu, and the menu's opaque background repaints the text
+        // area every frame anyway. On iOS the menu background video texture never creates
+        // (ES formats) and the 19.5:9 drawable exceeds the area the menu art repaints, so
+        // each frame's UI text piles up on the previous frame's in this RT (the shniaga
+        // wheel animates text positions -> visible stacking). Clear it: menus composite on
+        // black. iOS-only cost: the in-game pause menu backdrop is black instead of the
+        // frozen scene.
+        RCache.ClearRT(Target->rt_Generic_0, color_rgba(0, 0, 0, 255));
+#endif
         g_pGamePersistent->OnRenderPPUI_main(); // PP-UI
     }
     // Distort

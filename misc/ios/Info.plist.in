@@ -68,9 +68,14 @@
     <true/>
     <!-- iOS 18+ Game Mode: sustained CPU/GPU priority, reduced background activity, and
          lower Bluetooth latency for controllers/audio while the game is frontmost. The
-         games category + the GameController opt-in keys are what the system keys off. -->
+         games category + the Game Mode opt-in key are what the system keys off. -->
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.games</string>
+    <!-- iOS 18.6 deprecated GCSupportsGameMode in favor of LSSupportsGameMode; modern iOS
+         (incl. 26.x) keys off the LS variant, and Apple warns Game Mode "might not turn
+         on" without it. Keep the GC variant too for iOS 18.0-18.5 installs. -->
+    <key>LSSupportsGameMode</key>
+    <true/>
     <key>GCSupportsGameMode</key>
     <true/>
     <key>GCSupportsControllerUserInteraction</key>

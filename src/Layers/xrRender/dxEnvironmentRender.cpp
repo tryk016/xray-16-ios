@@ -254,8 +254,19 @@ void dxEnvironmentRender::RenderSky(CEnvironment& env)
 #if defined(USE_DX11)
     RCache.set_Textures(&sky_r_textures);
 #elif defined(USE_OGL)
+#   if defined(XR_PLATFORM_APPLE_IOS)
+    // iOS/GL ES: glad loads only ES entry points (gladLoadGLES2), so the desktop
+    // flags feeding HW.Caps.geometry.bVTF (GLAD_GL_VERSION_3_0 /
+    // GLAD_GL_ARB_texture_float) stay 0 and bVTF is always false. The skybox
+    // blender binds s_sky0/s_sky1 to $null, so skipping this call leaves the sky
+    // cubemaps unbound — an unbound samplerCube samples as (0,0,0,1) on ES with
+    // no GL error, rendering the sky black. Bind the per-frame lerped sky
+    // textures unconditionally, exactly as the DX11 path does.
+    RCache.set_Textures(&sky_r_textures);
+#   else
     if (HW.Caps.geometry.bVTF)
         RCache.set_Textures(&sky_r_textures);
+#   endif
 #else
 #   error No graphics API selected or enabled!
 #endif
