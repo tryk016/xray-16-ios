@@ -1,4 +1,10 @@
 #include "common.h"
+#ifdef GL_ES
+// Vertex-stage texelFetch of s_tonemap (VTF) returns 0 on the ES monolithic
+// path (vertex-sampler binding) — the sky/clouds pre-scaled to black. Use the
+// non-VTF path: tonemap sampled in the fragment stage, like the combine pass.
+#undef USE_VTF
+#endif
 #include "iostructs\v_sky.h"
 
 v2p _main (vi v)
