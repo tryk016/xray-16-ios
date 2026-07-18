@@ -227,6 +227,25 @@ CApplication::CApplication(pcstr commandLine, GameModule* game, const std::array
         shortcuts.Disable();
 #endif
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // iOS never runs the desktop quit path (swipe-away just kills the suspended process),
+    // so settings would only ever persist behind an explicit in-menu Accept. Flush them in
+    // the short grace window UIKit gives when the app is being backgrounded. The watch
+    // runs on the event's thread — keep it to the safe, re-entrant pieces.
+    SDL_AddEventWatch(
+        [](void*, SDL_Event* event) -> int
+        {
+            if (event->type == SDL_APP_WILLENTERBACKGROUND || event->type == SDL_APP_TERMINATING)
+            {
+                if (Console)
+                    Console->Execute("cfg_save");
+                FlushLog();
+            }
+            return 0;
+        },
+        nullptr);
+#endif
+
     if (!strstr(commandLine, "-nosplash"))
     {
         const bool topmost = !strstr(commandLine, "-splashnotop");

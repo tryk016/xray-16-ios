@@ -163,6 +163,47 @@ static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn,
     const dxt::kind k = dxt::classify(texture.format());
     if (k == dxt::kind::none)
         return 0;
+
+    // Volume textures (water_sbumpvolume): decode each depth slice of each level.
+    // A DXT 3D level stores its slices' 4x4-block data consecutively.
+    if (texture.target() == gli::TARGET_3D)
+    {
+        while (glGetError() != GL_NO_ERROR)
+            ;
+        const glm::tvec3<GLsizei> e0(texture.extent());
+        GLuint tex = 0;
+        glGenTextures(1, &tex);
+        glBindTexture(GL_TEXTURE_3D, tex);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_BASE_LEVEL, 0);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAX_LEVEL, static_cast<GLint>(texture.levels() - 1));
+        glTexStorage3D(GL_TEXTURE_3D, static_cast<GLint>(texture.levels()), GL_RGBA8, e0.x, e0.y, e0.z);
+        GLenum err3 = glGetError();
+        if (err3 != GL_NO_ERROR)
+            Msg("! OpenGL: 0x%x: iOS DXT->RGBA8 3D storage (%dx%dx%d) failed: '%s'",
+                err3, e0.x, e0.y, e0.z, fn);
+        xr_vector<u8> slice(size_t(e0.x) * e0.y * 4);
+        const size_t block_bytes = (k == dxt::kind::bc1 || k == dxt::kind::bc4) ? 8 : 16;
+        for (size_t level = 0; level < texture.levels(); ++level)
+        {
+            const glm::tvec3<GLsizei> e(texture.extent(level));
+            const size_t slice_bytes = size_t((e.x + 3) / 4) * ((e.y + 3) / 4) * block_bytes;
+            const u8* src = static_cast<const u8*>(texture.data(0, 0, level));
+            for (GLsizei z = 0; z < e.z; ++z)
+            {
+                dxt::decode_level(k, src + slice_bytes * z, e.x, e.y, slice.data());
+                glTexSubImage3D(GL_TEXTURE_3D, static_cast<GLint>(level), 0, 0, z,
+                                e.x, e.y, 1, GL_RGBA, GL_UNSIGNED_BYTE, slice.data());
+                err3 = glGetError();
+                if (err3 != GL_NO_ERROR)
+                    Msg("! OpenGL: 0x%x: iOS DXT->RGBA8 3D upload (level %zu slice %d) failed: '%s'",
+                        err3, level, z, fn);
+            }
+        }
+        out_w = e0.x;
+        out_h = e0.y;
+        return tex;
+    }
+
     if (texture.target() != gli::TARGET_2D && texture.target() != gli::TARGET_CUBE)
     {
         Msg("! iOS DXT decode: unsupported target for '%s' — skipped", fn);
@@ -351,7 +392,9 @@ GLuint CRender::texture_load(LPCSTR fRName, u32& ret_msize, GLenum& ret_desc, GL
     {
         FS.r_close(S);
         xr_strlwr(fn);
-        ret_desc = texture.target() == gli::TARGET_CUBE ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
+        ret_desc = texture.target() == gli::TARGET_CUBE ? GL_TEXTURE_CUBE_MAP
+            : texture.target() == gli::TARGET_3D ? GL_TEXTURE_3D
+                                                 : GL_TEXTURE_2D;
         const int lod = is_target_cube(texture.target()) ? 0 : get_texture_load_lod(fn);
         ret_msize = calc_texture_size(lod, static_cast<u32>(texture.levels()), img_size);
         return decoded;
@@ -359,6 +402,49 @@ GLuint CRender::texture_load(LPCSTR fRName, u32& ret_msize, GLenum& ret_desc, GL
     // Non-DXT path: translate with the ES profile so external formats/types are ES-legal
     // (ES 3.0 has no GL_BGRA upload; the ES profile maps BGRA8 to RGBA + texture swizzle).
     gli::gl GL(gli::gl::PROFILE_ES30);
+
+    // Legacy uncompressed layouts (BGR8, luminance/alpha fonts, V8U8 water normals, ...)
+    // translate to enums core ES 3.0 rejects — ~130 pfx/water/ui files died with 0x500 at
+    // glTexStorage2D on device (no particles, no water). Whitelist the ES-legal externals
+    // and CPU-convert everything else to plain RGBA8 (gli::convert unpacks any
+    // uncompressed source). Log the original format id so leftovers stay diagnosable.
+    if (!gli::is_compressed(texture.format()) && texture.format() != gli::FORMAT_RGBA8_UNORM_PACK8)
+    {
+        const gli::gl::format probe = GL.translate(texture.format(), texture.swizzles());
+        const bool ext_ok = probe.External == gli::gl::EXTERNAL_RED
+            || probe.External == gli::gl::EXTERNAL_RG
+            || probe.External == gli::gl::EXTERNAL_RGB
+            || probe.External == gli::gl::EXTERNAL_RGBA;
+        const bool int_ok = probe.Internal == gli::gl::INTERNAL_R8_UNORM
+            || probe.Internal == gli::gl::INTERNAL_RG8_UNORM
+            || probe.Internal == gli::gl::INTERNAL_RGB8_UNORM
+            || probe.Internal == gli::gl::INTERNAL_RGBA8_UNORM
+            || probe.Internal == gli::gl::INTERNAL_SRGB8
+            || probe.Internal == gli::gl::INTERNAL_SRGB8_ALPHA8
+            || probe.Internal == gli::gl::INTERNAL_R5G6B5
+            || probe.Internal == gli::gl::INTERNAL_RGB5A1
+            || probe.Internal == gli::gl::INTERNAL_RGBA4;
+        if (!ext_ok || !int_ok)
+        {
+            const int orig_fmt = int(texture.format());
+            switch (texture.target())
+            {
+            case gli::TARGET_2D:
+                texture = gli::convert(gli::texture2d(texture), gli::FORMAT_RGBA8_UNORM_PACK8);
+                break;
+            case gli::TARGET_CUBE:
+                texture = gli::convert(gli::texture_cube(texture), gli::FORMAT_RGBA8_UNORM_PACK8);
+                break;
+            case gli::TARGET_3D:
+                texture = gli::convert(gli::texture3d(texture), gli::FORMAT_RGBA8_UNORM_PACK8);
+                break;
+            default:
+                break;
+            }
+            Msg("* iOS: converted legacy texture format %d (internal 0x%x external 0x%x) -> RGBA8: '%s'",
+                orig_fmt, probe.Internal, probe.External, fn);
+        }
+    }
 #else
     gli::gl GL(gli::gl::PROFILE_GL33);
 #endif

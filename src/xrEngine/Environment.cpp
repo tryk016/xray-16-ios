@@ -406,6 +406,23 @@ void CEnvironment::OnFrame()
 
     lerp();
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // The Zone renders near-black on device while shaders all link — log the lighting
+    // inputs once a minute so the boot log shows whether the env system delivers sane
+    // sun/hemi/sky values (env desync) or the deferred lighting loses them (render bug).
+    {
+        static u32 s_last_env_log = 0;
+        if (Device.dwTimeGlobal - s_last_env_log > 60000)
+        {
+            s_last_env_log = Device.dwTimeGlobal;
+            Msg("* iOS env: gt=%.2fh sun(%.2f %.2f %.2f) hemi(%.2f %.2f %.2f) amb(%.2f %.2f %.2f) sky(%.2f %.2f %.2f) sundir.y=%.2f",
+                fGameTime / (60.f * 60.f), VPUSH(CurrentEnv.sun_color),
+                CurrentEnv.hemi_color.x, CurrentEnv.hemi_color.y, CurrentEnv.hemi_color.z,
+                VPUSH(CurrentEnv.ambient), VPUSH(CurrentEnv.sky_color), CurrentEnv.sun_dir.y);
+        }
+    }
+#endif
+
     PerlinNoise1D->SetFrequency(wind_gust_factor * MAX_NOISE_FREQ);
     wind_strength_factor = clampr(PerlinNoise1D->GetContinious(Device.fTimeGlobal) + 0.5f, 0.f, 1.f);
 
