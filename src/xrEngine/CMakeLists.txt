@@ -434,6 +434,33 @@ target_link_libraries(xrEngine
     SDL2::SDL2
 )
 
+if (XRAY_PLATFORM_IOS)
+    # AVAudioSession lifecycle shim (audit P1: interruptions permanently mute
+    # OpenAL) — Objective-C++. The iOS toolchain runs in named-language mode and
+    # defaults ENABLE_ARC=ON, so the .mm compiles with -fobjc-arc; the file is
+    # written to be correct under MRC as well.
+    enable_language(OBJCXX)
+
+    target_sources_grouped(
+        TARGET xrEngine
+        NAME "iOS"
+        FILES
+        ios/ios_audio_session.h
+        ios/ios_audio_session.mm
+    )
+
+    # stdafx.h is a C++ PCH and (via Common/PlatformApple.inl) typedefs BOOL,
+    # which collides with the Objective-C runtime — keep it out of the ObjC++ TU.
+    set_source_files_properties(ios/ios_audio_session.mm PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+
+    target_link_libraries(xrEngine
+        PRIVATE
+        "-framework AVFoundation"
+        "-framework Foundation"
+        "-framework UIKit"
+    )
+endif()
+
 target_compile_definitions(xrEngine
     PRIVATE
     ENGINE_BUILD

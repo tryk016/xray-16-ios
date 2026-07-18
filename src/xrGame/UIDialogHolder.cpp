@@ -328,6 +328,18 @@ bool CDialogHolder::IR_UIOnKeyboardPress(int dik)
         case kUI_MOVE_RIGHT: direction = FocusDirection::Right; break;
         case kUI_MOVE_UP:    direction = FocusDirection::Up; break;
         case kUI_MOVE_DOWN:  direction = FocusDirection::Down; break;
+
+        case kUI_ACCEPT:
+            // Gamepad accept acts as a click on the focused widget:
+            // plain buttons, checkboxes and tab buttons only react to mouse messages.
+            // Widgets that handle kUI_ACCEPT themselves consumed it above already.
+            if (UI().Focus().GetFocused())
+            {
+                const Fvector2 cp = GetUICursor().GetCursorPosition();
+                TIR->OnMouseAction(cp.x, cp.y, WINDOW_LBUTTON_DOWN);
+                return true;
+            }
+            break;
         }
 
         if (direction != FocusDirection::Same)
@@ -386,6 +398,16 @@ bool CDialogHolder::IR_UIOnKeyboardRelease(int dik)
 
     if (TIR->OnKeyboardAction(dik, WINDOW_KEY_RELEASED))
         return true;
+
+    if (UI().GetUICursor().IsVisible() && dik > XR_CONTROLLER_BUTTON_INVALID && dik < XR_CONTROLLER_BUTTON_MAX)
+    {
+        if (GetBindedAction(dik, EKeyContext::UI) == kUI_ACCEPT && UI().Focus().GetFocused())
+        {
+            const Fvector2 cp = GetUICursor().GetCursorPosition();
+            TIR->OnMouseAction(cp.x, cp.y, WINDOW_LBUTTON_UP);
+            return true;
+        }
+    }
 
     if (!TIR->StopAnyMove() && g_pGameLevel)
     {

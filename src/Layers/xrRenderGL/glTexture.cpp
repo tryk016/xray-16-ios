@@ -411,20 +411,28 @@ GLuint CRender::texture_load(LPCSTR fRName, u32& ret_msize, GLenum& ret_desc, GL
     if (!gli::is_compressed(texture.format()) && texture.format() != gli::FORMAT_RGBA8_UNORM_PACK8)
     {
         const gli::gl::format probe = GL.translate(texture.format(), texture.swizzles());
-        const bool ext_ok = probe.External == gli::gl::EXTERNAL_RED
-            || probe.External == gli::gl::EXTERNAL_RG
-            || probe.External == gli::gl::EXTERNAL_RGB
-            || probe.External == gli::gl::EXTERNAL_RGBA;
-        const bool int_ok = probe.Internal == gli::gl::INTERNAL_R8_UNORM
-            || probe.Internal == gli::gl::INTERNAL_RG8_UNORM
-            || probe.Internal == gli::gl::INTERNAL_RGB8_UNORM
-            || probe.Internal == gli::gl::INTERNAL_RGBA8_UNORM
-            || probe.Internal == gli::gl::INTERNAL_SRGB8
-            || probe.Internal == gli::gl::INTERNAL_SRGB8_ALPHA8
-            || probe.Internal == gli::gl::INTERNAL_R5G6B5
-            || probe.Internal == gli::gl::INTERNAL_RGB5A1
-            || probe.Internal == gli::gl::INTERNAL_RGBA4;
-        if (!ext_ok || !int_ok)
+        // ES 3.0 validates the FULL internal/external/type triple at glTexSubImage2D.
+        // Checking internal and external independently let inconsistent pairs through:
+        // X8R8G8B8 -> gli BGRX8 translates to internal RGB8 + external RGBA, which is
+        // 0x502 on ES. Whitelist consistent pairs, and only ES-3.0 types (the *_REV
+        // packed types of some gli formats do not exist in ES).
+        const bool pair_ok =
+            (probe.External == gli::gl::EXTERNAL_RED && probe.Internal == gli::gl::INTERNAL_R8_UNORM)
+            || (probe.External == gli::gl::EXTERNAL_RG && probe.Internal == gli::gl::INTERNAL_RG8_UNORM)
+            || (probe.External == gli::gl::EXTERNAL_RGB
+                && (probe.Internal == gli::gl::INTERNAL_RGB8_UNORM
+                    || probe.Internal == gli::gl::INTERNAL_SRGB8
+                    || probe.Internal == gli::gl::INTERNAL_R5G6B5))
+            || (probe.External == gli::gl::EXTERNAL_RGBA
+                && (probe.Internal == gli::gl::INTERNAL_RGBA8_UNORM
+                    || probe.Internal == gli::gl::INTERNAL_SRGB8_ALPHA8
+                    || probe.Internal == gli::gl::INTERNAL_RGB5A1
+                    || probe.Internal == gli::gl::INTERNAL_RGBA4));
+        const bool type_ok = probe.Type == gli::gl::TYPE_U8
+            || probe.Type == gli::gl::TYPE_UINT16_R5G6B5
+            || probe.Type == gli::gl::TYPE_UINT16_RGB5A1
+            || probe.Type == gli::gl::TYPE_UINT16_RGBA4;
+        if (!pair_ok || !type_ok)
         {
             const int orig_fmt = int(texture.format());
             switch (texture.target())
@@ -460,6 +468,12 @@ GLuint CRender::texture_load(LPCSTR fRName, u32& ret_msize, GLenum& ret_desc, GL
     // drain first so a real failure is really ours, and make the message carry the format.
     while (glGetError() != GL_NO_ERROR)
         ;
+
+    // gli keeps texel rows tightly packed, but GL's default GL_UNPACK_ALIGNMENT is 4:
+    // any 24-bit (BGR8/RGB8) level whose row size isn't a multiple of 4 — e.g. the
+    // 2-px-wide tail mips of every power-of-two chain — uploads with a wrong row
+    // stride (skewed/garbage texels). Tight packing is always correct for gli data.
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 #endif
 
     glGenTextures(1, &pTexture);

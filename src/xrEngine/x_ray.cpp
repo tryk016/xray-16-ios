@@ -26,6 +26,10 @@
 #pragma todo("Implement text console or it's alternative")
 #endif
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "ios/ios_audio_session.h"
+#endif
+
 #ifdef XR_PLATFORM_WINDOWS
 #include <locale>
 
@@ -244,6 +248,27 @@ CApplication::CApplication(pcstr commandLine, GameModule* game, const std::array
             return 0;
         },
         nullptr);
+
+    // Audit P1: an AVAudioSession interruption (Siri, phone call, alarm) stops
+    // the CoreAudio unit OpenAL Soft renders into and nothing restarts it, so
+    // audio stays permanently muted afterwards. The shim owns session category /
+    // reactivation and pauses/resumes the OpenAL device (ALC_SOFT_pause_device);
+    // these callbacks freeze/thaw the engine's emitters around it. Registered
+    // here, before Engine.Sound.Create(), so the session is configured before
+    // alcOpenDevice. NOTE: SDL_INIT_AUDIO stays deliberately absent above — the
+    // engine never uses SDL audio (OpenAL -> CoreAudio directly), and SDL's
+    // coreaudio backend would set its own session category and fight this shim.
+    ios_audio::initialize(
+        []() // interruption began
+        {
+            if (GEnv.Sound)
+                GEnv.Sound->pause_emitters(true);
+        },
+        []() // session reactivated after the interruption
+        {
+            if (GEnv.Sound)
+                GEnv.Sound->pause_emitters(false);
+        });
 #endif
 
     if (!strstr(commandLine, "-nosplash"))

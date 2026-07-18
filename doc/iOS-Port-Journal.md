@@ -63,6 +63,47 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-18 (night) — Slice 6.6: worker-pool patch pack (agents wrote it, verifiers approved it, I applied it)
+
+New standing process in action (user directive): a Workflow worker pool (5 workers + 3
+adversarial verifiers + foreman) reviewed slices 6.1-6.4 BEFORE device testing, wrote
+patches, and everything below shipped only after an "apply" verdict:
+
+- **Textures HIGH (reviewer caught MY 6.1 bug):** the conversion whitelist checked
+  Internal and External independently — the inconsistent X8R8G8B8 pair (gli BGRX8 ->
+  internal RGB8 + external RGBA) slipped through to an ES-illegal glTexSubImage2D triple
+  (0x502, black texture). Now whitelists consistent internal/external PAIRS + gates on
+  probe.Type (the *_REV packed types don't exist in ES 3.0).
+- **Textures MEDIUM (gem):** gli keeps rows tightly packed but GL defaults to
+  GL_UNPACK_ALIGNMENT=4 — every 24-bit mip with width%4!=0 (incl. the 2-px tail mips of
+  every POT chain) uploaded skewed. Fix: glPixelStorei(GL_UNPACK_ALIGNMENT,1) on iOS.
+- **Options menu on pad (detective, verdict apply):** desktop options ARE pad-navigable,
+  but generic pad focus drives an EMULATED cursor: CUIFocusSystem::SetFocused ->
+  WarpToWindow -> iSetMousePos -> SDL_WarpMouseInWindow — which does nothing useful on
+  iOS, and the next frame snapped the cursor back to the stale last-touch position, so
+  focus cleared every frame (no highlight, dead widgets). CUIMMShniaga (main menu list)
+  bypasses the cursor system — hence the split the user observed. Fix: on iOS
+  iSetMousePos updates m_ios_touch_pos (now mutable) as the authoritative pointer and
+  skips the SDL warp; plus an ACCEPT->click bridge in UIDialogHolder (A = LBUTTON
+  DOWN/UP pair at the focused widget). If L1/R1 tabs stay dead after this, suspect the
+  bind table (bind_gpad ui_tab_prev/next), not the focus system.
+- **AVAudioSession shim (coder, verdict apply):** new src/xrEngine/ios/ios_audio_session
+  .h/.mm (ObjC++; header deliberately engine-include-free — PlatformApple.inl's
+  `typedef int32_t BOOL` collides with ObjC BOOL) + CMake (enable_language(OBJCXX),
+  SKIP_PRECOMPILE_HEADERS on the .mm, AVFoundation framework) + x_ray.cpp wire-up before
+  Engine.Sound.Create(). Playback category, interruption + route-change observers,
+  ALC_SOFT_pause_device + counted pause_emitters on interrupt, reactivate + resume on
+  end. First real compile check = CI (ObjC++ can't build on Windows).
+- **Memory analyst (no patch, data first):** staging buffers + cdb_cache exonerated; #1
+  contributor is driver-side DXT->RGBA8 residency (~1.2-2.2 GB; levers: cap 1024->512,
+  wire get_texture_load_lod into the DXT path, ASTC later); #2 the full
+  ResourcesDeferredUpload burst at net_start (prefetch skip does NOT cover it). First
+  action when needed: per-load-phase phys_footprint instrumentation, then decide.
+- **Reviewer notes for the record:** the ES sky fix depends on bVTF==true (RenderSky
+  only binds sky_r_textures under that flag — never force bVTF=false on iOS without
+  unconditional binding); cfg_save-on-background is best-effort and also fires on
+  Control Center peeks — by design, not a bug.
+
 ### 2026-07-18 (evening) — Phase 6: graphics detective work (slices 6.1-6.4, builds 10023073-075)
 
 User priority order: graphics -> memory -> settings -> (virtual pad LAST). Four slices of

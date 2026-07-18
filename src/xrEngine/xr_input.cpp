@@ -694,6 +694,15 @@ bool CInput::iGetAsyncMousePos(Ivector2& p, bool global /*= false*/) const
 
 bool CInput::iSetMousePos(const Ivector2& p, bool global /*= false*/) const
 {
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // There is no OS mouse to warp on iOS. SDL_WarpMouseInWindow would fall back to a
+    // synthetic SDL_MOUSEMOTION, and the next cursor update would snap the UI cursor
+    // back to the stale last-touch position via iGetAsyncMousePos — which killed
+    // gamepad focus navigation in menus (CUIFocusSystem::SetFocused -> WarpToWindow
+    // -> here). Make the programmatic warp the authoritative pointer position instead.
+    m_ios_touch_pos = p;
+    return !global;
+#else
     if (global)
     {
 #if SDL_HAS_CAPTURE_AND_GLOBAL_MOUSE
@@ -707,6 +716,7 @@ bool CInput::iSetMousePos(const Ivector2& p, bool global /*= false*/) const
 
     SDL_WarpMouseInWindow(Device.m_sdlWnd, p.x, p.y);
     return !global;
+#endif
 }
 
 void CInput::GrabInput(const bool grab)
