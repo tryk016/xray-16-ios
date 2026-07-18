@@ -69,6 +69,20 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-18 (late night) — Slice 6.8: fix erase-iterator UB in CUIFocusSystem::Update
+
+Found in passing by the slice-6.7 focus-highlight verifier while reading `ui_focus.cpp`.
+`CUIFocusSystem::Update` has two list-migration loops (valuable→temp, non_valuable→valuable)
+that misuse `std::list::erase`: they do `it = list.erase(it)` inside a `for(...; ++it)`, so the
+trailing `++it` **skips** the element that shifted into the erased slot, and if `erase` returns
+`end()` the `++it` increments `end()` — UB. The valuable loop additionally dereferenced the
+erase result (`if (*it == m_current_focused)`), a read of a possibly-`end()` iterator (UB) that
+also compared against the *next* window instead of the removed one. Fixed both with the standard
+idiom — advance only when keeping (`++it; continue`), and let `it = list.erase(it)` carry the
+iterator forward otherwise — and moved the `m_current_focused` check ahead of the erase so it
+refers to the window actually being removed. Pre-existing upstream-style bug; platform-neutral,
+no `#ifdef`s, behavior otherwise unchanged. Desktop+iOS shared code (`src/xrUICore/ui_focus.cpp`).
+
 ### 2026-07-18 (late night) — Slice 6.7: device test of 079 → five-track worker-pool investigation
 
 Device verdict on build `1.6.02.10023079`: **audio shim CONFIRMED** (sound returns
