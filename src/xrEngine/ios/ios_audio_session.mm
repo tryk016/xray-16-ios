@@ -26,11 +26,21 @@
 #import <AVFoundation/AVFoundation.h>
 #import <UIKit/UIKit.h>
 
-// OpenAL Soft is linked statically on iOS (cmake/ios/deps builds openal-soft
-// 1.25.2), so the ALC_SOFT_pause_device entry points always exist at link time.
-#define AL_ALEXT_PROTOTYPES
-#include <alc.h>
-#include <alext.h>
+// The iOS build currently compiles/links against Apple's deprecated
+// OpenAL.framework (CI proved it: SDK deprecation warnings; no alext.h there),
+// even though cmake/ios/deps also builds openal-soft. ALC_SOFT_pause_device is
+// a Soft-only extension, so resolve the entry points AT RUNTIME via
+// alcGetProcAddress: on OpenAL Soft the pause halts the mixer + CoreAudio unit;
+// on Apple's framework the lookups return null and the calls are skipped — the
+// AVAudioSession reactivation alone is what un-mutes there.
+#if __has_include(<OpenAL/alc.h>)
+#include <OpenAL/alc.h>
+#else
+#include <AL/alc.h>
+#endif
+
+typedef void (*LPALCDEVICEPAUSESOFT)(ALCdevice*);
+typedef void (*LPALCDEVICERESUMESOFT)(ALCdevice*);
 
 // xrCore log (see file comment for why these are hand-declared instead of
 // including xrCore/log.h): iOS is always a static build (XRAY_STATIC_BUILD ->
@@ -80,7 +90,11 @@ void begin_interruption()
     // the output down; leaving the ALC device 'running' is exactly what makes
     // the mute permanent, because nothing would ever start the unit again.
     if (ALCdevice* device = current_al_device())
-        alcDevicePauseSOFT(device);
+    {
+        if (const auto pause = reinterpret_cast<LPALCDEVICEPAUSESOFT>(
+                alcGetProcAddress(device, "alcDevicePauseSOFT")))
+            pause(device);
+    }
 }
 
 void end_interruption(const char* why)
@@ -92,7 +106,11 @@ void end_interruption(const char* why)
                 // the next interruption-end / did-become-active retries.
     g_interrupted = false;
     if (ALCdevice* device = current_al_device())
-        alcDeviceResumeSOFT(device); // restarts the CoreAudio unit
+    {
+        if (const auto resume = reinterpret_cast<LPALCDEVICERESUMESOFT>(
+                alcGetProcAddress(device, "alcDeviceResumeSOFT")))
+            resume(device); // restarts the CoreAudio unit (OpenAL Soft only)
+    }
     if (g_on_resume)
         g_on_resume();
     Msg("iOS audio: interruption ended (%s), sound resumed", why);
