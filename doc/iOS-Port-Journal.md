@@ -63,6 +63,27 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-18 (night) — Slice 6.6 hotfix: the iOS build links APPLE's OpenAL.framework, not our openal-soft
+
+First red CI in the Phase-6 run, and a load-bearing platform discovery behind it. The
+first Objective-C++ TU in the project (ios_audio_session.mm) failed with `'alext.h' file
+not found` — and the surrounding SDK deprecation warnings proved WHY: **the iOS build
+compiles and links against Apple's deprecated OpenAL.framework, NOT the openal-soft
+1.25.2 that cmake/ios/deps dutifully builds** (matches the runtime log's `efx[no]`; the
+audit had flagged this as P2 "dead ballast"). Apple's framework ships no alext.h and no
+ALC_SOFT_pause_device entry points, which the audio shim hard-referenced.
+
+Hotfix (commit 89707f40c): `#include <OpenAL/alc.h>` with an `<AL/alc.h>` fallback via
+__has_include, and alcDevicePauseSOFT/alcDeviceResumeSOFT resolved AT RUNTIME through
+alcGetProcAddress — on OpenAL Soft they halt/restart the mixer's CoreAudio unit, on
+Apple's framework the lookups return null and the AVAudioSession reactivation alone does
+the un-muting (the core of the fix either way).
+
+Process lesson recorded: the verifier confirmed the symbol existed in the WRONG library
+(the built-but-unlinked openal-soft in the deps prefix) — link-reality can only be proven
+by CI. Standing follow-up (audit P2): switch the link to the static openal-soft to regain
+EFX/EAX and future-proof against the framework's removal — a deliberate slice of its own.
+
 ### 2026-07-18 (night) — Slice 6.6: worker-pool patch pack (agents wrote it, verifiers approved it, I applied it)
 
 New standing process in action (user directive): a Workflow worker pool (5 workers + 3
