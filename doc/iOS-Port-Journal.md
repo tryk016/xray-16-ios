@@ -63,6 +63,44 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-18 — 🏆 THE GAME IS PLAYABLE ON iPHONE (build 10022072)
+
+**S.T.A.L.K.E.R. Call of Pripyat runs, renders, plays, and SAVES on an iPhone 15 Pro Max.**
+The user is in Zaton at night: first-person view, AK-74 with visible actor arms (SKINNED
+MODELS render — family D's runtime works on device), HUD (ammo 30/180, quick slots,
+minimap + game time), opening missions firing ("Stingray 1-5: investigate the crash
+site"), FIRED ROUNDS (tap = LMB = shoot, audio works), autosave OK ("11053 objects are
+successfully saved" -> .scop in Documents/_appdata_/savedgames). phys_footprint after
+load: **3.1 GB — survived within ~300 MB of the jetsam limit**; skipping the prefetch was
+the difference between death and gameplay.
+
+The final ladder (all on 2026-07-17→18):
+- **4.22 float RTs:** ES caps line proved EXT_color_buffer_float ABSENT / half_float
+  present on A17 → 32F targets (G-buffer/accum/luminance) were FRAMEBUFFER_INCOMPLETE.
+  ConvertTextureFormat downgrades R32F/RG32F/RGBA32F → 16F kin on iOS.
+- **4.23 DXT mip-skip:** decode-time drop of top mips to a 1024px cap (ui\ exempt) — 4x
+  texture memory cut; uploaded base extent reported back to CTexture dims.
+- **4.24 the "backgrounds itself" mystery:** CHW::OnAppDeactivate ran desktop ALT-TAB
+  behavior (SDL_MinimizeWindow on fullscreen focus loss) — on iOS minimizing IS
+  backgrounding. Guarded out + activate/deactivate now logged; idle timer disabled.
+  (Falsified as the New-Game killer by the very next log — kept as a real latent bomb.)
+- **4.25 the actual killer — jetsam OOM:** JetsamEvent 22:54 caught it red-handed:
+  largestProcess xr_3da, active+frontmost at 1.92 GB resident, system killing daemons
+  around it (vm-compressor-thrashing). No xr_3da .ips ever — jetsam writes JetsamEvent
+  files. Fix: skip Prefetch() on iOS (~1.6 GB spike; textures/models lazy-load via
+  apply_load) + log task_info phys_footprint each load phase.
+- Result: first try after 4.25 → in-game, shooting, saving. **Phases 3+4 DONE. Phase 5.1
+  (menu tap) DONE. The port plays.**
+
+Known state in-game: world very dark (night start + sun/shadow passes partially stubbed
+— tree_s alpha shadows, disabled blenders); ~150 non-DXT textures still 0x500 (pfx/water/
+ui_common family — separate format wall); occlusion culling off (perf headroom later);
+touch = LMB only. **NEXT: Phase 5.2 — virtual gamepad** (movement stick via
+kMOVE_AROUND/kLOOK_AROUND ControllerAxisState synthesis — audit found the engine's analog
+path ready-made; look-drag; fire/aim/use buttons; pause/ESC button so the user can exit
+without killing the app). Then: memory headroom (ASTC — Plan 4.9), lighting/brightness,
+non-DXT texture formats, AVAudioSession, cfg_save lifecycle.
+
 ### 2026-07-17 (later) — Phase 5 touch + "New Game" reaches the 3D world; 12-agent audit; ES render-path hardening
 
 - **Phase 5.1 touch (build 10022064): the menu is OPERABLE.** User entered Options and went

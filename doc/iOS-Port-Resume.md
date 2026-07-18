@@ -135,30 +135,29 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     **4.20** family D gate-clean (SKIN_NONE NORMAL float3; gate **279/279**, link_check 137/137).
   - **12-agent AUDIT done → [iOS-Port-Audit-2026-07-17.md](iOS-Port-Audit-2026-07-17.md).**
     Read it — it verified the plan is still valid and ranked the remaining walls with file:line.
-  - **NEXT STEP (resume here), audit-ranked, after build 4.19 verifies the world renders:**
-    1. **Float render-target renderability** (P1, likely the next black-screen wall): the whole
-       deferred G-buffer/accum/SSAO/HDR uses RGBA16F/R32F/R16F/RG16F with NO extension check.
-       If `EXT_color_buffer_float`/`_half_float` is missing, every deferred FBO = INCOMPLETE →
-       black in-game. At init: query GL_EXTENSIONS + `glCheckFramebufferStatus`+Msg after the
-       first G-buffer bind (release too, not just VERIFY); R32F→R16F fallback (LUM_pool is
-       hardcoded R32F, r2_rendertarget.cpp:639). Verify on A17/iOS26.
-    2. **AVAudioSession** (P1): no session config / interruption handling — a call/Siri/unplug
-       permanently mutes OpenAL. Needs a small `.mm` shim (Playback category + interruption/
-       route observers). Also `SDL_INIT_AUDIO` missing at x_ray.cpp:218.
-    3. **Skinned geometry runtime** (P1, untested on GL-on-Metal): short4/DWORD quantized
-       vertex format + `sbones_array[234]` per-element upload. Drive an actor model, verify.
-    4. **DXT→RGBA8 memory inflation** (P1 jetsam risk): every texture kept uncompressed on GPU
-       (cmem hit ~1.6 GB during Zaton load). Measure `phys_footprint`; plan offline ASTC
-       transcode (Plan 4.9). `psTextureLOD` is NOT wired to the iOS path.
-    5. iOS lifecycle handler (P2): `SDL_AddEventWatch` → on WILLENTERBACKGROUND run `cfg_save`
-       (settings only persist on explicit Accept today) + flush log. Fixes user.ltx never saving.
-    6. Then: proper ES occlusion (ANY_SAMPLES_PASSED); in-game virtual pad (reuse the engine's
-       kMOVE_AROUND/kLOOK_AROUND controller-axis path — synthesize ControllerAxisState, don't
-       reinvent movement; adapt the user's OpenGothic pad prior art); tree_s alpha-test shadow
-       stub; video-texture wrapper (green quads + PDA/TVs); ui_magnifier2 0x500; build caching
-       (~30 min); FSR 1.0 = Plan Phase 6.
-    Also a confirmed touch nit to fold in: reset the finger tracker + release MOUSE_1 in
-    OnAppActivate/Deactivate (stuck-finger if FINGERUP is lost on background).
+  - **🏆 2026-07-18 (build 10022072): THE GAME IS PLAYABLE.** In Zaton, AK + arms
+    (skinning works), HUD/missions, fired rounds, autosave OK. phys_footprint 3.1 GB —
+    survived ~300 MB under jetsam thanks to 4.25's prefetch skip. Ladder: 4.22 float RT
+    32F->16F (EXT_color_buffer_float absent) -> 4.23 DXT mip-skip 1024px -> 4.24 never
+    self-minimize on deactivate -> 4.25 jetsam OOM fix (skip Prefetch; JetsamEvent files
+    are where these kills log, never xr_3da .ips). Details in the journal.
+  - **NEXT STEP (resume here): Phase 5.2 — VIRTUAL GAMEPAD.** The user cannot move/look/
+    exit (tap=LMB only; they force-quit to leave). Build an on-screen pad:
+    (a) movement stick (left half): synthesize ControllerAxisState and call
+        cbStack.back()->IR_OnControllerHold(XR_CONTROLLER_AXIS_LEFT, state) per frame —
+        the engine's analog path (kMOVE_AROUND, ActorInput.cpp) is ready-made; do NOT
+        reinvent movement. Right-half drag -> XR_CONTROLLER_AXIS_RIGHT (kLOOK_AROUND).
+    (b) buttons: fire (LMB), aim (RMB), use (F), sprint, jump; a PAUSE/ESC button that
+        sends IR_OnKeyboardPress(SDL_SCANCODE_ESCAPE) so the game menu opens (exit path!).
+    (c) draw via the engine UI layer or overlay quads; adapt the user's OpenGothic iOS pad
+        (memory: opengothic-ios-controller-prior-art).
+    TouchUpdate must then route: taps on buttons -> actions; left-half touches -> move
+    stick; right-half drags -> look; plain taps in menus keep the 5.1 cursor+click path
+    (menu vs game state via IsGameActive/pause state).
+  - **After 5.2:** memory headroom (ASTC transcode, Plan 4.9 — 3.1 GB is tight; also
+    consider FS cache trim), world brightness/lighting (very dark; sun/shadow passes
+    partially stubbed), ~150 non-DXT 0x500 textures (pfx/water/ui_common), AVAudioSession
+    shim, cfg_save lifecycle (user.ltx never persists), proper ES occlusion, video wrapper.
     Tools: gate = `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`;
     links = `python misc/ios/shadercheck/link_check.py`; debug channel = `Documents/xr_boot.log`.
 
