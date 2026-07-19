@@ -170,10 +170,34 @@ never needed.
 2. Never revoke certificates to fix signing. That trades a convenience for two
    working installs.
 
-**Unresolved, carried from 6.12:** the resume commit claims build **10024084**
-was verified live, but the device held **10024082** before this install. One of
-the two is mislabelled; worth settling before treating any "verified on device"
-note from that range as authoritative.
+**RESOLVED (same session, from the logs): "build 10024084 verified live" was
+false.** The pre-overwrite log shows the device was running *GitHub Actions build
+82, commit `01ae8f793`* — **slice 6.9**. So slices **6.10 and 6.11 had never run
+on the device at all** before this install; the resume note claimed a device
+verdict that never happened. Both are only now getting their first real device
+run. Treat every "verified on device" claim in the 6.9-6.11 range as unproven
+unless a log backs it.
+
+That first run also gave 6.11 its genuine verdict — **it works**: the menu probe
+pixel moved from `(0,118,0)` (the green-quads bug) to `(19,17,17)`, and the OGM
+surfaces decode (`ui\video_voroni_crop`, `ui\video_water_crop`). And it surfaced a
+**new** regression: in-game the world is white for a while and then swings to
+black — the tonemap adaptation loop now runs but converges wrong. Own slice.
+
+**Apple Developer Program membership (approved 2026-07-19) does NOT rescue the
+bundle id.** Bundle identifiers are globally unique across teams, the suffixed id
+is held by the *free personal* team, and free teams have no portal UI to release
+it — so a paid-team move forces a *new* bundle id, hence a new data container,
+regardless of how iOS treats containers on a team change. Deferred deliberately:
+the gain is year-long profiles instead of 7-day ones (a convenience, since
+renewal is scripted), and the cost is re-pushing the game assets.
+
+**The device holds the only local copy of the CoP assets.** The ~4.6 GB in the
+app container is the retail 2009 data (`levels.db0/1`, `resources.db0-4`,
+localization, patches). It is *not* on this Mac — `res/gamedata` is 4 MB of engine
+shaders and configs, and the `.ipa` ships only that. The owner's other copy is on
+the old Windows box. **Back the container up before any migration or container-
+destroying step.**
 
 ### 2026-07-19 (night) — Slice 6.12: the move to macOS — local builds, a 38 s pre-push gate, and cable access to the device
 
