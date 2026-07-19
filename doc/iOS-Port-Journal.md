@@ -184,13 +184,22 @@ surfaces decode (`ui\video_voroni_crop`, `ui\video_water_crop`). And it surfaced
 **new** regression: in-game the world is white for a while and then swings to
 black — the tonemap adaptation loop now runs but converges wrong. Own slice.
 
-**Apple Developer Program membership (approved 2026-07-19) does NOT rescue the
-bundle id.** Bundle identifiers are globally unique across teams, the suffixed id
-is held by the *free personal* team, and free teams have no portal UI to release
-it — so a paid-team move forces a *new* bundle id, hence a new data container,
-regardless of how iOS treats containers on a team change. Deferred deliberately:
-the gain is year-long profiles instead of 7-day ones (a convenience, since
-renewal is scripted), and the cost is re-pushing the game assets.
+**Apple Developer Program membership (approved 2026-07-19): there is no migration
+— the same team was upgraded in place.** Membership details report **Team ID
+`RMJWWPF379`**, i.e. the *same* team we had been calling "the free personal team".
+Enrolling did not create a second team, so the bundle id, the App ID, the
+certificate and the data container all carried over untouched, and profiles are
+now **year-long** (verified: a freshly issued profile runs 2026-07-19 →
+**2027-07-19**, against 7 days before). The weekly re-sign is gone.
+
+*This corrects a wrong conclusion reached earlier in this same session* (and
+stated in the commit that introduced this addendum): that a paid team would force
+a new bundle id and a new container, costing a ~4.6 GB re-push. That reasoning —
+bundle ids are globally unique across teams, the free team holds this one, free
+teams have no portal UI to release it — is individually true but was applied to a
+two-team scenario that does not exist here. **Lesson: establish whether the new
+team IS a new team before reasoning about moving between teams.** One lookup of
+the Team ID would have skipped the entire analysis.
 
 **The device holds the only local copy of the CoP assets.** The ~4.6 GB in the
 app container is the retail 2009 data (`levels.db0/1`, `resources.db0-4`,

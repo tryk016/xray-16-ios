@@ -14,21 +14,26 @@
 # WHY THIS EXISTS, AND THE TWO RULES THAT MAKE IT WORK
 #
 # 1. The bundle id MUST keep the team-id suffix (io.github.tryk016.openxray
-#    .RMJWWPF379). That App ID was created by SideStore and ALREADY EXISTS.
-#    Apple's "maximum App ID limit reached — 10 every 7 days" quota is charged
-#    only when *creating* an App ID; issuing a provisioning profile for an
-#    existing one is free. Sign under the bare id and you mint a new App ID and
-#    hit the quota — that is what blocked slice 6.12.
+#    .RMJWWPF379). Two independent reasons:
+#      - iOS keys the app's data container by bundle id, and THAT CONTAINER HOLDS
+#        ~4.6 GB of retail CoP assets plus the save games. Change the id and you
+#        get a fresh, empty container and have to push all of it again.
+#      - The App ID already exists (SideStore created it). Creating App IDs is
+#        rate-limited; issuing a profile for an existing one is not. Signing under
+#        the bare id mints a new App ID — that is what blocked slice 6.12.
 #
-# 2. NEVER revoke certificates to "fix" signing. The portal holds SideStore's
+# 2. NEVER revoke certificates to "fix" signing. The portal also holds SideStore's
 #    certificate, whose private key is not on this Mac (that mismatch is exactly
 #    why Sideloadly dies with "there is no iOS certificate with serial number").
 #    Revoking it would kill the working SideStore installs of both OpenXRay and
 #    OpenGothic. We sign with our own cert instead and leave SideStore's alone.
 #
-# This is a free/personal team, so profiles last 7 DAYS. When the app suddenly
-# refuses to launch, the profile lapsed: re-run with --renew (or just re-run the
-# script, which renews automatically) — again without touching the App ID quota.
+# Profiles last a YEAR. The Apple Developer Program membership approved
+# 2026-07-19 upgraded this same team (RMJWWPF379) from free to paid in place — the
+# Team ID did not change, so the bundle id, the App ID and the container all
+# carried over untouched. Before that, profiles were 7-day. If the app ever
+# refuses to launch because the profile lapsed, re-run with --renew (or just
+# re-run the script, which renews automatically).
 
 set -u -o pipefail
 
@@ -89,7 +94,7 @@ find_profile() {
 }
 
 renew_profile() {
-    echo "== renewing provisioning profile (7-day personal-team limit) =="
+    echo "== renewing provisioning profile =="
     [ -d "$STUB" ] || fail "$STUB missing — cannot renew"
     # Building the throwaway stub under OUR bundle id is what makes Xcode fetch
     # the profile. The engine tree is deliberately not involved: a failure here
