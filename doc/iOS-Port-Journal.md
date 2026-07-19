@@ -69,6 +69,116 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-19 (late) — Slice 6.11: main-menu GREEN QUADS — the video texture was destroyed by a sticky-GL-error false positive (patch landed, device log pending)
+
+**Symptom:** in the CoP main menu the animated `.ogm` background and the logo render as flat
+GREEN quads on device. The same path drives PDA/TV/tutorial video and the sleep-dialog static.
+
+**The green is a fingerprint, not a colour bug.** `res/gamedata/shaders/gl/yuv2rgb.ps:9-21`
+samples `s_base` and adds the constant bias `_S = (-0.86961, +0.53076, -1.0786)`. A sample of
+exactly (0,0,0) clamps to RGB(0, 0.531, 0) ≈ **RGB(0,135,0)** — the observed green, alpha 1.0.
+A *uniform* quad in exactly that colour proves the whole pipeline is standing: shader swap,
+geometry, blend and sampling all work, and only the texture CONTENT is absent. On ES, sampling
+an UNBOUND sampler returns (0,0,0,1) with **no GL error**, which is how the absence stayed
+invisible.
+
+**The mechanism (confirmed by reading):**
+1. `glSH_Texture.cpp:236` ended the OGM create sequence with ONE trailing `glGetError()` and no
+   prior drain. GL error flags are STICKY, and `CHK_GL` is a no-op in release builds
+   (`xrDebug_macros.h:203`), so this read whatever error ANY earlier path in the frame had left
+   pending — then logged `"Invalid video stream: 0x%x"`, deleted the decoder and zeroed
+   `pSurface`. A perfectly good texture, destroyed by someone else's error.
+2. `PostLoad()` (:62-65) consequently selected `apply_normal`, which does
+   `glBindTexture(GL_TEXTURE_2D, 0)`.
+3. Movie shader sampled nothing → (0,0,0,1) → bias → green.
+
+**Stale claim corrected — and it cost us a wasted investigation.** The recurring note in this
+file that video uses an unported "D3D-wrapper `CreateTexture(A8R8G8B8)`" is **WRONG**. That is
+the **DX11** implementation (`xrRenderDX11/dx11SH_Texture.cpp`), which iOS never compiles. iOS
+builds **xrRenderGL**, whose Theora path was already complete and ES-adapted
+(`glSH_Texture.cpp:76-127`: `glMapBufferRange`, GL_RGBA + per-channel swizzle), and the decoder
+is portable and linked (`xrEngine/xrTheora_Stream.cpp`, `xrTheora_Surface.cpp`). That note sent
+us looking for a port that never needed writing, while the actual bug was six lines of error
+handling. Corrected at the four sites below and in `GamePersistent.cpp`'s `allow_intro()`.
+
+**A recon claim I had to REFUTE rather than repeat.** The pre-patch analysis identified
+`glState.cpp:272`'s `glSamplerParameteri(sampler, GL_TEXTURE_MAX_LEVEL, ...)` as the *source* of
+the sticky error. It is not: it is **dead code**. `UpdateSamplerState` (:213) is reached only
+from `tss_def.cpp:51`, replaying tuples recorded by `RS.SetSAMP`, and no `SetSAMP` call site in
+`src/` ever emits `D3DSAMP_MAXMIPLEVEL` (12 hits across the Blender_Recorder files: only
+ADDRESSU/V/W, BORDERCOLOR, MIN/MIP/MAGFILTER, MAXANISOTROPY, COMPARISONFILTER/FUNC). The case has
+never executed in a GL build. It *is* still wrong — `GL_TEXTURE_MAX_LEVEL` is not a valid
+sampler-object parameter in any GL or ES version — so it is removed as a cleanup, **but it
+generated no errors and its removal will not shift the log's 0x500 population.** Recording this
+explicitly: the actual upstream source of the stale error is **still unidentified**; the engine's
+own DXT-decoder comment (`glTexture.cpp:239-240`) notes 0x500/0x506 observed around texture
+loads. The per-stage messages added here will name any remaining real failure. Not trading one
+confidently-wrong journal note for another — that is the exact failure mode this slice exists to
+correct.
+
+**Fixes:**
+- **Drain + per-stage checks** in the OGM create sequence (PBO alloc / storage / initial clear),
+  mirroring the DXT decoder's idiom at `glTexture.cpp:238-253`, so the log attributes the stage
+  that really failed instead of blaming the video for someone else's error.
+- **Non-destructive failure.** `dxUIRender::UpdateShaderName` (`dxUIRender.cpp:152-162`) swaps
+  the element to `hud\movie` purely because the `.ogm` file EXISTS, before and independently of
+  the texture load — it cannot be un-swapped from `Load()`. So the invariant is now "the movie
+  shader always samples a COMPLETE texture that decodes to black": on genuine failure we
+  substitute a 1×1 immutable RGBA8 surface holding the YUV triple (Y=16, U=V=128) that yuv2rgb
+  maps to black, and drop only the decoder. **Never `pSurface = 0` again.** Green is now
+  structurally impossible; the worst case is black.
+- **Latent bug closed for free:** storage is allocated at the pow2-ceil size `Width/Height(false)`
+  but frames upload at the real size `Width/Height(true)`, so a non-pow2 `.ogm` would keep an
+  uninitialised immutable-storage margin and show a bias-green border. The whole surface is now
+  cleared to YUV black once at creation — correct for pow2 assets too, since every texel is
+  overwritten by the first frame.
+- **Fallback dimensions:** `m_width`/`m_height` were previously left UNINITIALISED on the OGM path
+  (the constructor never sets them, and `desc_update()`'s `glGetTexLevelParameteriv` is NULL on
+  ES), so any UI sizing that read them read garbage. Both paths now record the real dimensions.
+- **`glState.cpp` cleanup:** the impossible `D3DSAMP_MAXMIPLEVEL` sampler call is dropped,
+  UNGUARDED. Justified on all platforms: it is unreachable AND invalid, so removal cannot change
+  observable behaviour anywhere. Per-texture level clamping already happens on the texture object
+  (`glTexture.cpp:247-248`).
+- **Safety guard:** `allow_game_intro()` is now iOS-guarded to `false`, matching `allow_intro()`.
+  iOS has no command line for `-nogameintro`, so it returned `true` unconditionally — harmless
+  only because the video texture could not be created. With video working, leaving it open would
+  silently re-arm the intro-movie path that **the app was previously KILLED on** (~40 s, hard iOS
+  kill with no fatal and no engine log tail — entry of 2026-07-16, never diagnosed). Do not drop
+  this guard.
+- **One-shot diagnostic:** first decoded frame per video texture is logged (dims + `_pos`). This
+  settles the one thing reading cannot: whether the decoder has EVER produced a frame on device.
+  No pixel readback — the PBO is mapped `GL_MAP_WRITE_BIT` only, so reading it back is undefined.
+
+**Colour path re-verified, NO rework needed:** the decoder packs `255<<24 | u<<8 | v` with
+`y<<16` (`xrTheora_Surface.cpp:264`), i.e. memory `[V,U,Y,255]`. iOS uploads GL_RGBA and swizzles
+R←BLUE, B←RED → sample `(Y,U,V)`; desktop GL_BGRA yields the identical `(Y,U,V)`. `yuv2rgb.ps:9`
+takes `.bgr` = `(V,U,Y)` and assigns Y/U/V at :11-13. Byte-identical on both platforms, which is
+why `0xFF108080` is genuinely black and not a guess.
+
+**BLAST RADIUS — read before the device test.** This makes video textures actually work, so
+several previously-dead paths go live at once: main-menu background and logo, **tutorial/PDA
+video** (`UIGameTutorialVideoItem`) and the **sleep-dialog static** (`UISleepStatic.cpp:59`).
+Note that the last two are **NOT gated by `allow_intro`/`allow_game_intro`** — only the two intro
+paths are. Memory: the initial clear allocates one transient `xr_vector<u32>` of the pow2 surface
+size (≈2 MB for a 1024×512 menu background), freed at scope exit, once per video texture load.
+
+**Desktop:** success path is byte-identical apart from the added full-surface clear. A genuinely
+failing `.ogm` now shows black and a named stage instead of bias-green.
+
+**AWAITING DEVICE LOG — interpretation table (nothing below is claimed, only predicted):**
+
+| Observation | Meaning |
+|---|---|
+| video plays | 6.11 complete; the stale error was the whole story |
+| black + `first frame decoded` line | decode works; upload/swizzle is the next suspect |
+| black + NO such line | decoder never advances; look at `CTheoraSurface::Update` / libtheora on device |
+| any `! OpenGL: ... video <stage>` line | a REAL failure, now correctly attributed. If it is the storage stage, check `_w`/`_h` — a zero or absurd dimension from the Theora header means the sticky-error theory was wrong end to end and the failure was always genuine |
+| green still | the build does not contain the `glSH_Texture.cpp` edits |
+
+**Not touched (deliberately):** the `#alpha` companion loop at `xrTheora_Surface.cpp:290` uses
+`data[++pos]`, skipping pixel 0 and ignoring row padding. Only reachable if a `*#alpha.ogm`
+exists; left alone.
+
 ### 2026-07-19 (evening) — Slice 6.10: white-world root cause FIXED (frozen tonemap adaptation), Track A diagnostics stripped, Track B narrowed to the textured-UI path
 
 **Device verdict on build `1.6.02.10024082` (iPhone 15 Pro Max, iOS 26.6, Zaton, r2):**
@@ -655,7 +765,8 @@ leading exactly one step deeper:
    image went nowhere. Present now targets SDL's view FBO (SysWM `uikit.framebuffer`) scaled
    to the retina drawable. **Next build: the menu appeared. 🎉**
 - Loose ends carried forward: `ui_magnifier2.dds` still 0x500 on the non-DXT path (one
-  texture); menu background video doesn't create (D3D-wrapper CreateTexture → ES formats);
+  texture); menu background video doesn't create (**corrected in 6.11: NOT a D3D wrapper — the
+  GL Theora path was fine; a stale sticky GL error was misread as a creation failure**);
   A2-tail visual verification in-game; family D skinning; RT-wrapped texture dims on ES.
 - **NEXT: Phase 5 — touch input.** The menu is visible but taps do nothing yet. Prior art:
   the user's own OpenGothic iOS pad/touch system (see memory note) to adapt for X-Ray.
@@ -676,8 +787,11 @@ leading exactly one step deeper:
 - **The real wall: the app is killed at the exact moment the intro movies end** (~40s of audio —
   same timing every run) — i.e., right when the MENU would appear. No fatal, no engine log tail →
   a hard iOS kill (watchdog 0x8badf00d? jetsam OOM? GPU fault). The intro Theora videos
-  (D3D-wrapper `CreateTexture(A8R8G8B8)`, still unsupported on ES) spin GL errors the whole time
-  and can't render; they're also the prime suspect zone for the kill.
+  spin GL errors the whole time and can't render; they're also the prime suspect zone for the
+  kill. **[Corrected in 6.11: the `D3D-wrapper CreateTexture(A8R8G8B8)` diagnosis written here
+  was wrong — that is the DX11 path, not compiled on iOS. The real cause was a sticky-GL-error
+  false positive at OGM texture creation: the create sequence read an error left behind by some
+  earlier path and destroyed a good texture.]**
 - **NEXT SESSION, in order:**
   1. **Pull crash reports FIRST** (`idevicecrashreport` staging; look for today's `xr_3da-*.ips`)
      — the termination reason (watchdog/jetsam/GPU) decides everything downstream.
@@ -687,7 +801,8 @@ leading exactly one step deeper:
      it out on iOS. This alone may reach the menu.
   3. **Harden the DXT decoder's error scoping** (drain before, per-stage checks) so the next log
      tells the truth about texture uploads.
-  4. Then: menu render test → video-texture D3D-wrapper port (in-game PDA/TV need it later) →
+  4. Then: menu render test → video-texture fix (in-game PDA/TV need it later; **the "D3D-wrapper
+     port" framing here was wrong — see 6.11, no port was ever needed**) →
      A2-tail effect pairs → family D → Phase 5 (touch input — menu needs taps).
 
 ### 2026-07-16 — Phase 4 Slices 4.11+4.12: THE ENGINE RUNS — MRT locations, real-define shader fixes, DXT→RGBA8 decode
@@ -717,9 +832,13 @@ leading exactly one step deeper:
   edge-safe for small mips. Memory 4-8x per texture — correctness first; offline ASTC transcode
   stays the long-term plan. Non-DXT path on iOS now translates via gli `PROFILE_ES30` (ES has no
   GL_BGRA upload; ES profile maps BGRA8→RGBA+swizzle). Desktop untouched (PROFILE_GL33).
-- **Known follow-ups:** Theora/AVI video textures use the D3D-wrapper `CreateTexture(A8R8G8B8)`
-  and still fail on ES (`Invalid video stream`, non-fatal — intro movies stay audio-only; menu
-  doesn't depend on them). A2-tail effect pairs (accum_sun↔2uv, distort↔particle, lplanes) are
+- **Known follow-ups:** Theora/AVI video textures still fail on ES (`Invalid video stream`,
+  non-fatal — intro movies stay audio-only; menu doesn't depend on them). **[Corrected in 6.11:
+  the `D3D-wrapper CreateTexture(A8R8G8B8)` attribution recorded here was wrong — that is the
+  DX11 implementation, which iOS does not compile. xrRenderGL's Theora path was already
+  ES-correct; the `Invalid video stream` message was a sticky-error false positive. `.avi` is a
+  separate matter: it is hard-guarded to Windows only (glSH_Texture.cpp:134, :247) and was never
+  live on iOS.]** A2-tail effect pairs (accum_sun↔2uv, distort↔particle, lplanes) are
   soft-failed, to fix root-by-root. Family D skinning. The ~40s backgrounding to re-observe.
 - **Expectation for the next device run: the MAIN MENU renders.** All menu UI is DDS/DXT → now
   decodable; menu shaders compile+link; engine main loop confirmed running.

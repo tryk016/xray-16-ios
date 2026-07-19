@@ -232,7 +232,47 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     sampling albedo / accumulator / combined scene / sky / exposure through a private
     read-only FBO, alongside dt-vs-dtr (proves pause), intro state, fog, sun/hemi/ambient
     and weather weights. **Track A is diagnostic only — no fix ships in it.**
+  - **Slice 6.11 (CURRENT, awaiting device test) — the main-menu GREEN QUADS explained and
+    patched.** The green was a **fingerprint, not a colour bug**: `yuv2rgb.ps:19`'s constant bias
+    `_S = (-0.86961, +0.53076, -1.0786)` maps a (0,0,0) sample to exactly RGB(0,135,0), so a
+    *uniform* quad in that colour proves shader/geometry/blend all work and only the texture
+    CONTENT is missing. Root cause: the OGM create sequence
+    (`glSH_Texture.cpp:236`) ended with ONE undrained `glGetError()`; GL errors are **sticky** and
+    `CHK_GL` is a no-op in release, so it read a stale error from an earlier path, logged
+    `Invalid video stream`, deleted the decoder and zeroed `pSurface` — after which `PostLoad()`
+    picked `apply_normal`, which binds texture 0, and on ES an unbound sampler returns (0,0,0,1)
+    with no error. **The long-standing "unported D3D-wrapper video path" note was WRONG and cost
+    a wasted investigation** — that is the DX11 implementation, never compiled on iOS; xrRenderGL's
+    Theora path was already ES-correct. Fixes: drain + per-stage error checks (PBO / storage /
+    clear) naming the failing stage; **non-destructive failure** — on genuine failure substitute a
+    1x1 immutable RGBA8 surface holding YUV black (Y=16,U=V=128) instead of `pSurface = 0`, since
+    `dxUIRender::UpdateShaderName` has already swapped the element to `hud\movie` and cannot be
+    un-swapped; full-surface YUV-black clear at creation (closes the pow2-storage-vs-real-upload
+    margin latent bug); one-shot "first frame decoded" log per video texture. **Green is now
+    structurally impossible — worst case is black.** Also removed the invalid
+    `D3DSAMP_MAXMIPLEVEL` sampler call in `glState.cpp` — but note it was verified **DEAD CODE**
+    (no `SetSAMP` call site emits it), so it is a cleanup only and will **not** change the log's
+    0x500 population; the true upstream source of the stale error is **still unidentified**.
+    **Safety:** `allow_game_intro()` is now iOS-`false` like `allow_intro()` — with video working,
+    leaving it open would re-arm the intro path the app was previously KILLED on.
+    **Blast radius:** tutorial/PDA video and the sleep-dialog static also go live and are NOT
+    gated by either intro flag.
   - **NEXT STEP (resume here):**
+    0. **DEVICE TEST 6.11 FIRST (video textures).** Boot the build, look at the **main menu**:
+       the animated `.ogm` background and the logo. Then pull `Documents/xr_boot.log` and grep
+       for `iOS video` and `! OpenGL:`. Read the result by this table:
+       - **video plays** ⇒ 6.11 complete; the stale error was the whole story.
+       - **black quad + `* iOS video: '<name>' first frame decoded WxH ...`** ⇒ the decoder works;
+         the next suspect is the upload/swizzle path, not creation.
+       - **black quad + NO such line** ⇒ the decoder never advances; look at
+         `CTheoraSurface::Update` / libtheora on device.
+       - **any `! OpenGL: 0x<err>: video <stage> ... failed`** ⇒ a REAL failure, now correctly
+         attributed to a named stage. If it is the *storage* stage, check the reported `_w`/`_h`:
+         a zero or absurd dimension from the Theora header would mean the failure was always
+         genuine and the sticky-error theory was wrong end to end.
+       - **green quad still** ⇒ the build does not contain the `glSH_Texture.cpp` edits.
+       Also confirm intros are still skipped (boot goes straight to the menu, no ~40 s wait) —
+       that is the safety guard working.
     1. **Run the 6.10 build on device and do BOTH of these in one session**, then pull
        `Documents/xr_boot.log`:
        a. **Load Zaton and watch the first ~10 seconds of the intro.** The white/washed-out
@@ -279,9 +319,10 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
        frame end would silently shrink our per-frame iOS clears.
     4. Memory (load peak 3.1 GB): per-phase phys_footprint now logged — find the spike
        phase; candidates: FS file cache trim after load, ASTC transcode (Plan 4.9).
-    5. Polish backlog: proper ES vertex-sampler binding (restore VTF); video-texture
-       wrapper (green menu quads + PDA/TVs); ES occlusion (ANY_SAMPLES_PASSED);
-       OpenAL → static openal-soft link; LotZ-style weapon wheel; gyro aim.
+    5. Polish backlog: proper ES vertex-sampler binding (restore VTF); ES occlusion
+       (ANY_SAMPLES_PASSED); video textures patched in 6.11 (no wrapper was ever needed —
+       pending device confirmation); OpenAL → static openal-soft link; LotZ-style weapon
+       wheel; gyro aim.
     6. **Virtual touch pad — LAST (user's explicit order), after all of the above.**
     Tools: gate = `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`;
     links = `python misc/ios/shadercheck/link_check.py`; debug channel = `Documents/xr_boot.log`.

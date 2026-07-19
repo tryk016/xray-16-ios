@@ -383,10 +383,15 @@ void CGamePersistent::WeathersUpdate()
 bool allow_intro()
 {
 #if defined(XR_PLATFORM_APPLE_IOS)
-    // iOS has no command line to pass -nointro, and the logo movies can't render anyway:
-    // video textures go through the D3D-wrapper CreateTexture(A8R8G8B8) path, which is not
-    // ported to ES yet — they play audio over a black screen for ~40s and spin GL errors
-    // every frame. Skip straight to the menu. Re-enable when the video path is ported.
+    // iOS has no command line, so -nointro can never be passed; keep logo intros off here.
+    // NOTE (corrected in slice 6.11): the old claim that video textures go through an unported
+    // "D3D-wrapper CreateTexture(A8R8G8B8)" path was WRONG — that is the DX11 implementation
+    // (xrRenderDX11/dx11SH_Texture.cpp), which iOS does not compile. iOS builds xrRenderGL,
+    // whose Theora path is complete and ES-adapted. Video was broken by a sticky-GL-error
+    // false positive at texture creation, fixed in 6.11.
+    // Intros nevertheless stay OFF: they cost ~40 s per boot and the app was previously KILLED
+    // at the exact moment the intro movies ended (watchdog/jetsam/GPU fault, never diagnosed).
+    // Re-enable only as a deliberate, separately validated experiment.
     return false;
 #else
     if ((0 != strstr(Core.Params, "-nointro")))
@@ -398,7 +403,15 @@ bool allow_intro()
 
 bool allow_game_intro()
 {
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // MANDATORY SAFETY (slice 6.11). iOS has no command line to pass -nogameintro, so this used
+    // to return true unconditionally — it was only ever harmless because the video texture could
+    // not be created. Now that the OGM path works, leaving this open would silently re-arm the
+    // very code path associated with the app being killed when intro movies end. Keep it off.
+    return false;
+#else
     return !strstr(Core.Params, "-nogameintro");
+#endif
 }
 
 void CGamePersistent::start_logo_intro()

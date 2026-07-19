@@ -107,6 +107,18 @@ void CTexture::apply_theora(CBackend& cmd_list, u32 dwStage)
         pTheora->DecompressFrame(pBits, 0, _pos);
         CHK_GL(glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER));
 #if defined(XR_PLATFORM_APPLE_IOS)
+        // One-shot per texture: proves the Theora decoder actually produced a frame on device.
+        // Until slice 6.11 that was inference only — the surface never survived creation, so no
+        // decode had ever been observed. Deliberately no pixel readback: the PBO is mapped
+        // GL_MAP_WRITE_BIT only, so reading it back is undefined, not merely slow.
+        if (!m_video_first_frame_logged)
+        {
+            m_video_first_frame_logged = true;
+            Msg("* iOS video: '%s' first frame decoded %ux%u (surface %dx%d, _pos=%d)",
+                cName.c_str(), _w, _h, m_width, m_height, _pos);
+        }
+#endif
+#if defined(XR_PLATFORM_APPLE_IOS)
         // ES 3.0 has no GL_BGRA external format. The decoded frame is BGRA-ordered, so
         // upload as RGBA and let a texture swizzle put the channels right (persists on
         // the texture object; setting it per-frame after bind is redundant but cheap).
@@ -176,6 +188,38 @@ void CTexture::Preload()
     m_material = RImplementation.Resources->m_textures_description.GetMaterial(cName);
 }
 
+// Fills the CURRENTLY BOUND RGBA8 texture with the YUV triple that yuv2rgb.ps maps to black
+// (Y=16, U=V=128). Bytes are written in the DECODER's memory order [V,U,Y,255] — see the packer
+// at xrEngine/xrTheora_Surface.cpp:264 (`255<<24 | u<<8 | v` with `y<<16`) — so this fill and a
+// real decoded frame travel the identical format/swizzle path.
+// Why this is needed at all: a zero sample is NOT black through yuv2rgb.ps. Its constant bias
+// _S = (-0.86961, +0.53076, -1.0786) clamps a (0,0,0) sample to RGB(0, 0.531, 0) — precisely the
+// flat green quad seen on device. Anything sampled by the movie shader must be YUV-neutral,
+// never zero.
+static void video_fill_neutral(GLenum target, GLsizei w, GLsizei h)
+{
+    if (w <= 0 || h <= 0)
+        return;
+    // A=255, Y=16, U=128, V=128 -> little-endian bytes [0x80 V, 0x80 U, 0x10 Y, 0xFF A]
+    xr_vector<u32> px(size_t(w) * size_t(h), 0xFF108080u);
+    // A bound PIXEL_UNPACK_BUFFER would reinterpret px.data() as a buffer offset — make sure
+    // client-memory upload is what actually happens.
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // ES 3.0 has no GL_BGRA external format — upload as RGBA and let the per-channel swizzle put
+    // the channels right, exactly as apply_theora does above. The swizzle lives on the texture
+    // OBJECT, so it also covers a later apply_normal bind of this same surface (the fallback
+    // case), where nothing would re-apply it.
+    glTexParameteri(target, GL_TEXTURE_SWIZZLE_R, GL_BLUE);
+    glTexParameteri(target, GL_TEXTURE_SWIZZLE_G, GL_GREEN);
+    glTexParameteri(target, GL_TEXTURE_SWIZZLE_B, GL_RED);
+    glTexParameteri(target, GL_TEXTURE_SWIZZLE_A, GL_ALPHA);
+    glTexSubImage2D(target, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+#else
+    glTexSubImage2D(target, 0, 0, 0, w, h, GL_BGRA, GL_UNSIGNED_BYTE, px.data());
+#endif
+}
+
 void CTexture::Load()
 {
     flags.bLoaded = true;
@@ -222,24 +266,108 @@ void CTexture::Load()
             u32 _w = pTheora->Width(false);
             u32 _h = pTheora->Height(false);
 
+            // GL error flags are STICKY and CHK_GL(expr) is just expr in release builds
+            // (xrDebug_macros.h:203), so the single trailing glGetError() this code used to do
+            // reported whatever ANY earlier path in the frame had left pending and then deleted a
+            // perfectly good video texture. That is the whole main-menu green-quad bug: the
+            // element stayed on the yuv2rgb shader with pSurface==0, apply_normal bound texture 0,
+            // and on ES an unbound sampler returns (0,0,0,1) with no error at all.
+            // Drain first, then check PER STAGE — same idiom as the DXT decoder
+            // (glTexture.cpp:238-253) — so the next device log names the stage that failed.
+            while (glGetError() != GL_NO_ERROR)
+                ;
+
+            GLenum err = GL_NO_ERROR;
+
             glGenBuffers(1, &pBuffer);
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pBuffer);
-            CHK_GL(glBufferData(GL_PIXEL_UNPACK_BUFFER, flags.MemoryUsage, nullptr, GL_STREAM_DRAW));
+            glBufferData(GL_PIXEL_UNPACK_BUFFER, flags.MemoryUsage, nullptr, GL_STREAM_DRAW);
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+            err = glGetError();
+            if (err != GL_NO_ERROR)
+                Msg("! OpenGL: 0x%x: video PBO alloc (%u bytes) failed: '%s'",
+                    err, u32(flags.MemoryUsage), cName.c_str());
 
-            glGenTextures(1, &pTexture);
-            glBindTexture(GL_TEXTURE_2D, pTexture);
-            CHK_GL(glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, _w, _h));
+            if (err == GL_NO_ERROR)
+            {
+                glGenTextures(1, &pTexture);
+                glBindTexture(GL_TEXTURE_2D, pTexture);
+                glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, _w, _h);
+                err = glGetError();
+                if (err != GL_NO_ERROR)
+                    Msg("! OpenGL: 0x%x: video storage RGBA8 %ux%u failed: '%s'",
+                        err, _w, _h, cName.c_str());
+            }
+
+            if (err == GL_NO_ERROR)
+            {
+                // Storage is allocated at the pow2-ceil size Width/Height(false) while frames are
+                // uploaded at the real size Width/Height(true) (apply_theora above). For a non-pow2
+                // .ogm the margin would keep uninitialised immutable-storage content and render as
+                // a bias-green border. Clear the whole surface to YUV black once; this also stamps
+                // the iOS channel swizzle onto the texture object.
+                video_fill_neutral(GL_TEXTURE_2D, GLsizei(_w), GLsizei(_h));
+                err = glGetError();
+                if (err != GL_NO_ERROR)
+                    Msg("! OpenGL: 0x%x: video initial clear %ux%u failed: '%s'",
+                        err, _w, _h, cName.c_str());
+            }
+
+            if (err != GL_NO_ERROR)
+            {
+                // NON-DESTRUCTIVE FAILURE. dxUIRender::UpdateShaderName (dxUIRender.cpp:152-162)
+                // has ALREADY switched this element to "hud\movie" (yuv2rgb) purely because the
+                // .ogm file exists — that decision is made before and independently of this load
+                // and cannot be undone from here. So the invariant we must preserve is: the movie
+                // shader always samples a COMPLETE texture whose content decodes to black. Never
+                // leave pSurface==0; that is exactly what paints the green quad.
+                Msg("! Video stream '%s' disabled after GL error; substituting a black surface.",
+                    cName.c_str());
+                xr_delete(pTheora);
+                if (pTexture)
+                {
+                    glDeleteTextures(1, &pTexture);
+                    pTexture = 0;
+                }
+                if (pBuffer)
+                {
+                    glDeleteBuffers(1, &pBuffer);
+                    pBuffer = 0;
+                }
+                while (glGetError() != GL_NO_ERROR)
+                    ;
+
+                // 1x1 immutable RGBA8 holding YUV black. Immutable-format textures are
+                // mipmap-complete for their level count, and the engine drives filtering through
+                // sampler objects (glState.cpp), so a single-level surface samples cleanly.
+                glGenTextures(1, &pTexture);
+                glBindTexture(GL_TEXTURE_2D, pTexture);
+                glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 1, 1);
+                video_fill_neutral(GL_TEXTURE_2D, 1, 1);
+                if (glGetError() != GL_NO_ERROR)
+                {
+                    // GL is broken beyond anything we can compensate for here.
+                    glDeleteTextures(1, &pTexture);
+                    pTexture = 0;
+                }
+                flags.MemoryUsage = 4;
+                // The GL surface is 1x1, but report the real storage dimensions so nothing
+                // downstream sizes a UI element to one texel. (These members were previously left
+                // UNINITIALISED on this path — desc_update()'s glGetTexLevelParameteriv is NULL on
+                // ES — so this is an improvement either way.)
+                m_width = GLint(_w ? _w : 1);
+                m_height = GLint(_h ? _h : 1);
+            }
+            else
+            {
+                // glGetTexLevelParameteriv does not exist on ES 3.0, so desc_update() cannot
+                // recover these later (see desc_update below) — record them now.
+                m_width = GLint(_w);
+                m_height = GLint(_h);
+            }
 
             pSurface = pTexture;
             desc = GL_TEXTURE_2D;
-            GLenum err = glGetError();
-            if (err != GL_NO_ERROR)
-            {
-                Msg("Invalid video stream: 0x%x", err);
-                xr_delete(pTheora);
-                pSurface = 0;
-            }
         }
     }
     else if (FS.exist(fn, "$game_textures$", cName.c_str(), ".avi"))

@@ -198,6 +198,11 @@ private:
     GLint m_height;
     GLuint desc_cache;
     GLenum desc;
+    // One-shot latch for the iOS "first decoded video frame" log in glSH_Texture.cpp's
+    // apply_theora. Intentionally NOT wrapped in #if XR_PLATFORM_APPLE_IOS: a conditionally
+    // present data member is an ODR hazard if the macro is not visible in every TU that
+    // includes this header. One bool is cheaper than that risk.
+    bool m_video_first_frame_logged{ false };
 #else
 #   error No graphics API selected or enabled!
 #endif

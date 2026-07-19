@@ -269,7 +269,12 @@ void glState::UpdateSamplerState(u32 stage, u32 name, u32 value)
 #endif
         break;
     case D3DSAMP_MAXMIPLEVEL: /* DWORD 0..(n-1) LOD index of largest map to use (0 == largest) */
-        CHK_GL(glSamplerParameteri(m_samplerArray[stage], GL_TEXTURE_MAX_LEVEL, value));
+        // Dead code, and wrong if it ever woke up. No SetSAMP call site in the engine emits
+        // D3DSAMP_MAXMIPLEVEL (only tss_def.cpp:476 consumes it, on the DX11 path), and
+        // GL_TEXTURE_MAX_LEVEL is not a valid sampler-object parameter in ANY GL or ES version
+        // -- sampler objects take only WRAP_S/T/R, MIN/MAG_FILTER, MIN/MAX_LOD, LOD_BIAS,
+        // COMPARE_MODE/FUNC, BORDER_COLOR, MAX_ANISOTROPY. Per-texture level clamping is already
+        // applied to the texture object by the loader (glTexture.cpp:247-248).
         break;
     case D3DSAMP_MAXANISOTROPY: /* DWORD maximum anisotropy */
         if (GLAD_GL_ARB_texture_filter_anisotropic || GLAD_GL_EXT_texture_filter_anisotropic)
