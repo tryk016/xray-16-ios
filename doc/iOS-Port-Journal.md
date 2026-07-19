@@ -69,6 +69,113 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-19 — Slice 6.9: device verdict on 10023080 + two diagnostic tracks (focus frame, white-world timeline)
+
+**Device verdict on build `1.6.02.10023080` (iPhone 15 Pro Max, iOS 26.6, Zaton, r2) —
+three of slice 6.7's four fixes CONFIRMED:**
+
+1. **SKY + CLOUDS RENDER.** The unconditional cubemap bind in `dxEnvironmentRender.cpp`
+   was the whole story — the bVTF gate really had been skipping `set_Textures(&sky_r_textures)`
+   on iOS. Sky and clouds are now visible in-game.
+2. **MENU TEXT NO LONGER STACKS.** The per-frame `ClearRT/ClearZB` in
+   `CBackend::OnFrameBegin` plus the `rt_Generic_0` clear in `CRender::RenderMenu` killed
+   the ghosting on the single persistent presented texture. Loading tips no longer bleed
+   through the menu; shniaga text animates cleanly.
+3. **COLOURS ARE CORRECT — the earlier "wrong colours" was never an R/B swap.** The DXT
+   avg-RGBA diagnostic settles it on-device, not in theory: `detail_grnd_grass` decodes to
+   `avg RGBA 124 114 98 255` (warm brown-grey earth, R>G>B — a swapped decode would report
+   B>G>R), `sky_19_cube` to `156 165 184 255` (cool blue-dominant sky, B highest),
+   `sky_20_cube` to `149 117 86 255` (warm sunset, R highest). Channel order is right in
+   every direction. What looked like wrong colours was the **missing sky and the lighting
+   that depends on it** — i.e. bug 1, now fixed. The DXT decoder is exonerated for good;
+   do not re-open it.
+
+**PROVEN by the same log: the pad focus LOGIC works perfectly — it is only INVISIBLE.**
+The 6.7 diagnostics bracket the whole path and every stage reports success:
+
+```
+* iOS diag: padPress dik=533 uiAct=113 TIR='CUIDialogWndEx' cursorVis=1 cursor=(512,384) focused='none' valuable=14
+* iOS diag: focusNav dir=4 from=(512,384) cand='none' cand2='CUIButton'
+* iOS diag: SetFocused 'CUIButton' cursor=(566,320)
+* iOS diag: padPress dik=533 uiAct=113 TIR='CUIDialogWndEx' cursorVis=1 cursor=(566,320) focused='CUIButton' valuable=14
+* iOS diag: focusNav dir=4 from=(548,316) cand='CUIButton' cand2='combo_renderer'
+* iOS diag: SetFocused 'CUIButton' cursor=(653,320)
+```
+
+14 valuable (focusable) widgets found, D-Pad direction resolved to a candidate, `SetFocused`
+warped the cursor onto the widget's centre, and the *next* press starts from the new
+position — the state machine is textbook-correct. `cursorVis=1` throughout. So the widget
+IS focused and the cursor IS at the right virtual coordinate; the user simply sees nothing.
+Two things could produce that, and 6.9 discriminates them instead of guessing:
+the cursor's own material (`hud\cursor` draws the animated `ui\ui_ani_cursor` `.seq`, whose
+per-frame texture rebind is the prime suspect under the ES unbound-sampler rule), or the
+draw landing somewhere that never reaches the screen.
+
+**What ships in 6.9 — two tracks, both pure diagnostics plus one deliberate affordance,
+all `#if defined(XR_PLATFORM_APPLE_IOS)`:**
+
+- **Track B — guaranteed-visible focus frame + cursor probe.** A yellow/cyan blinking
+  3-unit rectangle is drawn around `UI().Focus().GetFocused()`'s absolute rect at the end
+  of `CDialogHolder::DoRenderDialogs` — the single code path shared by
+  `CMainMenu::OnRender`/`OnRenderPPUI_main` and `CUIGameCustom`, so it covers both the main
+  menu and the in-game pause dialogs. It uses the `hud\crosshair` ui_shader
+  (`shader:begin("hud_crosshair","simple_color")`), which has **no sampler stage at all**,
+  so the ES "unbound sampler returns opaque black, no GL error" failure mode is structurally
+  impossible for it. No manual Y flip: `hud_crosshair.vs` and `stub_notransform_t_menu.vs`
+  (behind every menu static that IS visible on device) compute the identical
+  `I.P.y * screen_res.w * 2.0 - 1.0`, so they agree — a flip here would be the bug. Alongside
+  it, a ~1 Hz log at `CUICursor::OnRender` entry (reached / visible / position / whether the
+  cursor's own ui_shader is `inited()`), placed *before* the `IsVisible()` early-out so a
+  `vis=0` frame is reported rather than silent, and a ~1 Hz two-pixel `glReadPixels` probe in
+  `CHW::Present` taken out of `pFB` after the read binding and before the blit, at both Y
+  orientations. Cursor-coloured pixel ⇒ it rasterises and is lost downstream;
+  background-coloured ⇒ the draw produced nothing. Whichever orientation returns a plausible
+  colour also settles the FBO Y convention for good.
+- **Track A — "white world at spawn" timeline, diagnostic ONLY, no fix.** One line per
+  second for the first 25 s after every level load, emitted at the end of the `if (!_menu_pp)`
+  combine_1 block in `gl_rendertarget_phase_combine.cpp` — the one point in the frame where
+  the g-buffer albedo (`rt_Color`), the light accumulator (`rt_Accumulator`), the freshly
+  combined LDR scene (`rt_Generic_0`) and the 1×1 exposure texel (`rt_LUM_pool`) are all
+  simultaneously valid and none has been recycled by forward rendering, bloom or PP. Five
+  1×1 readbacks go through a **private FBO bound to `GL_READ_FRAMEBUFFER` only**, with the
+  previous read binding saved and restored, so `CBackend`'s cached `pFB`/`pRT[]`/`pZB` never
+  go stale (leaving our FBO bound there would black-screen the device, since iOS Present
+  blits through the read binding). The read format is **queried** per target via
+  `GL_IMPLEMENTATION_COLOR_READ_FORMAT/_TYPE` and decoded for `UNSIGNED_BYTE`, `HALF_FLOAT`
+  and `FLOAT`; an unsupported pair is skipped and reported once rather than producing a
+  GL_INVALID_OPERATION storm. The same row carries `dt` vs `dtr` (which proves
+  `Device::Paused()` exactly), the new `g_ios_intro_active` marker (1 = `intro_game`,
+  2 = `game_loaded`, 0 = neither), env weight/modifier power/WFX, fog colour+density+near+far
+  and the sun/hemi/ambient constants actually uploaded to the combine shader. One run
+  separates fog blowout, zero sun accumulation, zero hemisphere, dead albedo, tonemap
+  runaway and pause-with-intro from each other. **Cost:** ~three integer compares on
+  non-sampling frames and zero GL calls; on the ~25 sampling frames each `glReadPixels`
+  forces the tile-based GPU to resolve and stalls the CPU, so expect a 20–60 ms hitch once
+  per second for 25 s. Acceptable for a diagnostic; must be stripped before release.
+
+**Ruled out for Track A — do NOT re-investigate these:**
+
+- **Late texture uploads.** The theory that the world is white because textures are still
+  streaming in at spawn is dead. The 6.7 texture work landed the pair-whitelist and unpack
+  alignment fixes and the phantom 0x500s went 129 → 0; the DXT decode is CPU-side and
+  synchronous (`ios_upload_dxt_as_rgba8` in `glTexture.cpp` decodes every mip/face before
+  the upload returns), so there is no window in which a texture is bound but blank. And a
+  missing-texture world is *black* on ES (unbound sampler → `(0,0,0,1)`), not white.
+- **Visible precache.** Not the mechanism either: `Device.dwPrecacheFrame` is what the Track A
+  window is *armed on* — sampling only begins once it has fallen back to 0, i.e. after
+  precache is over, and the white frames persist past that point. Precache frames are not
+  what the user is seeing.
+- **Environment lerp initialisation.** Already instrumented and clean: the `* iOS env:`
+  weather log added in 6.4 shows the environment descriptors mixing normally from the first
+  frame, with sane weights. Rather than re-derive it, Track A now prints `w=`/`mp=`/`wfx=`
+  on every row, so if the lerp *were* the cause it would show up as a discontinuity on the
+  exact row where the picture heals — a positive test, not another round of reading code.
+
+The remaining live hypotheses are exactly the ones the table discriminates: zero sun
+accumulation, zero hemisphere, fog blowout, dead albedo/g-buffer, tonemap runaway, and
+pause-gated adaptation. No speculative fix ships in 6.9 — if the table indicts one, the fix
+is its own slice.
+
 ### 2026-07-18 (late night) — Slice 6.8: fix erase-iterator UB in CUIFocusSystem::Update
 
 Found in passing by the slice-6.7 focus-highlight verifier while reading `ui_focus.cpp`.

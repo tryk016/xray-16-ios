@@ -3,11 +3,177 @@
 #include "xrEngine/Environment.h"
 #include "Layers/xrRender/dxEnvironmentRender.h"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+// iOS Track A diagnostic (white world at spawn) - std::ldexp for half->float decode.
+#include <cmath>
+#endif
+
 #define STENCIL_CULL 0
 
 namespace xray::render::RENDER_NAMESPACE
 {
 float hclip(float v, float dim) { return 2.f * v / dim - 1.f; }
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+// ===========================================================================
+// iOS Track A diagnostic: "white world at spawn" timeline.
+// Active only for the first 25 s of gameplay after each level load, ~1 sample/s.
+// Pure read-only instrumentation - nothing here changes rendering state.
+// ===========================================================================
+namespace
+{
+// GL enums spelled numerically so this diagnostic cannot break on whichever glad
+// header variant the ES build ends up with (the build loads ES entry points via
+// gladLoadGLES2 while compiling against glad/gl.h).
+constexpr GLenum IOSDBG_READ_FRAMEBUFFER = 0x8CA8; // GL_READ_FRAMEBUFFER
+constexpr GLenum IOSDBG_READ_FRAMEBUFFER_BINDING = 0x8CAA; // GL_READ_FRAMEBUFFER_BINDING
+constexpr GLenum IOSDBG_IMPL_COLOR_READ_FORMAT = 0x8B9B; // GL_IMPLEMENTATION_COLOR_READ_FORMAT
+constexpr GLenum IOSDBG_IMPL_COLOR_READ_TYPE = 0x8B9A; // GL_IMPLEMENTATION_COLOR_READ_TYPE
+constexpr GLint IOSDBG_HALF_FLOAT = 0x140B; // GL_HALF_FLOAT
+constexpr GLint IOSDBG_HALF_FLOAT_OES = 0x8D61; // GL_HALF_FLOAT_OES
+constexpr GLint IOSDBG_RED = 0x1903; // GL_RED
+constexpr GLint IOSDBG_RGBA = 0x1908; // GL_RGBA
+constexpr GLint IOSDBG_UNSIGNED_BYTE = 0x1401; // GL_UNSIGNED_BYTE
+constexpr GLint IOSDBG_FLOAT = 0x1406; // GL_FLOAT
+
+float iosdbg_half_to_float(u16 h)
+{
+    const u32 sign = (h >> 15) & 1u;
+    const u32 expo = (h >> 10) & 0x1fu;
+    const u32 mant = h & 0x3ffu;
+    float v;
+    if (expo == 0u)
+        v = std::ldexp(static_cast<float>(mant), -24); // subnormal
+    else if (expo == 31u)
+        v = mant ? 0.f : 1.0e30f; // NaN -> 0, Inf -> big finite (keeps %f readable)
+    else
+        v = std::ldexp(static_cast<float>(mant + 1024u), static_cast<int>(expo) - 25);
+    return sign ? -v : v;
+}
+
+// Reads one texel from a GL texture through a PRIVATE fbo that is bound to
+// GL_READ_FRAMEBUFFER only. CBackend caches the GL_FRAMEBUFFER binding in
+// CBackend::pFB and the attachments in pRT[]/pZB; touching only the read binding -
+// and restoring it - leaves those caches valid.
+// Return: 0 ok, 1 no texture, 2 fbo incomplete, 3 unreadable format / GL error.
+int iosdbg_read_texel(GLuint tex, GLint x, GLint y, float out[4], GLint& rfmt, GLint& rtype)
+{
+    static GLuint s_fbo = 0;
+
+    out[0] = out[1] = out[2] = out[3] = 0.f;
+    rfmt = 0;
+    rtype = 0;
+
+    if (!tex)
+        return 1;
+
+    if (!s_fbo)
+        glGenFramebuffers(1, &s_fbo);
+
+    GLint prev_read = 0;
+    glGetIntegerv(IOSDBG_READ_FRAMEBUFFER_BINDING, &prev_read);
+    glBindFramebuffer(IOSDBG_READ_FRAMEBUFFER, s_fbo);
+    glFramebufferTexture2D(IOSDBG_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+
+    int status = 3;
+    if (glCheckFramebufferStatus(IOSDBG_READ_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    {
+        status = 2;
+    }
+    else
+    {
+        // ES is far stricter than desktop GL: only GL_RGBA/GL_UNSIGNED_BYTE (for
+        // normalized fixed-point attachments) and the implementation-defined pair are
+        // guaranteed. Query the pair for THIS read framebuffer and honour it.
+        GLint pack = 4;
+        glGetIntegerv(IOSDBG_IMPL_COLOR_READ_FORMAT, &rfmt);
+        glGetIntegerv(IOSDBG_IMPL_COLOR_READ_TYPE, &rtype);
+        glGetIntegerv(GL_PACK_ALIGNMENT, &pack);
+        glPixelStorei(GL_PACK_ALIGNMENT, 1);
+        while (glGetError() != GL_NO_ERROR) {} // drain anything we inherited
+
+        if (rfmt == IOSDBG_RGBA && rtype == IOSDBG_UNSIGNED_BYTE)
+        {
+            u8 px[4] = {};
+            glReadPixels(x, y, 1, 1, static_cast<GLenum>(rfmt), static_cast<GLenum>(rtype), px);
+            if (glGetError() == GL_NO_ERROR)
+            {
+                for (int i = 0; i < 4; ++i)
+                    out[i] = static_cast<float>(px[i]) / 255.f;
+                status = 0;
+            }
+        }
+        else if (rfmt == IOSDBG_RGBA && (rtype == IOSDBG_HALF_FLOAT || rtype == IOSDBG_HALF_FLOAT_OES))
+        {
+            u16 px[4] = {};
+            glReadPixels(x, y, 1, 1, static_cast<GLenum>(rfmt), static_cast<GLenum>(rtype), px);
+            if (glGetError() == GL_NO_ERROR)
+            {
+                for (int i = 0; i < 4; ++i)
+                    out[i] = iosdbg_half_to_float(px[i]);
+                status = 0;
+            }
+        }
+        else if (rtype == IOSDBG_FLOAT && (rfmt == IOSDBG_RGBA || rfmt == IOSDBG_RED))
+        {
+            float px[4] = {};
+            glReadPixels(x, y, 1, 1, static_cast<GLenum>(rfmt), static_cast<GLenum>(rtype), px);
+            if (glGetError() == GL_NO_ERROR)
+            {
+                const int n = (rfmt == IOSDBG_RGBA) ? 4 : 1;
+                for (int i = 0; i < n; ++i)
+                    out[i] = px[i];
+                status = 0;
+            }
+        }
+        // anything else: leave status == 3, do NOT guess a format (that is how you get
+        // a GL_INVALID_OPERATION storm on ES).
+
+        glPixelStorei(GL_PACK_ALIGNMENT, pack);
+    }
+
+    glFramebufferTexture2D(IOSDBG_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
+    glBindFramebuffer(IOSDBG_READ_FRAMEBUFFER, static_cast<GLuint>(prev_read));
+    while (glGetError() != GL_NO_ERROR) {} // never leak an error into CHK_GL callers
+    return status;
+}
+
+// True at most once per second, and only during the first 25 s after a level load.
+// Uses dwTimeContinual (wall clock minus app-inactive time) rather than dwTimeGlobal,
+// so the cadence survives exactly the pause we are hunting.
+bool iosdbg_should_sample(float& t_since_start)
+{
+    static bool s_armed = false;
+    static u32 s_start = 0;
+    static u32 s_next = 0;
+
+    if (Device.dwPrecacheFrame > 0) // (re)loading a level - re-arm for the next gameplay frame
+    {
+        s_armed = false;
+        return false;
+    }
+
+    const u32 now = Device.dwTimeContinual;
+    if (!s_armed)
+    {
+        s_armed = true;
+        s_start = now;
+        s_next = now;
+    }
+
+    const u32 elapsed = now - s_start;
+    if (elapsed > 25000)
+        return false;
+    if (static_cast<s32>(now - s_next) < 0)
+        return false;
+
+    s_next = now + 1000;
+    t_since_start = static_cast<float>(elapsed) / 1000.f;
+    return true;
+}
+} // namespace
+#endif // XR_PLATFORM_APPLE_IOS
 
 void CRenderTarget::phase_combine()
 {
@@ -214,6 +380,65 @@ void CRenderTarget::phase_combine()
             }
             RCache.set_Stencil(FALSE, D3DCMP_EQUAL, 0x01, 0xff, 0);
         }
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+        // ---- iOS Track A diagnostic: one timeline row, ~1/s, first 25 s after load ----
+        // This is the only point in the frame where all four probes are simultaneously
+        // valid: rt_Color still holds the g-buffer albedo (it is not reused as the LDR
+        // PP target until later in this function), rt_Accumulator still holds the light
+        // accumulation, rt_Generic_0 holds the combine result before forward geometry /
+        // PP-UI overdraw it, and rt_LUM_pool[gpu_id*2+0] is the exposure texel this
+        // frame's tonemapping actually consumed.
+        // MSAA is excluded: multisample attachments are not readable this way.
+        float iosdbg_t = 0.f;
+        if (!RImplementation.o.msaa && iosdbg_should_sample(iosdbg_t))
+        {
+            const GLint W = static_cast<GLint>(rt_Generic_0->dwWidth);
+            const GLint H = static_cast<GLint>(rt_Generic_0->dwHeight);
+            const GLint gx = W / 2, gy = H / 4; // glReadPixels origin is bottom-left: lower quarter = ground
+            const GLint sx = W / 2, sy = (H * 3) / 4; // upper quarter = sky reference / orientation check
+
+            float alb[4], acc[4], fin[4], sky[4], lum[4];
+            GLint f0, t0, f1, t1, f2, t2, f3, t3, f4, t4;
+            const int s0 = iosdbg_read_texel(rt_Color->pRT, gx, gy, alb, f0, t0);
+            const int s1 = iosdbg_read_texel(rt_Accumulator->pRT, gx, gy, acc, f1, t1);
+            const int s2 = iosdbg_read_texel(rt_Generic_0->pRT, gx, gy, fin, f2, t2);
+            const int s3 = iosdbg_read_texel(rt_Generic_0->pRT, sx, sy, sky, f3, t3);
+            const int s4 = iosdbg_read_texel(rt_LUM_pool[gpu_id * 2 + 0]->pRT, 0, 0, lum, f4, t4);
+
+            auto& env = g_pGamePersistent->Environment();
+            u32 hh = 0, mm = 0, ss = 0;
+            env.GetGameTime(hh, mm, ss);
+
+            Msg("* iOS TrackA t=%5.2f fr=%u pf=%u intro=%d dt=%.4f dtr=%.4f gt=%02u:%02u:%02u | "
+                "alb=(%.3f %.3f %.3f %.3f) acc=(%.3f %.3f %.3f %.3f) fin=(%.3f %.3f %.3f) sky=(%.3f %.3f %.3f) | "
+                "lum=%.5f adapt=%.4f | sun=(%.3f %.3f %.3f) hemi=(%.3f %.3f %.3f) amb=(%.3f %.3f %.3f) | "
+                "fog=(%.3f %.3f %.3f) fd=%.4f fn=%.1f ff=%.1f | w=%.3f mp=%.3f wfx=%d st=%d%d%d%d%d",
+                iosdbg_t, Device.dwFrame, Device.dwPrecacheFrame, g_ios_intro_active,
+                Device.fTimeDelta, Device.fTimeDeltaReal, hh, mm, ss,
+                alb[0], alb[1], alb[2], alb[3], acc[0], acc[1], acc[2], acc[3],
+                fin[0], fin[1], fin[2], sky[0], sky[1], sky[2],
+                lum[0], f_luminance_adapt,
+                sunclr.x, sunclr.y, sunclr.z, envclr.x, envclr.y, envclr.z,
+                ambclr.x, ambclr.y, ambclr.z,
+                fogclr.x, fogclr.y, fogclr.z, envdesc.fog_density, envdesc.fog_near, envdesc.fog_far,
+                envdesc.weight, envdesc.modif_power, env.bWFX ? 1 : 0,
+                s0, s1, s2, s3, s4);
+
+            // If any probe was unreadable, report the queried ES read format/type ONCE so
+            // we know which target to drop instead of spamming the log every second.
+            static bool s_reported = false;
+            if (!s_reported && (s0 | s1 | s2 | s3 | s4))
+            {
+                s_reported = true;
+                Msg("! iOS TrackA probe unreadable: alb(st=%d f=%04x t=%04x) acc(st=%d f=%04x t=%04x) "
+                    "fin(st=%d f=%04x t=%04x) sky(st=%d f=%04x t=%04x) lum(st=%d f=%04x t=%04x)",
+                    s0, (unsigned)f0, (unsigned)t0, s1, (unsigned)f1, (unsigned)t1,
+                    s2, (unsigned)f2, (unsigned)t2, s3, (unsigned)f3, (unsigned)t3,
+                    s4, (unsigned)f4, (unsigned)t4);
+            }
+        }
+#endif // XR_PLATFORM_APPLE_IOS
     }
 
     // Forward rendering

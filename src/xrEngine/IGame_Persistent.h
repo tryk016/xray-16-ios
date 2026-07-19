@@ -198,4 +198,10 @@ public:
 };
 
 extern ENGINE_API IGame_Persistent* g_pGamePersistent;
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+// iOS Track A diagnostic: 0 = no game intro sequencer alive, 1 = "intro_game",
+// 2 = "game_loaded". Set by CGamePersistent, read by the GL renderer probe.
+extern ENGINE_API int g_ios_intro_active;
+#endif
 #endif // IGame_PersistentH

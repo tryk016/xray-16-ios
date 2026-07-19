@@ -324,6 +324,49 @@ void CHW::Present()
 #endif
     glBindFramebuffer(GL_READ_FRAMEBUFFER, pFB);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, screenFB);
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // iOS diag (Track B): single-pixel readback out of the render target we are about to
+    // present, taken at the UI cursor's position (published by CUICursor::OnRender).
+    // This discriminates the invisible-cursor question definitively:
+    //   cursor-coloured pixel -> the cursor DOES rasterise, and is lost after this point
+    //   background-coloured    -> the cursor draw produced no pixels at all
+    // Two samples because the FBO Y convention is the one thing not yet proven on device:
+    // A assumes UI y=0 maps to GL row 0 (which is what the UI vertex shaders imply),
+    // B assumes the opposite. Whichever comes back plausible also settles the question.
+    // glReadPixels forces a pipeline sync, so this is throttled to ~1 Hz and MUST be
+    // stripped once the answer is in.
+    {
+        static u32 s_ios_probe_next = 0;
+        if (Device.dwTimeGlobal >= s_ios_probe_next)
+        {
+            s_ios_probe_next = Device.dwTimeGlobal + 1000;
+
+            const GLint maxX = GLint(Device.dwWidth) - 1;
+            const GLint maxY = GLint(Device.dwHeight) - 1;
+            GLint px = GLint(g_ios_cursor_probe_x);
+            GLint pyA = GLint(g_ios_cursor_probe_y);
+            if (px < 0) px = 0;
+            if (px > maxX) px = maxX;
+            if (pyA < 0) pyA = 0;
+            if (pyA > maxY) pyA = maxY;
+            const GLint pyB = maxY - pyA;
+
+            GLubyte a[4] = { 0, 0, 0, 0 };
+            GLubyte b[4] = { 0, 0, 0, 0 };
+            // reads from GL_READ_FRAMEBUFFER, which is pFB - bound just above
+            glReadPixels(px, pyA, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, a);
+            glReadPixels(px, pyB, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, b);
+
+            Msg("* iOS diag: presentProbe ui=(%.1f,%.1f) rt=%ux%u pxA=(%d,%d) "
+                "rgbaA=(%u,%u,%u,%u) pxB=(%d,%d) rgbaB=(%u,%u,%u,%u)",
+                g_ios_cursor_probe_ui_x, g_ios_cursor_probe_ui_y, Device.dwWidth, Device.dwHeight,
+                int(px), int(pyA), unsigned(a[0]), unsigned(a[1]), unsigned(a[2]), unsigned(a[3]),
+                int(px), int(pyB), unsigned(b[0]), unsigned(b[1]), unsigned(b[2]), unsigned(b[3]));
+        }
+    }
+#endif
+
     glBlitFramebuffer(
         0, 0, Device.dwWidth, Device.dwHeight,
         0, 0, dstW, dstH,

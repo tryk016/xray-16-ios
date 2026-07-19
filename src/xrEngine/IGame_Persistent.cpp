@@ -23,6 +23,10 @@
 
 ENGINE_API IGame_Persistent* g_pGamePersistent = nullptr;
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+ENGINE_API int g_ios_intro_active = 0;
+#endif
+
 IGame_Persistent::IGame_Persistent()
 {
     ZoneScoped;

@@ -140,6 +140,99 @@ void CDialogHolder::RemoveDialogToRender(CUIWindow* pDialog)
     }
 }
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+namespace
+{
+// iOS-only focus affordance (Track B).
+//
+// The focus LOGIC is proven working on device (SetFocused/valuable counts/option
+// persistence all check out) - only the visual affordance is missing, and the stock
+// affordances are either invisible ('hud\cursor' draws the animated ui\ui_ani_cursor
+// .seq, whose per-frame texture rebind is the prime suspect) or, for hover, a subtle
+// vanilla text tint that reads as "nothing happened" on a phone screen.
+//
+// So we draw our own frame with the 'hud\crosshair' ui_shader:
+//   res/gamedata/shaders/gl/hud_crosshair.s
+//     shader:begin("hud_crosshair","simple_color") : fog(false) : zb(false,false)
+//                 : blend(true, blend.srcalpha, blend.invsrcalpha)
+// It has NO sampler stage whatsoever, so the ES failure mode where an unbound sampler
+// silently returns opaque black cannot apply to it.
+//
+// Coordinate space: hud_crosshair.vs computes
+//     O.HPos.xy = I.P.xy * screen_res.zw * 2.0 - 1.0
+// with no Y negation - but stub_notransform_t_menu.vs, the shader behind every menu
+// static that IS visible on device, uses the identical expression. The two conventions
+// therefore agree, and feeding backbuffer pixels straight out of
+// UI().ClientToScreenScaledX/Y() puts the frame exactly where the UI thinks the widget
+// is. Adding a manual Y flip here would be the bug, not the fix.
+//
+// Deliberately leaked: a FactoryPtr<IUIShader> destroyed at static-destruction time
+// would call back into GEnv.RenderFactory after the renderer is gone.
+ui_shader* g_ios_focus_shader = nullptr;
+
+void ios_push_quad(float x0, float y0, float x1, float y1, u32 clr)
+{
+    GEnv.UIRender->PushPoint(x0, y0, 0.0f, clr, 0.0f, 0.0f);
+    GEnv.UIRender->PushPoint(x1, y0, 0.0f, clr, 0.0f, 0.0f);
+    GEnv.UIRender->PushPoint(x1, y1, 0.0f, clr, 0.0f, 0.0f);
+
+    GEnv.UIRender->PushPoint(x0, y0, 0.0f, clr, 0.0f, 0.0f);
+    GEnv.UIRender->PushPoint(x1, y1, 0.0f, clr, 0.0f, 0.0f);
+    GEnv.UIRender->PushPoint(x0, y1, 0.0f, clr, 0.0f, 0.0f);
+}
+
+void ios_draw_focus_frame()
+{
+    const CUIWindow* focused = UI().Focus().GetFocused();
+    if (!focused)
+        return;
+
+    if (!g_ios_focus_shader)
+    {
+        g_ios_focus_shader = xr_new<ui_shader>();
+        (*g_ios_focus_shader)->create("hud" DELIMITER "crosshair");
+    }
+    if (!(*g_ios_focus_shader)->inited())
+        return;
+
+    Fvector2 lt;
+    focused->GetAbsolutePos(lt);
+    const Fvector2& sz = focused->GetWndSize();
+    if (sz.x <= 0.0f || sz.y <= 0.0f)
+        return;
+
+    // widget rect in 1024x768 UI units, grown 2 units so the frame sits just outside it
+    const float ui_x0 = lt.x - 2.0f;
+    const float ui_y0 = lt.y - 2.0f;
+    const float ui_x1 = lt.x + sz.x + 2.0f;
+    const float ui_y1 = lt.y + sz.y + 2.0f;
+
+    // UI units -> backbuffer pixels, the same conversion every pttTL draw uses.
+    // NOTE: do NOT use ClientToScreenScaledWidth/Height for the thickness - those
+    // divide by the scale (they are the screen->client direction).
+    const float x0 = UI().ClientToScreenScaledX(ui_x0);
+    const float y0 = UI().ClientToScreenScaledY(ui_y0);
+    const float x1 = UI().ClientToScreenScaledX(ui_x1);
+    const float y1 = UI().ClientToScreenScaledY(ui_y1);
+    const float tx = UI().ClientToScreenScaledX(3.0f);
+    const float ty = UI().ClientToScreenScaledY(3.0f);
+
+    // Alternating colour proves at a glance that this is live per-frame and is ours.
+    const u32 clr = ((Device.dwTimeGlobal / 400) & 1)
+        ? color_rgba(255, 255, 0, 255)
+        : color_rgba(0, 255, 255, 255);
+
+    GEnv.UIRender->StartPrimitive(24, IUIRender::ptTriList, IUIRender::pttTL);
+    ios_push_quad(x0, y0, x1, y0 + ty, clr); // top
+    ios_push_quad(x0, y1 - ty, x1, y1, clr); // bottom
+    ios_push_quad(x0, y0, x0 + tx, y1, clr); // left
+    ios_push_quad(x1 - tx, y0, x1, y1, clr); // right
+    GEnv.UIRender->SetShader(**g_ios_focus_shader);
+    GEnv.UIRender->FlushPrimitive();
+}
+} // namespace
+#endif
+
 void CDialogHolder::DoRenderDialogs()
 {
     ZoneScoped;
@@ -150,6 +243,13 @@ void CDialogHolder::DoRenderDialogs()
         if ((*it).enabled && (*it).wnd->IsShown())
             (*it).wnd->Draw();
     }
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // Runs for BOTH the main menu (CMainMenu::OnRender and ::OnRenderPPUI_main, which
+    // are the only two DoRenderDialogs callers in MainMenu.cpp) and the in-game pause
+    // dialogs (CUIGameCustom, UIGameCustom.cpp). Drawn last so it sits over the dialog.
+    ios_draw_focus_frame();
+#endif
 }
 
 void CDialogHolder::OnExternalHideIndicators()

@@ -72,6 +72,35 @@ void CUICursor::OnRender()
     g_btnHint->OnRender();
     g_statHint->OnRender();
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // iOS diag (Track B): the cursor is invisible on device even though cursorVis=1 and
+    // the focus logic demonstrably works. Answer, in one run, the two open questions:
+    // is this handler reached at all, and is the cursor's own material usable?
+    // Throttled to ~1 Hz, same idiom as the other iOS diags. Placed BEFORE the
+    // IsVisible() early-out on purpose, so a vis=0 frame is reported rather than silent.
+    {
+        static u32 s_ios_cursor_diag_next = 0;
+        if (Device.dwTimeGlobal >= s_ios_cursor_diag_next)
+        {
+            s_ios_cursor_diag_next = Device.dwTimeGlobal + 1000;
+            const int shader_inited = m_static
+                ? (m_static->GetShader() ? (m_static->GetShader()->inited() ? 1 : 0) : -1)
+                : -2;
+            Msg("* iOS diag: CUICursor::OnRender reached vis=%d pos=(%.1f,%.1f) static=%d "
+                "shaderInited=%d frame=%u",
+                IsVisible() ? 1 : 0, vPos.x, vPos.y, m_static ? 1 : 0, shader_inited, Device.dwFrame);
+        }
+
+        // Publish the cursor position for the glReadPixels probe in CHW::Present.
+        // The UI vertex shaders map y_ui_px straight to NDC without negation, so UI y=0
+        // corresponds to GL row 0; the probe reads both orientations anyway.
+        g_ios_cursor_probe_ui_x = vPos.x;
+        g_ios_cursor_probe_ui_y = vPos.y;
+        g_ios_cursor_probe_x = iFloor(vPos.x * float(Device.dwWidth) / UI_BASE_WIDTH);
+        g_ios_cursor_probe_y = iFloor(vPos.y * float(Device.dwHeight) / UI_BASE_HEIGHT);
+    }
+#endif
+
     if (!IsVisible())
         return;
 #ifdef DEBUG

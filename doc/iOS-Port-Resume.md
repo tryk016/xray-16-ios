@@ -170,15 +170,58 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     diag; **focus highlight = warp-skip hypothesis DISPROVEN** (hover is polled
     per-frame, not event-driven) → 6 `* iOS diag:` log points bracket the whole path.
     Full detail in the journal (slice 6.7).
+  - **Slices 6.7 + 6.8 — DEVICE-TESTED on build `1.6.02.10023080`. Three of four
+    confirmed fixed:** **sky + clouds now render** (the unconditional cubemap bind was
+    the whole story); **menu text no longer stacks** (per-frame ClearRT/ClearZB +
+    rt_Generic_0 clear killed the ghosting on the single persistent presented texture);
+    **colours are correct and the DXT decoder is exonerated for good** — the on-device
+    avg-RGBA diag proves channel order in both directions (`detail_grnd_grass`
+    `124 114 98` R>G>B warm earth; `sky_19_cube` `156 165 184` B-dominant blue;
+    `sky_20_cube` `149 117 86` R-dominant sunset), so the earlier "wrong colours" was
+    the missing sky/lighting, not an R/B swap. **Still open: the options focus
+    highlight — but the log PROVES the logic works and is merely invisible**
+    (`valuable=14`, `focusNav` resolves a candidate, `SetFocused 'CUIButton'
+    cursor=(566,320)` warps correctly, `cursorVis=1` throughout). 6.8's
+    erase-iterator UB fix in `CUIFocusSystem::Update` is in and caused no regression.
+  - **Slice 6.9 (this build) — two diagnostic tracks, all iOS-guarded.** **Track B:**
+    a yellow/cyan blinking focus frame drawn around the focused widget at the end of
+    `CDialogHolder::DoRenderDialogs` (covers main menu AND in-game pause) using the
+    `hud\crosshair` shader, which has no sampler stage so the ES unbound-sampler
+    failure mode cannot apply; plus a ~1 Hz `CUICursor::OnRender` log (reached /
+    visible / pos / shader `inited()`) and a ~1 Hz two-pixel `glReadPixels` probe out
+    of `pFB` in `CHW::Present` at both Y orientations. **Track A:** a one-line-per-second
+    timeline for the first 25 s after each level load, emitted from the combine_1 block,
+    sampling albedo / accumulator / combined scene / sky / exposure through a private
+    read-only FBO, alongside dt-vs-dtr (proves pause), intro state, fog, sun/hemi/ambient
+    and weather weights. **Track A is diagnostic only — no fix ships in it.**
   - **NEXT STEP (resume here):**
-    1. Verify the post-6.7 build on device: sky + clouds render? menu text clean (no
-       stacking)? Game Mode: close app, wait ≥5 min, relaunch; also check Settings →
-       Game Mode. Collect `xr_boot.log` — the `* iOS diag:` lines now carry the
-       options-focus trace (press D-Pad/A in options!) and DXT channel-order proof.
-    2. From the diag log: root-cause and fix options-menu pad focus/highlight; then
-       strip the Track C/E diagnostics.
-    3. Follow-up small slice: CUIFocusSystem::Update erase-iterator misuse (UB;
-       spotted by verifier in 6.7).
+    1. **Run build 6.9 on device and do BOTH of these in one session**, then pull
+       `Documents/xr_boot.log`:
+       a. **Enter Options and navigate with the D-Pad.** Look for a **blinking
+          yellow/cyan rectangle** hugging the currently focused control. Report whether
+          it appears, and whether it is positioned correctly or vertically mirrored.
+          Also report whether the mouse cursor itself is still invisible.
+       b. **Load a level and just play (or stand still) for the first ~25 seconds**
+          after the load completes — do not quit early, the white-world timeline only
+          samples during that window. Note by eye roughly when the picture "heals".
+    2. What to look for in the returned log:
+       - `* iOS diag: CUICursor::OnRender reached ... shaderInited=?` — if the line never
+         appears, OnRender is not invoked and the cursor question is answered outright;
+         `shaderInited=0` means the `hud\cursor` material failed to build.
+       - `* iOS diag: presentProbe ... rgbaA=(...) rgbaB=(...)` — one of A/B should carry
+         the menu background colour at the cursor spot; if either instead carries the
+         light cursor-arrow colour, the cursor rasterises into pFB and is lost after
+         Present. Whichever side is plausible also settles the FBO Y convention.
+       - `* iOS TrackA t=...` rows — read `sky=` vs `fin=` first as an orientation check,
+         then compare broken rows against healed ones to pick between zero sun
+         accumulation, zero hemisphere, fog blowout, dead albedo, tonemap runaway, and
+         pause-gated adaptation (`dt=0.0000` with `dtr` non-zero == paused). `st=` is five
+         digits, one per probe (alb/acc/fin/sky/lum); all zeros means every readback
+         succeeded, a `3` means that column must be treated as absent.
+    3. Then: ship the actual fix for whatever the timeline indicts (its own slice), fix
+       the cursor per Track B's verdict, and **strip both 6.9 diagnostic tracks** —
+       the glReadPixels probes cost a 20–60 ms hitch on each sampling frame and must not
+       reach a release build.
     4. Memory (load peak 3.1 GB): per-phase phys_footprint now logged — find the spike
        phase; candidates: FS file cache trim after load, ASTC transcode (Plan 4.9).
     5. Polish backlog: proper ES vertex-sampler binding (restore VTF); video-texture
