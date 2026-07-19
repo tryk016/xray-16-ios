@@ -257,6 +257,24 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     leaving it open would re-arm the intro path the app was previously KILLED on.
     **Blast radius:** tutorial/PDA video and the sleep-dialog static also go live and are NOT
     gated by either intro flag.
+  - **BUILD TO TEST: `1.6.02.10024084` = commit `287138b15` = slices 6.10 + 6.11.**
+    CI green (run 29688122705, all jobs incl. shader gate). **Verified live in SideStore:** the
+    `ios-dev` release's `OpenXRay.ipa` has `updatedAt=2026-07-19T13:20:30Z`, matching that run's
+    publish job finishing at `13:20:31Z` — so the served IPA really is this commit, containing
+    BOTH the tonemap-adaptation fix (white world) and the video-texture fix (green quads).
+    Slice 6.10 alone was `1.6.02.10024083`; do NOT test that one, it lacks 6.11.
+  - **ENVIRONMENT CHANGE (2026-07-19): the project moved from Windows to a MacBook**
+    (Intel i9 8-core, 32 GB, macOS Tahoe 26.3.1, Xcode installed). This means **iOS builds now
+    run LOCALLY** — see the CI recipe in `.github/workflows/ios.yml`, reproduced in the setup
+    script under `~/openxray-handoff/`. The single most valuable consequence: **agents can now
+    COMPILE before claiming a patch is ready.** Until this point every patch in this port was
+    verified by reading code only ("cannot compile — verified by reading"), with syntax errors
+    surfacing ~20 min later in CI. Update agent briefs accordingly: build locally, then push.
+    Keep GitHub Actions running as the clean-room check and the producer of the SideStore `.ipa`.
+    Also worth establishing and journalling once: direct install to the device from Xcode over
+    cable, live log via Console.app instead of exporting `Documents/xr_boot.log`, and Instruments
+    for the queued 3.1 GB load-peak work. Note Apple removed the OpenGL ES frame debugger from
+    Xcode, so do not count on GPU frame capture for this GL app.
   - **NEXT STEP (resume here):**
     0. **DEVICE TEST 6.11 FIRST (video textures).** Boot the build, look at the **main menu**:
        the animated `.ogm` background and the logo. Then pull `Documents/xr_boot.log` and grep
