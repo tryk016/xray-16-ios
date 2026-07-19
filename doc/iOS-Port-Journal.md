@@ -13,12 +13,25 @@ Companion docs: [iOS-Port.md](iOS-Port.md) (overview), [iOS-Port-Plan.md](iOS-Po
 ## How we work (the loop)
 
 1. Make the smallest self-contained change (one slice).
-2. Commit with a message that states **what + why + how any error was fixed**.
-3. Push to `ios-port` → the `iOS` workflow validates on **GitHub macOS runners**
-   (Windows cannot build iOS; CI is the *only* validator).
-4. Read the CI result; fix red as its own micro-slice. **End every slice green.**
-5. Add a journal entry here. Docs-only commits skip CI (`paths-ignore`), so
+2. **Run `./misc/ios/build_check.sh` and get PASS. This is mandatory before any
+   push that touches engine code or shaders — it is not optional and it is not
+   "probably fine".** The whole gate is ~38 s (shader compile gate, shader link
+   gate, incremental arm64 build). A patch that has not been compiled is not a
+   finished patch. See slice 6.12.
+3. Commit with a message that states **what + why + how any error was fixed**.
+4. Push to `ios-port` → the `iOS` workflow re-validates on **GitHub macOS
+   runners**. CI is now the *clean-room* check and the producer of the SideStore
+   `.ipa` — it is no longer the only validator and no longer the fast path.
+5. Read the CI result; fix red as its own micro-slice. **End every slice green.**
+6. Add a journal entry here. Docs-only commits skip CI (`paths-ignore`), so
    journalling is free.
+
+**Note for agents.** Every slice up to and including 6.11 was written on a
+Windows box that physically could not build iOS, so patches were verified by
+*reading code only* and syntax errors surfaced ~18 minutes later in CI. That
+constraint is gone (2026-07-19, slice 6.12). If you are about to write "verified
+by reading — cannot compile in this environment", you are working from a stale
+brief: compile it.
 
 ## Authoritative references (consult first — don't guess)
 
@@ -68,6 +81,128 @@ answer is almost always in one of these:
 ---
 
 ## Journal
+
+### 2026-07-19 (night) — Slice 6.12: the move to macOS — local builds, a 38 s pre-push gate, and cable access to the device
+
+**Environment change.** The project moved from Windows to a MacBook (Intel i9
+8-core, 32 GB, macOS 26.5.2, Xcode 26.4 / iPhoneOS 26.4 SDK). The automated setup
+completed a **full local engine build** (`** BUILD SUCCEEDED **`,
+`bin/aarch64/Release/xr_3da.app/xr_3da`, 70 MB arm64). This slice turns that from
+"it builds" into a working method, and answers the three questions the move was
+made to answer.
+
+**Build timings (measured, not estimated).** Configure tree already present:
+
+| what | time |
+|---|---|
+| full build (setup script, cold) | ~40 min |
+| no-op rebuild | 19 s |
+| one renderer `.cpp` changed + relink | **20.8 s** |
+| **whole pre-push gate** (both shader gates + incremental build) | **37.9 s** |
+
+The incremental cost is dominated by the thin-LTO relink of the 70 MB binary, not
+by compilation — so 20 s is roughly the floor for *any* C++ change, and changing
+ten files costs about the same as changing one. Compare: an `iOS` CI run is
+~18 min. **The loop is ~28x faster.**
+
+*Measurement trap worth recording:* the first two attempts measured 4.8 s and
+looked like a triumph. They were nonsense — the path was guessed as
+`src/Layers/xrRenderPC_GL/glTexture.cpp`, which does not exist (the sources live
+in `src/Layers/xrRenderGL/`; `xrRenderPC_GL` is only the *build* directory name),
+so `printf >>` silently created a new stray file and nothing rebuilt. `touch` on
+a real file is also useless here — Xcode compares content, not mtime. To measure
+or force a rebuild, make a real content change.
+
+**New: `misc/ios/build_check.sh` — the mandatory pre-push gate.** Wraps the two
+existing shader gates plus the incremental device build behind one command with
+one meaningful exit code. `--shaders` / `--engine` narrow it when only one side
+was touched. It refuses to configure (a missing build tree is a hard error, not a
+silent 40-minute wait) and it prints only real `file:line:col: error:`
+diagnostics — an early version grepped for bare "error" and drowned the failure
+in the compiler command line, which contains `-Wl,-undefined,error`.
+Negative-tested: a deliberate syntax error is caught and reported as
+`glTexture.cpp:651:1: error: expected unqualified-id`. **The "How we work" loop
+at the top of this file is updated: local gate first, CI second.**
+
+**`tools/glslang/` arrived EMPTY** — the setup script created the directory but
+never fetched the binary, so both shader gates were silently unrunnable on the
+new machine. Fixed with `brew install glslang`, which supplies **16.4.0 — the
+exact version the gates were tuned against** in slice 4.8, so there is no
+validator-version drift. Both gates then reproduced their documented values on
+the first run: **279/279 compile, 137/137 link.** `build_check.sh` prefers a
+vendored `tools/glslang/bin/glslangValidator` and falls back to `PATH`.
+
+**Also fixed:** `misc/ios/shadercheck/__pycache__/*.pyc` was tracked in git and
+dirtied the working tree on every gate run; untracked, and `__pycache__/` +
+`*.pyc` added to `.gitignore`.
+
+#### The three questions the move was for
+
+**1. Live device log — SOLVED, and it corrects a long-standing journal claim.**
+This file has said since 4.10 that app `os_log` cannot be captured on iOS 15+.
+That is true of **`idevicesyslog`** specifically, and it was over-generalised into
+"there is no live log". It is wrong. What actually works:
+
+- `pymobiledevice3 syslog live --match xr_3da` streams **our engine output live**
+  — confirmed: `* CPU features: ARMSIMD, NEON`, `FS: 39310 files cached 12
+  archives`, `-----loading .../system.ltx`. Installed into a venv
+  (`pip install pymobiledevice3`, 9.36.0); not a repo dependency.
+- macOS's own `log stream` does **not** support remote iOS devices any more
+  (`unrecognized option --device-name` on macOS 26). Console.app remains the GUI
+  route. Also note `log` is a **zsh builtin** — call `/usr/bin/log` or the shell
+  eats the arguments with a confusing "too many arguments".
+- Each engine line appears **twice** in the stream (once raw, once `[xr]`-prefixed).
+- Filtering by `--match xr_3da` while the app is *not* running yields zero lines,
+  which reads exactly like a broken tool. Launch first, then judge.
+
+**2. Instruments — WORKS, and the memory work is unblocked.** `Allocations`,
+`Leaks`, `Game Memory` and `Game Performance` templates are all present. A 12 s
+attach produced a valid 41 MB `.trace`. **Attach by PID, not by name:** the
+process is called **`OpenXRay`** (the display name), so `--attach xr_3da` fails
+with "Cannot find process matching name". Working recipe:
+
+```bash
+DEV=088D4462-3B95-582F-8998-167D65A0CBD6   # devicectl UUID (not the 000081... one)
+xcrun devicectl device process launch --device $DEV io.github.tryk016.openxray.<SUFFIX>
+PID=$(xcrun devicectl device info processes --device $DEV | grep xr_3da | head -1 | awk '{print $1}')
+xcrun xctrace record --device 00008130-... --template Allocations --attach $PID --time-limit 15s --output mem.trace
+```
+
+Note the two different device identifiers: `devicectl` wants the CoreDevice UUID,
+`xctrace` wants the hardware UDID. This is the tooling for the queued 3.1 GB
+load-peak investigation. Apple removed the OpenGL ES frame debugger from Xcode,
+so there is still **no GPU frame capture** for this GL app.
+
+**3. Install from Xcode over cable — BLOCKED, but two-thirds of the value landed
+anyway.** The Mac has **zero code-signing identities**, no provisioning profiles
+and no Apple ID in Xcode, so `devicectl device install` cannot be used; the local
+build is configured `CODE_SIGNING_ALLOWED=NO`. Unblocking needs the user to add
+an Apple ID in Xcode → Settings → Accounts (a free account is enough; it yields
+7-day certificates). **SideStore therefore remains the distribution path for
+now.** What works regardless of signing, and is the real prize:
+
+- **`devicectl device process launch` starts the SideStore-installed app over
+  the cable** — no signing identity required on the Mac.
+- **`devicectl device copy from --domain-type appDataContainer` pulls files
+  directly out of the app container** — `Documents/xr_boot.log` retrieved in
+  ~2 s. **The manual File Sharing export in the on-device loop is obsolete.**
+- The bundle id is **not** `io.github.tryk016.openxray`: SideStore appends a
+  per-install suffix (currently `io.github.tryk016.openxray.RMJWWPF379`). Read it
+  from `devicectl device info apps` rather than hard-coding it — it will change
+  on reinstall.
+- The device must be **unlocked** or the developer disk image will not mount
+  (`kAMDMobileImageMounterDeviceLocked`), which surfaces as an unhelpful
+  "failed to get a list of files".
+- The recurring `Failed to load provisioning parameter list ... No provider was
+  found` banner on every `devicectl` call is **noise from having no signing
+  account** — it does not indicate failure; read the line below it.
+
+**Incidental finding, and it matters right now:** `devicectl device info apps`
+reports the installed build as **`1.6.02.10024082`** — that is slice 6.9. The
+build queued for testing is **`1.6.02.10024084`** (6.10 + 6.11). **SideStore has
+not been updated on the device**, so any device test run before updating would
+have been testing the wrong binary and would have "reproduced" both the white
+world and the green quads. Update SideStore first.
 
 ### 2026-07-19 (late) — Slice 6.11: main-menu GREEN QUADS — the video texture was destroyed by a sticky-GL-error false positive (patch landed, device log pending)
 

@@ -28,3 +28,7 @@ doc/doxygen/html/*
 /device.log
 /ios-crashes/
 /ios-crashes-new/
+
+# Python bytecode (shader-gate helpers)
+__pycache__/
+*.pyc

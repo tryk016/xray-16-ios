@@ -276,7 +276,13 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     for the queued 3.1 GB load-peak work. Note Apple removed the OpenGL ES frame debugger from
     Xcode, so do not count on GPU frame capture for this GL app.
   - **NEXT STEP (resume here):**
-    0. **DEVICE TEST 6.11 FIRST (video textures).** Boot the build, look at the **main menu**:
+    0a. **UPDATE SIDESTORE FIRST.** As of 2026-07-19 the device still has
+       **`1.6.02.10024082`** (slice 6.9) installed — verified via
+       `devicectl device info apps`. The build to test is **`1.6.02.10024084`**.
+       Testing before updating would "reproduce" both the white world and the green
+       quads against a binary that predates their fixes. Confirm the version on the
+       device after updating, don't assume.
+    0. **DEVICE TEST 6.11 (video textures).** Boot the build, look at the **main menu**:
        the animated `.ogm` background and the logo. Then pull `Documents/xr_boot.log` and grep
        for `iOS video` and `! OpenGL:`. Read the result by this table:
        - **video plays** ⇒ 6.11 complete; the stale error was the whole story.
@@ -342,10 +348,39 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
        pending device confirmation); OpenAL → static openal-soft link; LotZ-style weapon
        wheel; gyro aim.
     6. **Virtual touch pad — LAST (user's explicit order), after all of the above.**
-    Tools: gate = `python misc/ios/shadercheck/glsl_es_check.py --glslang ./tools/glslang/glslangValidator.exe`;
-    links = `python misc/ios/shadercheck/link_check.py`; debug channel = `Documents/xr_boot.log`.
+    Tools (updated 2026-07-19, slice 6.12 — macOS):
+    **`./misc/ios/build_check.sh` is the mandatory pre-push gate** (~38 s: shader
+    compile gate + shader link gate + incremental arm64 build; `--shaders` /
+    `--engine` to narrow). It wraps
+    `python3 misc/ios/shadercheck/glsl_es_check.py --glslang /usr/local/bin/glslangValidator`
+    (expect 279/279) and `python3 misc/ios/shadercheck/link_check.py` (expect 137/137).
+    glslang comes from `brew install glslang` (16.4.0 — the version the gates were
+    tuned against; `tools/glslang/` shipped empty in the move).
+    Debug channel = `Documents/xr_boot.log`, now pullable over the cable in ~2 s
+    (see below) instead of exported by hand.
 
 ## On-device testing (the loop)
+
+**Cable access (new 2026-07-19, slice 6.12 — full detail + caveats in the journal).**
+Device must be **unlocked**. `DEV=088D4462-3B95-582F-8998-167D65A0CBD6`; read the
+bundle id from `xcrun devicectl device info apps --device $DEV` (SideStore appends a
+per-install suffix, currently `io.github.tryk016.openxray.RMJWWPF379`).
+
+- **Pull the log — no more File Sharing export:**
+  `xcrun devicectl device copy from --device $DEV --domain-type appDataContainer
+  --domain-identifier <bundleid> --source Documents/xr_boot.log --destination ./xr_boot.log`
+- **Launch over cable** (works without any signing identity):
+  `xcrun devicectl device process launch --device $DEV <bundleid>`
+- **Live engine log:** `pymobiledevice3 syslog live --match xr_3da` (venv install).
+  `idevicesyslog` genuinely cannot do this; `log stream` no longer supports remote
+  devices; `log` is a zsh builtin, use `/usr/bin/log`.
+- **Instruments / memory profiling:** attach by **PID** (`--attach xr_3da` fails —
+  the process is named `OpenXRay`). Templates incl. `Allocations`, `Game Memory`.
+- **Install over cable is NOT available** — no code-signing identity / Apple ID on
+  this Mac. Add one in Xcode → Settings → Accounts (free account is enough) to
+  unblock. Until then SideStore stays the install path.
+- Ignore the `Failed to load provisioning parameter list ... No provider was found`
+  banner on every `devicectl` call; it is a side effect of having no signing account.
 
 - **Install:** SideStore source
   `https://github.com/tryk016/xray-16-ios/releases/download/ios-dev/apps.json` (rolling
