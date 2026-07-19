@@ -376,9 +376,13 @@ per-install suffix, currently `io.github.tryk016.openxray.RMJWWPF379`).
   devices; `log` is a zsh builtin, use `/usr/bin/log`.
 - **Instruments / memory profiling:** attach by **PID** (`--attach xr_3da` fails —
   the process is named `OpenXRay`). Templates incl. `Allocations`, `Game Memory`.
-- **Install over cable is NOT available** — no code-signing identity / Apple ID on
-  this Mac. Add one in Xcode → Settings → Accounts (free account is enough) to
-  unblock. Until then SideStore stays the install path.
+- **Install over cable is NOT available**, and adding the Apple ID did not unblock
+  it (investigated to a conclusion 2026-07-19 — full detail in the journal). The
+  cert in the keychain is *SideStore's*, its private key is not on this Mac, and
+  minting a new one dies on **"maximum App ID limit reached — 10 every 7 days"**,
+  a quota SideStore already spent. Team ID is `RMJWWPF379` (read from the cert's
+  `OU`). **Revisit after 2026-07-26**, when the quota lapses; the only route
+  before then would overwrite the working install. SideStore stays the install path.
 - Ignore the `Failed to load provisioning parameter list ... No provider was found`
   banner on every `devicectl` call; it is a side effect of having no signing account.
 

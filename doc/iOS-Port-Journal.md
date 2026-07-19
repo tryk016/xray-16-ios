@@ -173,13 +173,42 @@ Note the two different device identifiers: `devicectl` wants the CoreDevice UUID
 load-peak investigation. Apple removed the OpenGL ES frame debugger from Xcode,
 so there is still **no GPU frame capture** for this GL app.
 
-**3. Install from Xcode over cable — BLOCKED, but two-thirds of the value landed
-anyway.** The Mac has **zero code-signing identities**, no provisioning profiles
-and no Apple ID in Xcode, so `devicectl device install` cannot be used; the local
-build is configured `CODE_SIGNING_ALLOWED=NO`. Unblocking needs the user to add
-an Apple ID in Xcode → Settings → Accounts (a free account is enough; it yields
-7-day certificates). **SideStore therefore remains the distribution path for
-now.** What works regardless of signing, and is the real prize:
+**3. Install from Xcode over cable — BLOCKED by an Apple account limit, not by
+anything we can engineer.** Investigated to a firm conclusion the same evening
+after the Apple ID was added to Xcode:
+
+- The keychain *does* hold `Apple Development: tryk016@gmail.com (C4MLW25CWH)`,
+  valid 2026-07-19 → 2027-07-19. **It is SideStore's certificate, not Xcode's** —
+  its `OU=RMJWWPF379` is the Team ID, and that is exactly the suffix SideStore
+  appends to the bundle id (`io.github.tryk016.openxray.RMJWWPF379`). Reading the
+  Team ID out of the cert subject is, incidentally, how to get it without the
+  Xcode GUI, which shows no code for a personal team.
+- **The matching private key is not on this Mac** (`security find-identity` → 0
+  valid identities; a certificate without its key cannot sign). SideStore keeps
+  its key in its own store.
+- Making Xcode mint its own key+cert therefore needs `-allowProvisioningUpdates`
+  **plus** an explicit `DEVELOPMENT_TEAM` — `xcodebuild` will not infer a personal
+  team and fails with "requires a development team".
+- With the team supplied, it fails at the next step:
+  **`Your maximum App ID limit has been reached. You may create up to 10 App IDs
+  every 7 days.`** SideStore consumes App IDs on its installs and the quota is
+  spent. **This failed while creating the App ID, before touching certificates —
+  SideStore's cert and the installed app were verified intact afterwards.**
+- The only remaining route is to sign under the *existing* bundle id, which would
+  overwrite the working, playable SideStore install (save games included) and
+  still risks revoking SideStore's certificate on a free account. **Judged not
+  worth it** — the quota lapses on its own within 7 days, and the loop it would
+  buy is a convenience, not a blocker. **Revisit after 2026-07-26** if the faster
+  device loop still looks worth the risk.
+
+Tested against a throwaway CMake/Xcode project in the scratchpad, never against
+the engine build tree, so none of this disturbed the working build. Before the
+attempt, the device's writable state was pulled over the cable to
+`~/openxray-handoff/device-backup-2026-07-19/` (savedgames, user.ltx, tmp.ltx,
+imgui.ini) — `cdb_cache` deliberately skipped as regenerable.
+
+**SideStore remains the install path.** What works regardless of signing, and is
+the real prize:
 
 - **`devicectl device process launch` starts the SideStore-installed app over
   the cable** — no signing identity required on the Mac.
