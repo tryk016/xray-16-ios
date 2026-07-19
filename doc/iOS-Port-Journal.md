@@ -18,12 +18,16 @@ Companion docs: [iOS-Port.md](iOS-Port.md) (overview), [iOS-Port-Plan.md](iOS-Po
    "probably fine".** The whole gate is ~38 s (shader compile gate, shader link
    gate, incremental arm64 build). A patch that has not been compiled is not a
    finished patch. See slice 6.12.
-3. Commit with a message that states **what + why + how any error was fixed**.
-4. Push to `ios-port` → the `iOS` workflow re-validates on **GitHub macOS
+3. To see it on the phone: `./misc/ios/install_device.sh --launch` (~15 s, signs
+   with our own certificate and installs over the cable). No SideStore, no
+   Sideloadly. If the app stops launching after a week, the 7-day profile
+   lapsed — re-run the script. See slice 6.13.
+4. Commit with a message that states **what + why + how any error was fixed**.
+5. Push to `ios-port` → the `iOS` workflow re-validates on **GitHub macOS
    runners**. CI is now the *clean-room* check and the producer of the SideStore
    `.ipa` — it is no longer the only validator and no longer the fast path.
-5. Read the CI result; fix red as its own micro-slice. **End every slice green.**
-6. Add a journal entry here. Docs-only commits skip CI (`paths-ignore`), so
+6. Read the CI result; fix red as its own micro-slice. **End every slice green.**
+7. Add a journal entry here. Docs-only commits skip CI (`paths-ignore`), so
    journalling is free.
 
 **Note for agents.** Every slice up to and including 6.11 was written on a
@@ -81,6 +85,95 @@ answer is almost always in one of these:
 ---
 
 ## Journal
+
+### 2026-07-19 (night) — Slice 6.13: install over the cable, solved — we sign it ourselves
+
+**6.12 deferred cable install as blocked by the App ID quota. That conclusion was
+wrong, and one of its premises was already false when written.** Installing now
+works, takes ~15 s, and never touches the quota. `misc/ios/install_device.sh` is
+the whole loop.
+
+**Correction to 6.12: the private key *is* on this Mac.** 6.12 recorded that the
+only `Apple Development` certificate in the keychain was SideStore's, with no
+matching private key, so nothing could be signed locally. But the
+`-allowProvisioningUpdates` attempt that 6.12 describes as failing had in fact
+*already succeeded at minting a fresh key + certificate* before it died at the
+App ID step:
+
+```
+CN = Apple Development: tryk016@gmail.com (C4MLW25CWH)
+OU = RMJWWPF379   (same personal team as SideStore)
+serial 7946D0E0F154680563D36AFC9E013791
+notBefore 2026-07-19 13:39 GMT, valid one year
+```
+
+`security find-identity -v -p codesigning` lists it — and `-v` lists *only*
+identities that have a usable private key. 6.12 read the situation from the
+certificate it expected to find rather than from the keychain as it stood after
+the attempt. **Lesson: re-read the machine state after a failed attempt; a
+command that exits non-zero may still have completed several of its steps.**
+
+**The actual discovery: the App ID quota is charged on *creation*, not on use.**
+"Maximum App ID limit reached — 10 every 7 days" fires while *registering a new*
+App ID. Requesting a provisioning profile for an App ID that already exists costs
+nothing. SideStore already registered
+`io.github.tryk016.openxray.RMJWWPF379`, so signing under **that exact
+suffixed id** sidesteps the quota entirely. 6.12 hit the wall only because it
+used a fresh bundle id.
+
+Verified on a throwaway stub (now vendored at `misc/ios/provisioning-stub/`, so
+renewal is reproducible rather than remembered): `xcodebuild
+-allowProvisioningUpdates` with that bundle id returned **BUILD SUCCEEDED**, zero
+mentions of the limit, and downloaded a profile carrying our device UDID, our
+cert, and `get-task-allow`.
+
+**Sideloadly is a dead end — and an instructive one.** It fails with *"there is
+no iOS certificate with serial number …"*. Cause: it lists the account's
+certificates from Apple's portal and matches them against the local keychain.
+SideStore's certificate is on the portal but its private key never was on this
+Mac, so the match fails. Every guide answers this with *revoke your
+certificates* — **do not**. Revoking SideStore's cert would kill the working
+SideStore installs of **both OpenXRay and OpenGothic**. The tool was never the
+problem; it was solving a problem we no longer had. (Its only real defect was a
+Chrome quarantine flag, cleared with `xattr -d com.apple.quarantine`.)
+
+**`misc/ios/install_device.sh` — sign + install + launch.** Finds the newest
+`.ipa` in `~/openxray-handoff/local-builds`, applies the suffixed bundle id
+(the `.ipa` ships with the bare one, because SideStore used to append the suffix
+at install time), embeds the profile, signs with entitlements *extracted from
+that profile*, installs via `devicectl`, optionally launches.
+
+```
+./misc/ios/install_device.sh --launch     # ~15 s, sign + install + launch
+./misc/ios/install_device.sh --renew      # refresh the profile only
+```
+
+It renews the profile automatically when none is valid, so the weekly expiry is
+self-healing. Both paths were tested for real: a full install (10024082 →
+**10033000**, launched, PID confirmed), and renewal with the profile deleted to
+simulate expiry (fetched a fresh one, no quota error).
+
+**The binding constraint is now the 7-day profile, not the quota.** Free personal
+teams issue 7-day profiles. The app will simply stop launching when it lapses —
+that symptom means *run the script again*, not *something regressed*. Renewal is
+unlimited and quota-free.
+
+**Nothing was lost.** Save games survived the overwrite
+(`savedgames/mobile user - beginning of the game.scop`, 617 KB, still on device),
+`gamedata` intact, OpenGothic still installed, SideStore's certificate untouched.
+The pre-attempt backup at `~/openxray-handoff/device-backup-2026-07-19/` was
+never needed.
+
+**Two rules to carry forward** (both encoded in the script's header):
+1. Sign under `io.github.tryk016.openxray.RMJWWPF379` — keep the `.RMJWWPF379`
+   suffix. Drop it and you mint a new App ID and hit the quota.
+2. Never revoke certificates to fix signing. That trades a convenience for two
+   working installs.
+
+**Unresolved, carried from 6.12:** the resume commit claims build **10024084**
+was verified live, but the device held **10024082** before this install. One of
+the two is mislabelled; worth settling before treating any "verified on device"
+note from that range as authoritative.
 
 ### 2026-07-19 (night) — Slice 6.12: the move to macOS — local builds, a 38 s pre-push gate, and cable access to the device
 
