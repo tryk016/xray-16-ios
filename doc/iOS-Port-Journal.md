@@ -69,6 +69,173 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-19 (evening) — Slice 6.10: white-world root cause FIXED (frozen tonemap adaptation), Track A diagnostics stripped, Track B narrowed to the textured-UI path
+
+**Device verdict on build `1.6.02.10024082` (iPhone 15 Pro Max, iOS 26.6, Zaton, r2):**
+the Track A timeline paid for itself in one run and Track A is now **solved**. Track B did
+not resolve — but its leading suspect was killed and replaced with a better one, and the
+probe that was supposed to settle it turned out to have been sampling the wrong pixel.
+
+**TRACK A — PROVEN MECHANISM: the tonemap exposure feedback loop is frozen, not wrong.**
+
+`f_luminance_adapt` is *not* an exposure value. It is the **lerp blend weight** of the 1×1
+exposure feedback texture. `r2_rendertarget_phase_luminance.cpp:238` updates it as
+`f = .9f*f + .1f*Device.fTimeDelta*ps_r2_tonemap_adaptation`, hands it to the shader as
+`MiddleGray.w` (`:247`), and `res/gamedata/shaders/gl/bloom_luminance_3.ps:52` consumes it as
+`rvalue = lerp(scale_prev, scale, MiddleGray.w)`. **Weight 0 does not pause adaptation — it
+strands the exposure texel forever.** That texel is then the tonemap multiplier for the whole
+frame (`combine_1.ps:229` → `common_functions.h:24-33`, `rgb = rgb*scale`) *and* for sky, clouds,
+portals and volumetric fog (`sky2.ps:31`, `clouds.ps:30`, `portal.ps:11`,
+`combine_volumetric.ps:18`) — which is exactly why the *background* is what blows out.
+
+The level-intro sequencer pauses the device, so `Device.fTimeDelta` is pinned at exactly 0 for
+the whole intro and the update degenerates to a pure `0.9^n` decay. The timeline shows it
+happening, and shows it healing the instant the clock is released:
+
+```
+t= 0.00 fr=1120 intro=2 dt=0.0000 dtr=0.0028  adapt=0.0179
+t= 1.02 fr=1159 intro=2 dt=0.0000 dtr=0.0028  adapt=0.0003
+t= 2.04 fr=1193 intro=1 dt=0.0000 dtr=0.2272  adapt=0.0000
+ ... six consecutive rows, intro=1, dt=0, adapt=0.0000 ...
+t= 7.13 fr=1383 intro=1 dt=0.0000 dtr=0.2272  adapt=0.0000
+t= 8.14 fr=1539 intro=0 dt=0.0166 dtr=0.0166  adapt=0.0148   <-- clock released
+t= 9.14 fr=1599 intro=0 dt=0.0166 dtr=0.0166  adapt=0.0167   <-- converged, world correct
+```
+
+`ps_r2_tonemap_adaptation = 1.f`, so the steady state is `adapt == fTimeDelta` — the 0.0167
+at 60 fps in the healthy rows confirms the model exactly. And `0.5 * 0.9^31.6 = 0.0179`
+pins the very first sample: `phase_luminance` had run only ~32 frames total, **all** with
+`dt == 0`, starting from the one-shot `f_luminance_adapt = 0.5f` seed at
+`r2_rendertarget.cpp:629` (never re-armed per level load). So the exposure is frozen at the
+value of a ~32-frame transient during which almost nothing had been drawn — over-exposed,
+everything mid-to-bright saturating white on the Reinhard curve while near-black pixels stay
+black. That is the reported "white sky and terrain, black vegetation silhouettes", and the
+recovery at `t=8.14` with a ~1 s time constant (1/0.0167 = 60 frames) is the "snaps correct
+after I take a few steps".
+
+**THE FIX (iOS-guarded, `#else` arm byte-identical).** Two halves, and the second is the
+load-bearing one:
+
+- drive the update from `Device.fTimeDeltaReal` instead of `fTimeDelta`;
+- **floor the weight handed to the shader at `_max(f, 0.015f)`**.
+
+The floor is what actually guarantees recovery, and the reason is a trap worth recording:
+**`fTimeDeltaReal` is NOT a live wall clock during the intro either.** `device.cpp` does
+`if (Paused()) fTimeDelta = 0.0f;` and `CTimer::Start()` (`xrCore/FTimer.h`) *early-returns
+while paused*, so `Device.Timer` is never restarted and `GetElapsed_sec()` returns a constant.
+The log proves it: `dtr` is frozen at exactly `0.2272` across six consecutive rows and at
+`0.0028` across both `intro=2` rows. It is merely guaranteed nonzero and finite. Had we shipped
+only the `fTimeDeltaReal` swap, the `intro=2` segment would have run at a weight of 0.0028 —
+a ~350-frame (~6 s) time constant inside an ~8 s intro, i.e. barely better than broken.
+`0.015` is ~65 frames (~1.1 s), and sits just below the 0.0167 steady-state weight at 60 fps,
+so it is **inert whenever the game is really running** and only bites when the clock stalls.
+Intended side effect: on iOS, exposure now keeps adapting while paused. That is correct for an
+eye model.
+
+Deliberately NOT touched, both flagged and both correct to leave alone:
+`bloom_luminance_3.ps:56`'s `clamp(rvalue, 1.0/128.0, 20.0)` discards its return value (dead
+code — `:54` is simply commented out), but the pathological value sits *inside* `[1/128, 20]`,
+so fixing it fixes nothing while changing shader behaviour on every GL platform; and re-seeding
+`r2_rendertarget.cpp:629/640` per level load is redundant now that the loop is self-correcting.
+
+**TRACK B — the leading hypothesis was WRONG; the replacement is better supported.**
+
+The 6.9 reasoning was going to conclude "the `hud\crosshair` ui_shader draws nothing on ES,
+corroborated by the missing in-game crosshair". That corroboration is **false**.
+`CHUDCrosshair::OnRender` is only reached through the `else` branch of
+`HUDTarget.cpp:266 if (!m_bShowCrosshair)`; `m_bShowCrosshair` initialises **false**
+(`HUDTarget.cpp:53`) and is only set true while holding a weapon whose ltx sets
+`use_crosshair` (`Actor.cpp:1136`, forced false again at `:1157`). With no weapon out the
+crosshair is *supposed* to be absent. The screenshot says nothing about that shader.
+
+What the always-taken branch draws instead is a **textured** dot via `hud\cursor` + `ui\cursor`
+(`HUDTarget.cpp:48,266-296`) — the same textured-UI path as the missing `CUICursor` sprite
+(`hud\cursor` + `ui\ui_ani_cursor`, `UICursor.cpp:11`). So: **two independent textured-UI draws
+are missing while untextured and font draws are visible.** A texture load/bind failure on the
+`ui\cursor` family is now the single best explanation for the cursor, and the focus frame's
+status is simply untested.
+
+The 6.9 present-time probe also has to be **discarded, not believed**. The cursor sprite is
+40×40 UI units with x scaled by `get_current_kx()` = 0.6152 at 932×430, and `SetWndPos(vPos)`
+puts its **top-left** at `vPos` — so the sprite's px rect is (466,215)-(488,237) and the probe's
+`pxA=(466,215)` was its outermost **corner texel**, transparent on an arrow cursor. "Background
+at the cursor position" was never evidence of a missing draw.
+
+Also newly proven from the same log: the `lum` probe's `st=3` means *unreadable format*, not
+*FBO incomplete* — so the strongest rival theory, that `rt_LUM_pool`'s FBO is incomplete on ES
+and the exposure texture is never written at all (which would have made the Track A fix a no-op),
+is **refuted**. The pool is complete and bound every frame; the probe only failed because the
+pool's real ES pair is `GL_RED`/`GL_HALF_FLOAT` (R16F, not the requested R32F).
+
+**What ships for Track B in 6.10 — three cheap, decisive additions:**
+
+1. **`GetBaseTextureResolution` on the cursor's own shader**, logged at ~1 Hz in
+   `CUICursor::OnRender`. `dxUIShader::GetBaseTextureResolution` returns `false` and zeroes
+   `res` when there is no base texture, so `texOk=0` or a `0x0` size answers the whole
+   textured-UI question outright, with no renderer-internals digging.
+2. **A font-based focus affordance** drawn through `CGameFont` right after the existing
+   `hud\crosshair` bars — `>` and `<` brackets straddling the focused widget.
+   `CGameFont::Out` takes backbuffer pixels (`OutSetI` is `OutSet(DI2PX(x), DI2PY(y))`), the
+   same space the bars are already in. `CMainMenu::OnRender`/`::OnRenderPPUI_main` call
+   `UI().RenderFont()` immediately after `DoRenderDialogs()`, so it flushes the same frame.
+   If the brackets appear and the bars do not, the failure is scoped to the ui_shader draw
+   path and **not** to draw ordering or frame-edge state.
+3. **The present probe now samples three points in both Y orientations** (six texels), biased
+   toward the sprite's top-left body at UI offsets `(5·kx,6)`, `(10·kx,12)`, `(20·kx,20)` from
+   `vPos`, instead of one corner texel. `g_ios_cursor_probe_x/_y` became `int[3]`.
+
+Dead ends for Track B, verified this round — do **not** re-investigate:
+
+- **Render order.** `MessageRegistry::Resort` sorts **descending** (`a.Prio > b.Prio`,
+  `pure.h:110-113`) and `Process()` iterates forward (`:93-99`), so higher priority runs
+  *first*. `CMainMenu` is 4, `CUICursor` is −3 → the cursor draws **last, on top**. Correct
+  as-is.
+- **Vertex colour byte order.** `unpack_D3DCOLOR(c) { return c.bgra; }`
+  (`common_functions.h:74`) is a pure swizzle; alpha maps to alpha under every permutation.
+  It cannot hide a draw.
+- **State leakage from our iOS `ClearRT` patches.** At both call sites the desync cannot
+  materialise: `OnFrameBegin` does `Invalidate()` → `set_RT(get_base_rt())` → `ClearRT` on the
+  *same* texture, and `RenderMenu` does `set_ColorWriteEnable()` → `u_setrt(rt_Generic_0)` →
+  `ClearRT(rt_Generic_0)`, likewise the same texture.
+- **Y flip in `hud_crosshair.vs`.** It computes `I.P.y * screen_res.w * 2.0 - 1.0`, which is
+  **byte-for-byte identical** to `stub_notransform_t_menu.vs`, the shader behind every menu
+  static that IS visible on device. Adding a flip would be the bug.
+- **A silently disabled shader pass.** `_LinkPP`'s soft-fail path logs
+  `! Pass '%s' failed to link` and zeroes `pp`; the device log contains **zero** such lines.
+
+One thing to tell the user before they hunt for the focus frame again: in the **main menu**
+the log shows `focused='none' valuable=0` on every sample, so there the frame legitimately
+draws nothing and its absence is not a bug. It must be checked inside **Options** or the
+**Save** dialog, where the log shows real focus (`'button_cancel'`, `'combo_renderer'`,
+`'edit_filename'`, valuable=5/14).
+
+**STANDALONE FINDING, not this slice's fix: the game is not rendering at native resolution.**
+`CHW::Present` overrides `dstW/dstH` from `SDL_GL_GetDrawableSize` (2796×1290 pixels) while the
+source rect stays `Device.dwWidth/dwHeight` (932×430 **points**), then blits with
+`GL_NEAREST` (`glHW.cpp:309-323, 371-374`; the log's `presentProbe rt=932x430` confirms it).
+Every frame is a **3× nearest-neighbour upscale**. That is the entire explanation for the soft,
+blocky look of the device screenshots — and it is a large free quality/performance decision
+that has never been made deliberately. Its own slice.
+
+Second unrelated hazard found and left for its own slice: `CBackend::ClearRT`/`ClearZB`
+(`glR_Backend_Runtime.h:51-86`) issue `glClear` without touching `GL_SCISSOR_TEST`, and
+`set_Scissor` is uncached. A UI scissor left enabled at frame end would silently shrink our
+per-frame iOS clears.
+
+**Stripped in this slice:** the entire Track A timeline — `iosdbg_*`/`IOSDBG_*` helper namespace
+and its call site in `gl_rendertarget_phase_combine.cpp` (~220 lines), the `<cmath>` include
+added for the half decode, and the `g_ios_intro_active` marker in all six of its sites
+(`IGame_Persistent.cpp/.h`, four setters in `GamePersistent.cpp`). Its question is answered, and
+it was costing the user a 20–60 ms pipeline stall once a second for 25 s after every level load.
+`grep -rn "g_ios_intro_active\|iosdbg\|IOSDBG_" src/` now returns nothing.
+
+**Kept on purpose:** all Track B diagnostics (cursor 1 Hz log, present probe, focus-frame diag,
+the focus/nav logs in `ui_focus.cpp` and `xr_input.cpp`) — Track B is **not** solved and these
+are the instruments that will solve it. The DXT avg-RGBA diagnostic in `glTexture.cpp` is also
+kept, even though the colour question is closed: it fires once per texture at load, not per
+frame, and the new leading hypothesis is a failure in exactly that texture path, so it is now
+load-bearing evidence rather than noise. All of it goes once Track B lands.
+
 ### 2026-07-19 — Slice 6.9: device verdict on 10023080 + two diagnostic tracks (focus frame, white-world timeline)
 
 **Device verdict on build `1.6.02.10023080` (iPhone 15 Pro Max, iOS 26.6, Zaton, r2) —

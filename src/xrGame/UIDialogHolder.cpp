@@ -229,6 +229,43 @@ void ios_draw_focus_frame()
     ios_push_quad(x1 - tx, y0, x1, y1, clr); // right
     GEnv.UIRender->SetShader(**g_ios_focus_shader);
     GEnv.UIRender->FlushPrimitive();
+
+    // Second, INDEPENDENT affordance drawn through CGameFont.
+    //
+    // The bars above go through the 'hud\crosshair' ui_shader, which has never been proven
+    // to paint a pixel on this device. CGameFont, by contrast, IS proven to paint (menu text
+    // and in-game mission text are both visible on device), and CMainMenu::OnRender /
+    // ::OnRenderPPUI_main call UI().RenderFont() immediately after DoRenderDialogs(), so
+    // anything queued here is flushed in the same frame.
+    //
+    // CGameFont::OutSet/Out take BACKBUFFER PIXELS (CGameFont::OutSetI is defined as
+    // OutSet(DI2PX(x), DI2PY(y))) - the same space x0/y0/x1/y1 above are already in, so no
+    // extra conversion is needed.
+    //
+    // If the brackets appear and the bars do not, the failure is scoped to the ui_shader
+    // draw path and NOT to draw ordering or frame-edge state. That is the answer we need.
+    if (auto* F = UI().Font().pFontDI)
+    {
+        F->SetAligment(CGameFont::alLeft);
+        F->SetHeightI(0.045f);
+        F->SetColor(clr);
+        F->Out(x0 - tx * 4.0f, (y0 + y1) * 0.5f - ty * 2.0f, ">");
+        F->Out(x1 + tx, (y0 + y1) * 0.5f - ty * 2.0f, "<");
+    }
+
+    // Throttled ~1 Hz: what we computed, so the next device log settles this without another
+    // dedicated diagnostic build. Strip together with the rest of the iOS focus diagnostics.
+    {
+        static u32 s_ios_frame_diag_next = 0;
+        if (Device.dwTimeGlobal >= s_ios_frame_diag_next)
+        {
+            s_ios_frame_diag_next = Device.dwTimeGlobal + 1000;
+            Msg("* iOS diag: focusFrame '%s' ui=(%.0f,%.0f)-(%.0f,%.0f) px=(%.0f,%.0f)-(%.0f,%.0f) "
+                "thick=(%.1f,%.1f) clr=%08x font=%d",
+                focused->WindowName().c_str(), ui_x0, ui_y0, ui_x1, ui_y1,
+                x0, y0, x1, y1, tx, ty, clr, UI().Font().pFontDI ? 1 : 0);
+        }
+    }
 }
 } // namespace
 #endif

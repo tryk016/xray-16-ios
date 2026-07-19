@@ -183,7 +183,45 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     (`valuable=14`, `focusNav` resolves a candidate, `SetFocused 'CUIButton'
     cursor=(566,320)` warps correctly, `cursorVis=1` throughout). 6.8's
     erase-iterator UB fix in `CUIFocusSystem::Update` is in and caused no regression.
-  - **Slice 6.9 (this build) — two diagnostic tracks, all iOS-guarded.** **Track B:**
+  - **Slice 6.10 (CURRENT) — the white world is SOLVED and FIXED; Track A stripped.**
+    Build 10024082's timeline proved the mechanism outright: `f_luminance_adapt` is not an
+    exposure value, it is the **lerp weight** of the 1x1 exposure feedback texture
+    (`MiddleGray.w` → `bloom_luminance_3.ps:52 rvalue = lerp(scale_prev, scale, w)`), so
+    **weight 0 strands the exposure forever** rather than pausing it. The intro sequencer
+    pauses the device, `Device.fTimeDelta` is pinned at 0, and the log shows the weight
+    decaying `0.0179 → 0.0003 → 0.0000` across the intro (`dt=0.0000`, `intro=2/1`) and
+    snapping back to `0.0148 → 0.0167` the frame the clock is released (`t=8.14`,
+    `intro=0`, `dt=0.0166`) — which is exactly when the picture heals by eye.
+    `0.5 * 0.9^31.6 = 0.0179` pins the first sample: only ~32 frames had ever run, all with
+    `dt == 0`, from the one-shot `f_luminance_adapt = 0.5f` seed. FIX (iOS-guarded, `#else`
+    byte-identical): drive the update from `fTimeDeltaReal` **and floor the weight at
+    `_max(f, 0.015f)`**. The floor is the load-bearing half — `fTimeDeltaReal` is NOT a live
+    wall clock during the intro either (`CTimer::Start()` early-returns while paused; the log
+    shows `dtr` frozen at `0.2272` x6 and `0.0028` x2), it is merely guaranteed nonzero.
+    0.015 is ~1.1 s and sits below the 0.0167 steady-state weight at 60 fps, so it is inert
+    during normal play. The entire Track A timeline is **removed** (it cost a 20-60 ms hitch
+    once a second for 25 s after every level load).
+  - **Slice 6.10 — Track B: leading hypothesis KILLED, replaced.** The "hud\crosshair draws
+    nothing, see the missing in-game crosshair" argument is **false**: the stock crosshair is
+    only drawn while holding a `use_crosshair` weapon (`HUDTarget.cpp:53,266`,
+    `Actor.cpp:1136,1157`) and is *supposed* to be absent otherwise. The always-drawn centre
+    mark is instead a **textured** dot via `hud\cursor` + `ui\cursor` — the same textured-UI
+    path as the missing `CUICursor` sprite. So **two independent textured-UI draws are missing
+    while untextured and font draws are visible**, and a texture load/bind failure on the
+    `ui\cursor` family is now the best explanation. The 6.9 present probe is also **void**: it
+    sampled the sprite's outermost corner texel, transparent on an arrow cursor. Track B
+    diagnostics are therefore KEPT and sharpened: the cursor's own
+    `GetBaseTextureResolution` is now logged (`texOk`/`texRes` — a `0` or `0x0` answers it
+    outright), the present probe samples **three** points in both Y orientations, and a
+    `CGameFont` `>` `<` bracket affordance is drawn alongside the shader bars as an A/B
+    (font paints on device; the ui_shader path is unproven). The DXT avg-RGBA diag in
+    `glTexture.cpp` is kept too — it now sits on the prime suspect's path.
+  - **Slice 6.10 — STANDALONE FINDING: the game does NOT render at native resolution.**
+    `CHW::Present` blits a **932x430 point** source to the **2796x1290 pixel** drawable with
+    `GL_NEAREST` (`glHW.cpp:309-323, 371-374`) — a 3x nearest-neighbour upscale of every
+    frame. That is the whole explanation for the soft, blocky device screenshots. Not fixed
+    here; it is a deliberate quality/performance decision that deserves its own slice.
+  - **Slice 6.9 (previous build) — two diagnostic tracks, all iOS-guarded.** **Track B:**
     a yellow/cyan blinking focus frame drawn around the focused widget at the end of
     `CDialogHolder::DoRenderDialogs` (covers main menu AND in-game pause) using the
     `hud\crosshair` shader, which has no sampler stage so the ES unbound-sampler
@@ -195,33 +233,50 @@ in [iOS-Port-Journal.md](iOS-Port-Journal.md).
     read-only FBO, alongside dt-vs-dtr (proves pause), intro state, fog, sun/hemi/ambient
     and weather weights. **Track A is diagnostic only — no fix ships in it.**
   - **NEXT STEP (resume here):**
-    1. **Run build 6.9 on device and do BOTH of these in one session**, then pull
+    1. **Run the 6.10 build on device and do BOTH of these in one session**, then pull
        `Documents/xr_boot.log`:
-       a. **Enter Options and navigate with the D-Pad.** Look for a **blinking
-          yellow/cyan rectangle** hugging the currently focused control. Report whether
-          it appears, and whether it is positioned correctly or vertically mirrored.
-          Also report whether the mouse cursor itself is still invisible.
-       b. **Load a level and just play (or stand still) for the first ~25 seconds**
-          after the load completes — do not quit early, the white-world timeline only
-          samples during that window. Note by eye roughly when the picture "heals".
-    2. What to look for in the returned log:
-       - `* iOS diag: CUICursor::OnRender reached ... shaderInited=?` — if the line never
-         appears, OnRender is not invoked and the cursor question is answered outright;
-         `shaderInited=0` means the `hud\cursor` material failed to build.
-       - `* iOS diag: presentProbe ... rgbaA=(...) rgbaB=(...)` — one of A/B should carry
-         the menu background colour at the cursor spot; if either instead carries the
-         light cursor-arrow colour, the cursor rasterises into pFB and is lost after
-         Present. Whichever side is plausible also settles the FBO Y convention.
-       - `* iOS TrackA t=...` rows — read `sky=` vs `fin=` first as an orientation check,
-         then compare broken rows against healed ones to pick between zero sun
-         accumulation, zero hemisphere, fog blowout, dead albedo, tonemap runaway, and
-         pause-gated adaptation (`dt=0.0000` with `dtr` non-zero == paused). `st=` is five
-         digits, one per probe (alb/acc/fin/sky/lum); all zeros means every readback
-         succeeded, a `3` means that column must be treated as absent.
-    3. Then: ship the actual fix for whatever the timeline indicts (its own slice), fix
-       the cursor per Track B's verdict, and **strip both 6.9 diagnostic tracks** —
-       the glReadPixels probes cost a 20–60 ms hitch on each sampling frame and must not
-       reach a release build.
+       a. **Load Zaton and watch the first ~10 seconds of the intro.** The white/washed-out
+          world should now be **gone from the very first visible frame** — correct exposure
+          throughout the intro, and **no "snap" to correct brightness** when the intro
+          releases input and you take the first step. Also confirm the once-per-second
+          hitch for 25 s after every level load is gone (Track A was removed).
+       b. **Enter Options or the Save dialog and navigate with the D-Pad.** NOT the main
+          menu — the log proves the main menu reports `focused='none' valuable=0`, so
+          there the frame legitimately draws nothing and its absence is not a bug.
+          Report, separately: (i) do the **white `>` `<` brackets** appear either side of
+          the focused control? (ii) do the **blinking yellow/cyan bars** appear? (iii) is
+          the mouse cursor still invisible?
+    2. What each answer means:
+       - **brackets yes, bars no** ⇒ the failure is confined to the ui_shader draw path,
+         not to draw ordering or end-of-frame state. Next slice targets that shader.
+       - **both yes** ⇒ the frame simply never reached a focused widget before; done.
+       - **neither** ⇒ nothing queued in `DoRenderDialogs` reaches the screen; that is a
+         different and bigger problem.
+    3. What to look for in the returned log:
+       - `* iOS diag: CUICursor::OnRender reached ... texOk=? texRes=?x?` — **this is the
+         decisive line.** `texOk=0` or `texRes=0x0` means the cursor's base texture is not
+         resident, which would explain BOTH the missing cursor and the missing in-game
+         centre dot in one stroke, and points the next slice straight at the
+         `ui\cursor` / `ui\ui_ani_cursor` load path (CPU DXT decode or `.seq` rebind).
+       - `* iOS diag: presentProbe ... A0/A1/A2 | B0/B1/B2` — six texels now, three points
+         in each Y orientation. **Any one** non-background sample proves the cursor
+         rasterises into `pFB` and is lost after Present. All six background ⇒ the draw
+         produced nothing. Whichever side is plausible also settles the FBO Y convention.
+       - `* iOS diag: focusFrame '<widget>' ui=... px=... clr=... font=1` — confirms the
+         frame code ran and where it thinks the widget is.
+    4. Then: fix the cursor per whatever the texture probe says, and **strip every
+       remaining iOS diagnostic** (cursor log, present probe, focus-frame diag, the
+       `ui_focus.cpp` / `xr_input.cpp` focus logs, the `glTexture.cpp` DXT avg-RGBA diag)
+       — the glReadPixels probe costs a 20-60 ms hitch on each sampling frame and must
+       not reach a release build.
+    4b. Standalone, its own slice: **render at native resolution.** Every frame is
+       currently a 3x `GL_NEAREST` upscale from 932x430 points to the 2796x1290 drawable
+       (`glHW.cpp:309-323, 371-374`). Decide deliberately: full native, a 2x middle
+       ground, or keep the upscale but at least switch to `GL_LINEAR`. Related hazard
+       for the same slice: `CBackend::ClearRT`/`ClearZB`
+       (`glR_Backend_Runtime.h:51-86`) issue `glClear` without touching
+       `GL_SCISSOR_TEST`, and `set_Scissor` is uncached — a UI scissor left enabled at
+       frame end would silently shrink our per-frame iOS clears.
     4. Memory (load peak 3.1 GB): per-phase phys_footprint now logged — find the spike
        phase; candidates: FS file cache trim after load, ASTC transcode (Plan 4.9).
     5. Polish backlog: proper ES vertex-sampler binding (restore VTF); video-texture

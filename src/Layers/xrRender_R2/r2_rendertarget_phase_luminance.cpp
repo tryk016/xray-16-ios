@@ -235,7 +235,31 @@ void CRenderTarget::phase_luminance()
 #endif
         RImplementation.Vertex.Unlock(4, g_bloom_filter->vb_stride);
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+        // MiddleGray.w is NOT an exposure value - it is the lerp WEIGHT of the 1x1 exposure
+        // feedback texture in res/gamedata/shaders/gl/bloom_luminance_3.ps:52
+        //     rvalue = lerp(scale_prev, scale, MiddleGray.w)
+        // so a weight of 0 does not "pause" adaptation, it strands the exposure texel
+        // FOREVER at whatever it last held. The level-intro sequencer pins Device.fTimeDelta
+        // at exactly 0 for the whole intro, which decays this term geometrically (0.9^n) to
+        // zero within ~30 frames and locks the tonemap at the exposure computed from a
+        // ~32-frame transient during which almost nothing had been drawn => the white /
+        // washed-out world the device build shows until the intro releases the clock.
+        //
+        // NOTE: Device.fTimeDeltaReal is NOT a live wall clock here either - the intro pauses
+        // the device (xrEngine/device.cpp: `if (Paused()) fTimeDelta = 0.0f;`) and
+        // CTimer::Start() early-returns while paused (xrCore/FTimer.h), so dtr freezes at
+        // whatever it was at pause time (observed on device: 0.0028 and 0.2272). It is merely
+        // guaranteed nonzero and finite. The FLOOR below is what actually guarantees the
+        // feedback loop can never be stranded, and it is deliberately the load-bearing half
+        // of this fix. 0.015 is a ~65-frame (~1.1 s) time constant: below the 0.0167
+        // steady-state weight at 60 fps, so it is inert whenever the game is really running.
+        f_luminance_adapt = .9f * f_luminance_adapt + .1f * Device.fTimeDeltaReal * ps_r2_tonemap_adaptation;
+        const float adapt_weight = _max(f_luminance_adapt, 0.015f);
+#else
         f_luminance_adapt = .9f * f_luminance_adapt + .1f * Device.fTimeDelta * ps_r2_tonemap_adaptation;
+        const float adapt_weight = f_luminance_adapt;
+#endif
         float amount = ps_r2_ls_flags.test(R2FLAG_TONEMAP) ? ps_r2_tonemap_amount : 0;
         Fvector3 _none, _full, _result;
         _none.set(1, 0, 1);
@@ -244,7 +268,7 @@ void CRenderTarget::phase_luminance()
 
         RCache.set_Element(s_luminance->E[2]);
         RCache.set_Geometry(g_bloom_filter);
-        RCache.set_c("MiddleGray", _result.x, _result.y, _result.z, f_luminance_adapt);
+        RCache.set_c("MiddleGray", _result.x, _result.y, _result.z, adapt_weight);
         RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
     }
 

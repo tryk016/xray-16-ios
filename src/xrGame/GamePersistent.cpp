@@ -443,9 +443,6 @@ void CGamePersistent::game_loaded()
             VERIFY(NULL == m_intro);
             m_intro = xr_new<CUISequencer>();
             m_intro->m_on_destroy_event.bind(this, &CGamePersistent::update_game_loaded);
-#if defined(XR_PLATFORM_APPLE_IOS)
-            g_ios_intro_active = 2;
-#endif
             if (!m_intro->Start("game_loaded"))
                 m_intro->Destroy();
         }
@@ -455,9 +452,6 @@ void CGamePersistent::game_loaded()
 void CGamePersistent::update_game_loaded()
 {
     xr_delete(m_intro);
-#if defined(XR_PLATFORM_APPLE_IOS)
-    g_ios_intro_active = 0;
-#endif
     load_screen_renderer.Stop();
     start_game_intro();
 }
@@ -478,9 +472,6 @@ void CGamePersistent::start_game_intro()
             m_intro = xr_new<CUISequencer>();
             m_intro->m_on_destroy_event.bind(this, &CGamePersistent::update_game_intro);
             m_intro->Start("intro_game");
-#if defined(XR_PLATFORM_APPLE_IOS)
-            g_ios_intro_active = 1;
-#endif
         }
     }
 }
@@ -488,9 +479,6 @@ void CGamePersistent::start_game_intro()
 void CGamePersistent::update_game_intro()
 {
     xr_delete(m_intro);
-#if defined(XR_PLATFORM_APPLE_IOS)
-    g_ios_intro_active = 0;
-#endif
 }
 
 extern CUISequencer* g_tutorial;
