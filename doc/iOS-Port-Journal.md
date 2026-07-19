@@ -86,6 +86,109 @@ answer is almost always in one of these:
 
 ## Journal
 
+### 2026-07-19 (night) — Slice 6.14: the device becomes testable without a human — and the "lighting bug" turns out not to be one
+
+**Two outcomes. A closed-loop test harness, and a root cause that is nothing like
+what the symptom suggested.**
+
+#### The harness: launch → play → look, with nobody holding the phone
+
+| what | where |
+|---|---|
+| frame dump every 5 s to the app container | `xrRenderGL/glHW.cpp`, in `CHW::Present` |
+| pull + convert that frame to PNG | `misc/ios/shot.sh` |
+| synthetic held key ("walk forward 9 s") | `xrEngine/xr_input.cpp`, `CInput::KeyUpdate` |
+| send an input command over the cable | `misc/ios/input.sh` |
+
+```
+./misc/ios/install_device.sh --launch bin/aarch64/Release/xr_3da.app
+./misc/ios/input.sh w 9000
+./misc/ios/shot.sh /tmp/frame.png
+```
+
+The frame dump reads the *same* render target the existing present-probe samples,
+at the same point in `Present`, so what lands on disk is exactly what reached the
+screen. Input is forced into `keyboardState` just before the `IR_OnKeyboardHold`
+loop, so it travels the ordinary input path and is indistinguishable downstream
+from a real held key. It is file-driven rather than compiled-in, so changing the
+sequence costs a `devicectl` push instead of a rebuild.
+
+**Two human gates removed, neither needing code.** `keypress_on_start` is already a
+console variable (`console_commands.cpp:2623`); at 0, `game_loaded()` never builds
+the "press any key" sequencer and the load screen stops on its own
+(`GamePersistent.cpp:530-533`). And `user.ltx`'s `start server(...)` line boots
+straight into the save. **The engine already supported unattended boot — it only
+had to be found.**
+
+**That autoload line is fragile, and it burns runs silently.** The engine drops it
+whenever it saves settings — twice in one session, once costing an agent twelve
+polls against a main menu it believed was the game. `install_device.sh` now
+re-asserts both settings on every `--launch`. Negative-tested: config deliberately
+sabotaged (autoload removed, `keypress_on_start 1`), repaired by the script, and
+the app booted into gameplay.
+
+#### The payoff, immediately
+
+The first captured frame killed the working hypothesis. The world was **not**
+uniformly dark: sky, clouds, weapon and vegetation all rendered correctly, and only
+the **terrain** was flat. Half an hour of tooling replaced an hour of "is the sky
+bright? what shape is the lit part?".
+
+Then the user's clue — *time doesn't clear it, walking does* — became measurable for
+the first time: **2.5 s of injected walking changed nothing; 9 s cleared the defect
+completely.** Not a per-frame recompute. A distance threshold.
+
+#### Root cause: distant terrain is missing from the gbuffer
+
+Not a lighting bug, not a shadow bug. Measured on device, before vs after a walk:
+
+- Terrain view-space `P.z` varies with distance **in both states** — the geometry
+  that is present was always fine.
+- Far-field sample points go from `mk=0.0` (**the sun pass never rasterized there**)
+  to `mk=1.0`, and the far row's depth from a pinned `15.00` to a real, varying
+  `33.69 / 17.27 / 6.51`.
+
+Those pixels were never mis-lit; **they were not drawn at all**, and so received
+ambient only. Everything measured earlier fits without contradiction: `ref`
+clustered in [0.94, 0.965] because only near geometry existed; the depth comparison
+was correct throughout; albedo and normals were healthy because the geometry that
+existed was healthy.
+
+**Leading hypothesis, explicitly NOT proven:** the skipped level prefetch
+(`IGame_Persistent.cpp:385`, slice 4.25 anti-jetsam) means content arrives lazily.
+Untested: whether the transition tracks distance travelled, a sector/portal
+crossing, or a named streaming event. That is the next slice.
+
+#### Four wrong turns, and what each cost
+
+1. **Two patches to `shadow.h`** (emulating `CLAMP_TO_BORDER`, then forcing
+   `shadow()=1`) — both reverted. The shadow path was never at fault.
+2. **"The lit circle must be a point light."** It is the region where the broken
+   state happens to approximate reality. A *shape* was promoted to decisive
+   evidence; it was an artefact of the cause, not a clue to the mechanism.
+3. **"Terrain `P.z` is constant"** — withdrawn by the agent that found it, once a
+   corrected sampling grid showed two of its three rows had been landing on sky.
+4. **A weather-confounded test.** Forcing `shadow()=1` under `default_cloudy`, where
+   `sun(0.05 0.04 0.01)`, cannot brighten anything. The user caught it, not me.
+
+The pattern behind 1 and 2: **verify a file is on the runtime path before patching
+it, and don't promote a visual impression to a mechanism.** `accum_sun.ps` never
+calls `shadow()` — one grep would have saved two build-install-inspect cycles.
+
+#### Tooling gotchas that produced confidently wrong results
+
+- **`build_check.sh --shaders` does not copy gamedata into the app bundle** — only
+  the engine build step does. A shader edit tested that way silently measures the
+  *old* shader. Run `--engine` (or the full gate) after touching a shader, verify the
+  text is really in `bin/aarch64/Release/xr_3da.app/gamedata/...`, and after
+  installing pull it back off the device.
+- **`./misc/ios/build_check.sh | tail -3 && ./misc/ios/install_device.sh`** takes
+  `tail`'s exit status, not the gate's — this installed a build that had failed to
+  compile. The gate's whole value is one meaningful exit code; do not pipe it away.
+- **Two agents building the same tree collide.** One build failed spuriously and one
+  install killed another session's running game. Assign the cable and the build tree
+  to one worker at a time.
+
 ### 2026-07-19 (night) — Slice 6.13: install over the cable, solved — we sign it ourselves
 
 **6.12 deferred cable install as blocked by the App ID quota. That conclusion was

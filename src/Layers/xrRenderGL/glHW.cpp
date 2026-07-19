@@ -379,6 +379,69 @@ void CHW::Present()
                 int(px[2]), int(pyB[2]), unsigned(b[2][0]), unsigned(b[2][1]), unsigned(b[2][2]), unsigned(b[2][3]));
         }
     }
+
+    // iOS diag: periodic full-frame dump, so visual regressions can be inspected over the
+    // cable instead of being described by hand. Reads the SAME render target the probe above
+    // samples (pFB, still bound as GL_READ_FRAMEBUFFER) at the same point in Present, so what
+    // lands on disk is exactly what reaches the screen.
+    //
+    // Written as binary PPM (P6): self-describing, no image library, and trivial to convert
+    // on the host - see misc/ios/shot.sh, which pulls and converts it. GL rows come out
+    // bottom-up, so they are emitted in reverse to give a top-down image.
+    //
+    // Cost is a full glReadPixels (~1.6 MB at 932x430) plus a file write, both of which stall
+    // the pipeline - hence once every 5 s, never per frame. Diagnostic scaffolding: it is
+    // deliberately unconditional in this build, and should go behind a cvar or be stripped
+    // once the graphics work it serves is done.
+    {
+        static u32 s_ios_shot_next = 0;
+        if (Device.dwTimeGlobal >= s_ios_shot_next)
+        {
+            s_ios_shot_next = Device.dwTimeGlobal + 5000;
+
+            const GLint w = GLint(Device.dwWidth);
+            const GLint h = GLint(Device.dwHeight);
+            if (w > 0 && h > 0)
+            {
+                const size_t rgbaBytes = size_t(w) * size_t(h) * 4;
+                u8* rgba = (u8*)xr_malloc(rgbaBytes);
+                if (rgba)
+                {
+                    // reads from GL_READ_FRAMEBUFFER, which is pFB - bound just above
+                    glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+
+                    const char* home = getenv("HOME");
+                    string_path tmp, dst;
+                    xr_sprintf(tmp, "%s/Documents/xr_shot.tmp", home ? home : ".");
+                    xr_sprintf(dst, "%s/Documents/xr_shot.ppm", home ? home : ".");
+
+                    // Write to a temp name and rename, so a pull over the cable can never
+                    // catch a half-written file.
+                    if (FILE* f = fopen(tmp, "wb"))
+                    {
+                        fprintf(f, "P6\n%d %d\n255\n", int(w), int(h));
+                        for (GLint y = h - 1; y >= 0; --y)
+                        {
+                            const u8* row = rgba + size_t(y) * size_t(w) * 4;
+                            for (GLint x = 0; x < w; ++x)
+                                fwrite(row + size_t(x) * 4, 1, 3, f);
+                        }
+                        fclose(f);
+                        const int rc = rename(tmp, dst);
+
+                        u32 mx = 0;
+                        for (size_t i = 0; i < rgbaBytes; ++i)
+                            if (rgba[i] > mx)
+                                mx = rgba[i];
+                        Msg("* iOS diag: shot %dx%d maxByte=%u rename=%d", int(w), int(h), mx, rc);
+                    }
+                    else
+                        Msg("* iOS diag: shot fopen FAILED (%s)", tmp);
+                    xr_free(rgba);
+                }
+            }
+        }
+    }
 #endif
 
     glBlitFramebuffer(

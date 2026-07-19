@@ -392,6 +392,69 @@ void CInput::KeyUpdate()
         }
     }
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // iOS diag: file-driven synthetic key hold, so the game can be driven over the cable
+    // with no hands on the device. Needed because several graphics defects only resolve
+    // once the CAMERA MOVES - standing still, they persist no matter how many frames pass -
+    // so any automated visual check has to be able to walk.
+    //
+    // Protocol: write "<key> <ms>" into Documents/_appdata_/autoinput.txt, e.g. "w 1500".
+    // <key> is a single letter (mapped to its SDL scancode) and <ms> is how long to hold it.
+    // The file is consumed (deleted) as soon as it is read, so pushing it again re-triggers.
+    //
+    // The key is forced into keyboardState just before the hold loop below, so it travels the
+    // ordinary IR_OnKeyboardHold path and is indistinguishable from a real held key to
+    // everything downstream. Polled 4x/sec rather than per frame: this stats a file.
+    //
+    // Diagnostic scaffolding - strip it, or put it behind a cvar, once the graphics work it
+    // serves is finished.
+    {
+        static u32 s_next_poll = 0;
+        static u32 s_hold_until = 0;
+        static int s_hold_key = -1;
+        const u32 now = SDL_GetTicks();
+
+        if (now >= s_next_poll)
+        {
+            s_next_poll = now + 250;
+
+            const char* home = getenv("HOME");
+            string_path trigger;
+            xr_sprintf(trigger, "%s/Documents/_appdata_/autoinput.txt", home ? home : ".");
+            if (FILE* f = fopen(trigger, "rb"))
+            {
+                char key = 0;
+                unsigned ms = 0;
+                if (fscanf(f, " %c %u", &key, &ms) == 2 && ms > 0 && ms <= 30000)
+                {
+                    if (key >= 'A' && key <= 'Z')
+                        key = char(key - 'A' + 'a');
+                    if (key >= 'a' && key <= 'z')
+                    {
+                        s_hold_key = SDL_SCANCODE_A + (key - 'a');
+                        s_hold_until = now + ms;
+                        Msg("* iOS diag: autoinput hold '%c' (scancode %d) for %u ms", key, s_hold_key, ms);
+                    }
+                }
+                fclose(f);
+                remove(trigger);
+            }
+        }
+
+        if (s_hold_key >= 0)
+        {
+            if (now < s_hold_until)
+                keyboardState[s_hold_key] = true;
+            else
+            {
+                keyboardState[s_hold_key] = false;
+                Msg("* iOS diag: autoinput released scancode %d", s_hold_key);
+                s_hold_key = -1;
+            }
+        }
+    }
+#endif
+
     for (u32 i = 0; i < COUNT_KB_BUTTONS; ++i)
         if (keyboardState[i])
             cbStack.back()->IR_OnKeyboardHold(i);

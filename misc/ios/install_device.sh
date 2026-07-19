@@ -44,6 +44,7 @@ BUNDLE_ID="io.github.tryk016.openxray.RMJWWPF379"
 TEAM_ID="RMJWWPF379"
 DEVICE_UDID="00008130-000564403E12001C"
 IPA_DIR="$HOME/openxray-handoff/local-builds"
+AUTOLOAD='start server(mobile user - beginning of the game/single/alife/load) client(localhost)'
 PROFILE_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
 STUB="$REPO_ROOT/misc/ios/provisioning-stub"
 
@@ -170,6 +171,32 @@ xcrun devicectl device install app --device "$DEVICE_UDID" "$APP" 2>&1 \
     || fail "install failed"
 
 if [ "$do_launch" = 1 ]; then
+    # The engine rewrites user.ltx whenever it saves settings, and DROPS the autoload line
+    # when it does - twice in one session so far. Without it the app boots to the main menu
+    # and every automated capture silently photographs a menu instead of the game, which
+    # looks like "the probe found nothing" rather than like a broken harness. So re-assert it
+    # (and the no-keypress gate) on every launch. Cheap, idempotent, and it removes the one
+    # failure mode that produces confidently wrong results.
+    echo "== ensuring unattended boot (autoload + no keypress gate) =="
+    cfg=$(mktemp -t xrcfg)
+    if xcrun devicectl device copy from --device "$DEVICE_UDID" \
+            --domain-type appDataContainer --domain-identifier "$BUNDLE_ID" --user mobile \
+            --source Documents/_appdata_/user.ltx --destination "$cfg" >/dev/null 2>&1; then
+        if grep -q "^keypress_on_start" "$cfg"; then
+            sed -i '' 's/^keypress_on_start.*/keypress_on_start 0/' "$cfg"
+        else
+            printf 'keypress_on_start 0\n' >> "$cfg"
+        fi
+        grep -q "^start server(" "$cfg" || printf '%s\n' "$AUTOLOAD" >> "$cfg"
+        xcrun devicectl device copy to --device "$DEVICE_UDID" \
+            --domain-type appDataContainer --domain-identifier "$BUNDLE_ID" --user mobile \
+            --source "$cfg" --destination Documents/_appdata_/user.ltx >/dev/null 2>&1 \
+            || echo "warning: could not write user.ltx back - the app may boot to the menu"
+    else
+        echo "warning: could not read user.ltx - the app may boot to the menu"
+    fi
+    rm -f "$cfg"
+
     echo "== launching =="
     xcrun devicectl device process launch --device "$DEVICE_UDID" "$BUNDLE_ID" 2>&1 \
         | grep -vE "provisioning paramter list|devicectl manage create" \
