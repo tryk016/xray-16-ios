@@ -254,7 +254,16 @@ void CRenderTarget::phase_luminance()
         // feedback loop can never be stranded, and it is deliberately the load-bearing half
         // of this fix. 0.015 is a ~65-frame (~1.1 s) time constant: below the 0.0167
         // steady-state weight at 60 fps, so it is inert whenever the game is really running.
-        f_luminance_adapt = .9f * f_luminance_adapt + .1f * Device.fTimeDeltaReal * ps_r2_tonemap_adaptation;
+        // CEILING: fTimeDeltaReal is unclamped (device.cpp only rejects non-finite), whereas the
+        // #else arm's fTimeDelta is clamped to <= 0.1 at device.cpp:475. That clamp is load-bearing
+        // and not cosmetic, because this value IS the lerp weight below: x <- (1-w)x + w*T(x) is a
+        // contraction only while w is small. One huge frame delta (a stall, a debugger break) would
+        // make w >= 1.2, the iteration would oscillate divergently, and on iOS the feedback texel is
+        // R16F (glTextureUtils.cpp:109-123), so it saturates to +/-INF within a few frames - after
+        // which lerp(INF, x, w) is NaN, an ABSORBING state that blacks the world permanently.
+        // Mirroring the desktop clamp bounds w to [0.015, 0.5] and makes that unreachable.
+        const float adapt_dt = _min(Device.fTimeDeltaReal, 0.1f);
+        f_luminance_adapt = .9f * f_luminance_adapt + .1f * adapt_dt * ps_r2_tonemap_adaptation;
         const float adapt_weight = _max(f_luminance_adapt, 0.015f);
 #else
         f_luminance_adapt = .9f * f_luminance_adapt + .1f * Device.fTimeDelta * ps_r2_tonemap_adaptation;
