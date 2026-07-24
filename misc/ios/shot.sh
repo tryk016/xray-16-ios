@@ -5,8 +5,8 @@
 #   ./misc/ios/shot.sh              # -> /tmp/xr_shot.png
 #   ./misc/ios/shot.sh out.png      # explicit destination
 #
-# The engine writes a binary PPM to Documents/xr_shot.ppm every 5 s while running
-# (iOS-guarded block in Layers/xrRenderGL/glHW.cpp, in CHW::Present). So the image
+# With `ios_diagnostics 1`, the engine writes a binary PPM to Documents/xr_shot.ppm
+# every 5 s (iOS-guarded block in Layers/xrRenderGL/glHW.cpp, in CHW::Present). So the image
 # this pulls is at most ~5 s old, and is the exact render target that reached the
 # screen - not a mirror, not a re-render.
 #
@@ -20,8 +20,14 @@ set -u -o pipefail
 
 DEVICE_UDID="00008130-000564403E12001C"
 BUNDLE_ID="io.github.tryk016.openxray.RMJWWPF379"
+[ "$#" -le 1 ] || { echo "usage: $0 [output.png]" >&2; exit 2; }
 OUT="${1:-/tmp/xr_shot.png}"
-PPM="$(mktemp -t xrshot).ppm"
+WORK="$(mktemp -d -t xrshot)"
+trap 'rm -rf "$WORK"' EXIT
+PPM="$WORK/xr_shot.ppm"
+CFG="$WORK/user.ltx"
+META_OLD="$WORK/meta-old.txt"
+META_NEW="$WORK/meta-new.txt"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
@@ -30,9 +36,60 @@ xcrun devicectl device copy from \
     --domain-type appDataContainer \
     --domain-identifier "$BUNDLE_ID" \
     --user mobile \
+    --source Documents/_appdata_/user.ltx \
+    --destination "$CFG" >/dev/null 2>&1 \
+    || fail "could not read user.ltx from the device"
+
+grep -Eq '^ios_diagnostics[[:space:]]+1[[:space:]]*$' "$CFG" \
+    || fail "diagnostics are disabled; launch with ./misc/ios/install_device.sh --diagnostics"
+
+# Capture the current generation if one exists, then require a different token.
+# The engine publishes this sidecar only after atomically replacing the PPM.
+# If the first cable read fails, treat the first later token only as a baseline;
+# this costs at most one extra capture interval but can never accept a stale file.
+baseline_ready=0
+if xcrun devicectl device copy from \
+    --device "$DEVICE_UDID" \
+    --domain-type appDataContainer \
+    --domain-identifier "$BUNDLE_ID" \
+    --user mobile \
+    --source Documents/xr_shot_meta.txt \
+    --destination "$META_OLD" >/dev/null 2>&1 \
+    && [ -s "$META_OLD" ]; then
+    baseline_ready=1
+fi
+
+fresh=0
+for _attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    sleep 1
+    rm -f "$META_NEW"
+    if xcrun devicectl device copy from \
+            --device "$DEVICE_UDID" \
+            --domain-type appDataContainer \
+            --domain-identifier "$BUNDLE_ID" \
+            --user mobile \
+            --source Documents/xr_shot_meta.txt \
+            --destination "$META_NEW" >/dev/null 2>&1 \
+        && [ -s "$META_NEW" ]; then
+        if [ "$baseline_ready" = 0 ]; then
+            cp "$META_NEW" "$META_OLD"
+            baseline_ready=1
+        elif ! cmp -s "$META_OLD" "$META_NEW"; then
+            fresh=1
+            break
+        fi
+    fi
+done
+[ "$fresh" = 1 ] || fail "no fresh frame arrived within 12 seconds - is the diagnostics build running?"
+
+xcrun devicectl device copy from \
+    --device "$DEVICE_UDID" \
+    --domain-type appDataContainer \
+    --domain-identifier "$BUNDLE_ID" \
+    --user mobile \
     --source Documents/xr_shot.ppm \
     --destination "$PPM" >/dev/null 2>&1 \
-    || fail "no Documents/xr_shot.ppm on device - is the game running, and is this a build with the dump block?"
+    || fail "no Documents/xr_shot.ppm on device - is the diagnostics build running?"
 
 [ -s "$PPM" ] || fail "pulled file is empty"
 
@@ -85,5 +142,4 @@ with open(dst, 'wb') as f:
 print(f"{w}x{h} -> {dst}")
 PY
 
-rm -f "$PPM"
 echo "OK: $OUT"

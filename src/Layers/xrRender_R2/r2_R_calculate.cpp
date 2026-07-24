@@ -94,9 +94,66 @@ void CRender::Calculate()
     auto& dsgraph_main = get_imm_context();
 
     // Detect camera-sector
-    if (!Device.vCameraDirectionSaved.similar(Device.vCameraPosition, EPS_L))
+    if (!Device.vCameraPositionSaved.similar(Device.vCameraPosition, EPS_L))
     {
-        const auto sector_id = dsgraph_main.detect_sector(Device.vCameraPosition);
+        auto sector_id = dsgraph_main.detect_sector(Device.vCameraPosition);
+#if defined(XR_PLATFORM_APPLE_IOS)
+        // Some outdoor spawn points sit above a hole in the static collision mesh.
+        // The legacy detector only casts straight down/up, so it can leave the
+        // camera without a sector and the main pass then draws only sky and HUD.
+        // Probe the nearest surrounding floor only when the exact vertical query
+        // failed; normal sector detection and all non-iOS platforms stay unchanged.
+        if (sector_id == IRender_Sector::INVALID_SECTOR_ID)
+        {
+            static constexpr float probe_radii[] = { 0.5f, 1.f, 2.f, 4.f, 8.f, 16.f, 32.f };
+            static constexpr Fvector2 probe_directions[] =
+            {
+                { 1.f, 0.f }, { -1.f, 0.f }, { 0.f, 1.f }, { 0.f, -1.f },
+                { 0.70710678f, 0.70710678f }, { -0.70710678f, 0.70710678f },
+                { 0.70710678f, -0.70710678f }, { -0.70710678f, -0.70710678f },
+            };
+
+            Fvector probe_position = Device.vCameraPosition;
+            float matched_radius = 0.f;
+            for (const float radius : probe_radii)
+            {
+                for (const Fvector2& direction : probe_directions)
+                {
+                    probe_position = Device.vCameraPosition;
+                    probe_position.x += direction.x * radius;
+                    probe_position.z += direction.y * radius;
+                    sector_id = dsgraph_main.detect_sector(probe_position);
+                    if (sector_id != IRender_Sector::INVALID_SECTOR_ID)
+                    {
+                        matched_radius = radius;
+                        break;
+                    }
+                }
+                if (sector_id != IRender_Sector::INVALID_SECTOR_ID)
+                    break;
+            }
+
+            static u32 next_success_log_frame = 0;
+            static u32 next_failure_log_frame = 0;
+            if (sector_id != IRender_Sector::INVALID_SECTOR_ID)
+            {
+                if (Device.dwFrame >= next_success_log_frame)
+                {
+                    next_success_log_frame = Device.dwFrame + 60;
+                    Msg("* iOS sector fallback: camera=(%.2f %.2f %.2f) probe=(%.2f %.2f %.2f) "
+                        "radius=%.1f sector=%u",
+                        Device.vCameraPosition.x, Device.vCameraPosition.y, Device.vCameraPosition.z,
+                        probe_position.x, probe_position.y, probe_position.z, matched_radius, u32(sector_id));
+                }
+            }
+            else if (Device.dwFrame >= next_failure_log_frame)
+            {
+                next_failure_log_frame = Device.dwFrame + 60;
+                Msg("* iOS sector fallback failed: camera=(%.2f %.2f %.2f)",
+                    Device.vCameraPosition.x, Device.vCameraPosition.y, Device.vCameraPosition.z);
+            }
+        }
+#endif
         if (sector_id != IRender_Sector::INVALID_SECTOR_ID)
         {
             if (sector_id != last_sector_id)

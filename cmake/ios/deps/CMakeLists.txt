@@ -11,7 +11,7 @@
 # Invoke once per SDK, e.g.:
 #   cmake -S cmake/ios/deps -B build/ios-deps-iphoneos \
 #     -DIOS_TOOLCHAIN_FILE=$PWD/cmake/toolchains/ios.toolchain.cmake \
-#     -DPLATFORM=OS64 -DDEPLOYMENT_TARGET=15.0 -DENABLE_BITCODE=OFF \
+#     -DPLATFORM=OS64 -DDEPLOYMENT_TARGET=16.4 -DENABLE_BITCODE=OFF \
 #     -DCMAKE_INSTALL_PREFIX=$PWD/build/ios-prefix-iphoneos
 #   cmake --build build/ios-deps-iphoneos --parallel
 #
@@ -31,7 +31,7 @@ foreach(_req IOS_TOOLCHAIN_FILE PLATFORM)
 endforeach()
 
 if(NOT DEFINED DEPLOYMENT_TARGET)
-    set(DEPLOYMENT_TARGET 15.0)
+    set(DEPLOYMENT_TARGET 16.4)
 endif()
 if(NOT DEFINED ENABLE_BITCODE)
     set(ENABLE_BITCODE OFF)

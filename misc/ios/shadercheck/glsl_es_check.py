@@ -141,11 +141,21 @@ def inline(path: str, roots: list[str], seen: set[str], out: list[str]) -> None:
     out.append(text[pos:])
 
 
-def assemble(shader: str, stage: str, roots: list[str]) -> str:
+def assemble(
+    shader: str,
+    stage: str,
+    roots: list[str],
+    define_overrides: dict[str, str] | None = None,
+) -> str:
     lines = ["#version 300 es"]
     lines += VERT_PRECISION if stage == "vert" else FRAG_PRECISION
+    define_overrides = define_overrides or {}
     for name, value in BASE_DEFINES:
-        lines.append(f"#define {name} {value}")
+        lines.append(f"#define {name} {define_overrides.get(name, value)}")
+    base_names = {name for name, _value in BASE_DEFINES}
+    for name, value in define_overrides.items():
+        if name not in base_names:
+            lines.append(f"#define {name} {value}")
     body: list[str] = []
     inline(shader, roots, set(), body)
     return "\n".join(lines) + "\n" + "".join(body)
@@ -283,8 +293,107 @@ def main() -> int:
         for rel, err in failed:
             print(f"  {rel}: {err}")
 
-    if args.strict and failed:
-        print(f"\n::error::{len(failed)} shaders fail GLSL ES 3.00 validation")
+    # The baseline models the device's high preset. Also compile the entry
+    # shaders that include ssao.ps with SSAO_QUALITY=1: the low/no-MSAA runtime
+    # permutation takes different preprocessor branches and previously reached
+    # the device with an ES-illegal `int + float` expression even though the
+    # baseline sweep was green.
+    low_settings_targets = {"combine_1_nomsaa.ps", "ssao_calc.ps"}
+    low_passed = 0
+    low_failed: list[tuple[str, str]] = []
+    for path, stage in shaders:
+        if os.path.basename(path) not in low_settings_targets:
+            continue
+        rel = os.path.relpath(path, root)
+        try:
+            src = assemble(path, stage, roots, {"SSAO_QUALITY": "1"})
+            ok, report = validate(args.glslang, stage, src)
+        except Exception as e:  # noqa: BLE001
+            ok, report = False, f"[shadercheck exception] {e}"
+        if ok:
+            low_passed += 1
+        else:
+            low_failed.append((rel, first_error(report)))
+
+    low_total = len(low_settings_targets)
+    print(
+        f"GLSL ES 3.00 low-settings profile: "
+        f"{low_passed}/{low_total} compile, {len(low_failed)} fail"
+    )
+    for rel, err in low_failed:
+        print(f"  {rel}: {err}")
+
+    # SSAO has a CPU/GPU resource-selection contract that ordinary compilation
+    # cannot infer: explicit zero defaults in common.h must be tested by VALUE,
+    # not by macro presence. A presence test made SSAO_OPT_DATA=0 sample the
+    # ungenerated half-depth buffer on device. Compile both resource branches and
+    # keep a small structural assertion so that exact semantic regression cannot
+    # return while all shaders still compile.
+    shader_targets_by_name = {
+        os.path.basename(path): (path, stage)
+        for path, stage in shaders
+    }
+    ssao_profiles = [
+        ("disabled", "combine_1_nomsaa.ps", {"SSAO_QUALITY": "0", "SSAO_OPT_DATA": "0"}),
+        ("full-gbuffer", "combine_1_nomsaa.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "0"}),
+        ("optimized-full", "combine_1_nomsaa.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "1"}),
+        ("optimized-half", "combine_1_nomsaa.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "2"}),
+        ("downsample-full", "depth_downs.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "1"}),
+        ("downsample-half", "depth_downs.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "2"}),
+    ]
+    ssao_passed = 0
+    ssao_failed: list[tuple[str, str]] = []
+    for profile_name, target_name, overrides in ssao_profiles:
+        target = shader_targets_by_name.get(target_name)
+        if target is None:
+            ssao_failed.append((profile_name, f"{target_name} missing"))
+            continue
+        path, stage = target
+        try:
+            src = assemble(path, stage, roots, overrides)
+            ok, report = validate(args.glslang, stage, src)
+        except Exception as e:  # noqa: BLE001
+            ok, report = False, f"[shadercheck exception] {e}"
+        if ok:
+            ssao_passed += 1
+        else:
+            ssao_failed.append((profile_name, first_error(report)))
+
+    ssao_source_path = os.path.join(root, "ssao.ps")
+    with open(ssao_source_path, "r", encoding="utf-8", errors="replace") as fh:
+        ssao_source = fh.read()
+    required_value_tests = [
+        re.compile(r"^\s*#\s*if\s+SSAO_QUALITY\s*==\s*0\s*$", re.MULTILINE),
+        re.compile(r"^\s*#\s*if\s+SSAO_OPT_DATA\s*==\s*0\s*$", re.MULTILINE),
+    ]
+    forbidden_presence_test = re.compile(
+        r"^\s*#\s*(?:ifdef|ifndef)\s+(?:SSAO_QUALITY|SSAO_OPT_DATA)\b",
+        re.MULTILINE,
+    )
+    ssao_contract_ok = (
+        all(pattern.search(ssao_source) for pattern in required_value_tests)
+        and forbidden_presence_test.search(ssao_source) is None
+    )
+
+    print(
+        f"GLSL ES 3.00 SSAO branch profile: "
+        f"{ssao_passed}/{len(ssao_profiles)} compile, {len(ssao_failed)} fail"
+    )
+    for profile_name, err in ssao_failed:
+        print(f"  {profile_name}: {err}")
+    print(
+        "SSAO value-macro contract: "
+        + ("PASS" if ssao_contract_ok else "FAIL (use numeric #if, never #ifdef/#ifndef)")
+    )
+
+    if args.strict and (failed or low_failed or ssao_failed or not ssao_contract_ok):
+        failure_count = (
+            len(failed)
+            + len(low_failed)
+            + len(ssao_failed)
+            + (0 if ssao_contract_ok else 1)
+        )
+        print(f"\n::error::{failure_count} shader checks fail GLSL ES 3.00 validation")
         return 1
     return 0
 

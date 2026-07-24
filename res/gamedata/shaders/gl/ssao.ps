@@ -1,6 +1,6 @@
 #include "common.h"
 
-#ifndef	SSAO_QUALITY
+#if SSAO_QUALITY == 0
 
 
 #ifdef USE_MSAA
@@ -176,7 +176,7 @@ for (int rad=0; rad < RINGS; rad++)
 		float2	tap = float2( r * c, r * s );
 				tap		*= scale;
 				tap		+= tc;
-#ifndef SSAO_OPT_DATA
+#if SSAO_OPT_DATA == 0
 #ifdef USE_MSAA
 #ifdef GBUFFER_OPTIMIZATION
 		gbuffer_data gbd = gbuffer_load_data_offset( tc, tap, pos2d, iSample ); // this is wrong - need to correct this
@@ -234,7 +234,7 @@ for (int rad=0; rad < RINGS; rad++)
 //	occ = occ*occ;
 //	occ = occ*0.5+0.5;
 #if SSAO_QUALITY==1
-	occ = (occ+0.3)/(1+0.3);
+	occ = (occ+0.3)/(1.0+0.3);
 #else	//	SSAO_QUALITY==1
 	occ = (occ+0.2)/(1.0+0.2);
 #endif	//	SSAO_QUALITY==1

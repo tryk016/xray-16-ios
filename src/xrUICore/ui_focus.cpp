@@ -221,12 +221,6 @@ void CUIFocusSystem::SetFocused(const CUIWindow* window)
 {
     m_current_focused = window;
     UI().GetUICursor().WarpToWindow(window);
-#if defined(XR_PLATFORM_APPLE_IOS)
-    // iOS diag (Track C): confirm the emulated cursor actually landed on the widget.
-    const Fvector2 cp = UI().GetUICursor().GetCursorPosition();
-    Msg("* iOS diag: SetFocused '%s' cursor=(%.0f,%.0f)",
-        window ? window->WindowName().c_str() : "none", cp.x, cp.y);
-#endif
 }
 
 std::pair<CUIWindow*, CUIWindow*> CUIFocusSystem::FindClosestFocusable(const Fvector2& from, FocusDirection direction) const

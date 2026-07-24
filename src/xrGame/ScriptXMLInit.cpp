@@ -38,7 +38,18 @@ void _attach_child(CUIWindow* _child, CUIWindow* _parent)
         _parent->AttachChild(_child);
 }
 
-void CScriptXmlInit::ParseFile(LPCSTR xml_file) { m_xml.Load(CONFIG_PATH, UI_PATH, UI_PATH_DEFAULT, xml_file); }
+void CScriptXmlInit::ParseFile(LPCSTR xml_file)
+{
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // Keep the phone-sized Options layout isolated from desktop and from the
+    // gameplay HUD. The normal widescreen resolver turns this into
+    // ui_mm_opt_ios_16.xml.
+    if (xr_strcmp(xml_file, "ui_mm_opt.xml") == 0)
+        xml_file = "ui_mm_opt_ios.xml";
+#endif
+
+    m_xml.Load(CONFIG_PATH, UI_PATH, UI_PATH_DEFAULT, xml_file);
+}
 
 void CScriptXmlInit::ParseShTexInfo(pcstr xml_file)
 {

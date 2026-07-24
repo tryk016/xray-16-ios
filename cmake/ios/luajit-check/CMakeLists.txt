@@ -4,12 +4,16 @@
 #
 #   cmake -S cmake/ios/luajit-check -B build \
 #     -DCMAKE_TOOLCHAIN_FILE=<repo>/cmake/toolchains/ios.toolchain.cmake \
-#     -DPLATFORM=OS64 -DDEPLOYMENT_TARGET=15.0 -DENABLE_BITCODE=OFF
+#     -DPLATFORM=OS64 -DDEPLOYMENT_TARGET=16.4 -DENABLE_BITCODE=OFF
 #   cmake --build build --parallel
 #
 # Requires the Externals/LuaJIT submodule to be checked out.
 
 cmake_minimum_required(VERSION 3.13)
+
+if(NOT DEFINED DEPLOYMENT_TARGET)
+    set(DEPLOYMENT_TARGET 16.4 CACHE STRING "Minimum supported iOS version")
+endif()
 
 project(luajit_ios_check C CXX ASM)
 

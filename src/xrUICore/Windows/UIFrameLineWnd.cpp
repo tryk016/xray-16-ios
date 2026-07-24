@@ -90,6 +90,14 @@ void draw_rect(Fvector2 LTp, Fvector2 RBp, Fvector2 LTt, Fvector2 RBt, u32 clr, 
 
 void CUIFrameLineWnd::DrawElements() const
 {
+    Fvector2 texture_sizes[flMax]{};
+    for (u8 segment = flFirst; segment < flMax; ++segment)
+    {
+        if (!m_shader[segment]->GetBaseTextureResolution(texture_sizes[segment])
+            || texture_sizes[segment].x <= 0.0f || texture_sizes[segment].y <= 0.0f)
+            return;
+    }
+
     Frect rect;
     GetAbsoluteRect(rect);
     UI().ClientToScreenScaled(rect.lt);
@@ -166,11 +174,9 @@ void CUIFrameLineWnd::DrawElements() const
         }
         cursor += length;
 
-        Fvector2 ts{};
-        m_shader[segment]->GetBaseTextureResolution(ts);
         GEnv.UIRender->SetShader(*m_shader[segment]);
 
-        draw_rect(lt, rb, tex_rect.lt, tex_rect.rb, m_texture_color, ts);
+        draw_rect(lt, rb, tex_rect.lt, tex_rect.rb, m_texture_color, texture_sizes[segment]);
     };
 
     bool one_shader = false;

@@ -1,18 +1,12 @@
 name: iOS
 
-# iOS builds must run on macOS (the iPhoneOS SDK, clang sysroot and codesign are
-# macOS-only). Changes are authored on any OS and compiled here on GitHub's macOS
-# runners. This is the ONLY workflow we run on the ios-port branch — the heavy
-# desktop matrix (cibuild.yml) and StyleCheck are disabled for this branch.
+# iOS builds require macOS. Developers build and test locally on macOS; this
+# workflow is the clean-room validation path for the ios-port branch.
 #
-# Output: an unsigned .ipa for the arm64 device build. Unsigned is exactly what
-# SideStore / AltStore want — they re-sign on-device with the user's Apple ID.
-# The simulator build is kept as a fast iOS compile sanity check (it is an iOS
-# build, not the desktop macOS build we dropped) and is what we'll run headless
-# in CI from Phase 3 onwards.
-#
-# Phase 1 scope: a trivial, engine-free target. The full engine is wired in from
-# Phase 2 onwards; this file grows with it.
+# Output: the complete arm64 application as an unsigned IPA for optional
+# SideStore/AltStore distribution. The normal developer loop signs and installs
+# locally with misc/ios/install_device.sh. The simulator remains compile
+# coverage; physical-device captures are the rendering authority.
 
 on:
   push:
@@ -57,7 +51,7 @@ jobs:
           cmake -B build -G Xcode
           -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchains/ios.toolchain.cmake
           -DPLATFORM=${{ matrix.platform }}
-          -DDEPLOYMENT_TARGET=15.0
+          -DDEPLOYMENT_TARGET=16.4
           -DENABLE_BITCODE=OFF
           --log-level=VERBOSE
 
@@ -131,7 +125,7 @@ jobs:
           cmake -S cmake/ios/deps -B "build/ios-deps-${{ matrix.sdk }}" \
             -DIOS_TOOLCHAIN_FILE="$PWD/cmake/toolchains/ios.toolchain.cmake" \
             -DPLATFORM=${{ matrix.platform }} \
-            -DDEPLOYMENT_TARGET=15.0 \
+            -DDEPLOYMENT_TARGET=16.4 \
             -DENABLE_BITCODE=OFF \
             -DCMAKE_INSTALL_PREFIX="$PREFIX"
           cmake --build "build/ios-deps-${{ matrix.sdk }}" --parallel 4
@@ -177,9 +171,13 @@ jobs:
           - name: device
             platform: OS64
             sdk: iphoneos
+            debug_symbols: 'YES'
+            debug_format: dwarf-with-dsym
           - name: simulator
             platform: SIMULATORARM64
             sdk: iphonesimulator
+            debug_symbols: 'NO'
+            debug_format: dwarf
 
     steps:
       - uses: actions/checkout@v4
@@ -203,7 +201,7 @@ jobs:
           cmake -S . -B build/ios-engine-${{ matrix.sdk }} -G Xcode
           -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchains/ios.toolchain.cmake
           -DPLATFORM=${{ matrix.platform }}
-          -DDEPLOYMENT_TARGET=15.0
+          -DDEPLOYMENT_TARGET=16.4
           -DENABLE_BITCODE=OFF
           -DBUILD_SHARED_LIBS=OFF
           -DLUAJIT_DISABLE_JIT=ON
@@ -212,6 +210,8 @@ jobs:
           -DCMAKE_FIND_ROOT_PATH=${{ github.workspace }}/build/ios-prefix-${{ matrix.sdk }}
           -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
           -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO
+          -DCMAKE_XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS=${{ matrix.debug_symbols }}
+          -DCMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT=${{ matrix.debug_format }}
           --log-level=VERBOSE
 
       - name: Verify configure results
@@ -304,10 +304,9 @@ jobs:
           lipo -info "$BIN" | grep -qi 'arm64' || { echo "::error::xr_3da is not arm64"; exit 1; }
           echo "xr_3da linked for iOS (arm64, zero unresolved symbols)"
 
-      # Phase 3.9/3.10: package the device app bundle as an unsigned .ipa (Payload/<app>).
-      # SideStore/AltStore re-sign on-device. Device SDK only — a simulator .app is not
-      # installable. Runtime is pre-renderer (Phase 4) so expect a launch crash on-device;
-      # the point is to get device logs flowing (os_log + idevicesyslog).
+      # Package the complete device app bundle as an unsigned .ipa
+      # (Payload/<app>). SideStore/AltStore can re-sign it for optional remote
+      # testing. A simulator .app is not installable on a device.
       - name: Package unsigned .ipa (device)
         if: ${{ matrix.sdk == 'iphoneos' }}
         run: |
@@ -322,6 +321,38 @@ jobs:
           echo "--- Info.plist ---"; plutil -p "$APP/Info.plist" 2>/dev/null | head -100 || true
           echo "--- .ipa ---"; ls -la OpenXRay.ipa; unzip -l OpenXRay.ipa | tail -5
 
+      - name: Verify and package dSYM (device)
+        if: ${{ matrix.sdk == 'iphoneos' }}
+        run: |
+          set -e
+          DIR=build/ios-engine-${{ matrix.sdk }}
+          APP=$(find "$DIR" bin -type d -name 'xr_3da.app' 2>/dev/null | head -1)
+          DSYM=$(find "$DIR" bin -type d -name 'xr_3da.app.dSYM' 2>/dev/null | head -1)
+          if [ -z "$APP" ] || [ -z "$DSYM" ]; then
+            echo "::error::device app or dSYM not found"
+            find "$DIR" bin -name 'xr_3da*' 2>/dev/null
+            exit 1
+          fi
+          DEBUG_INFO_BYTES=$(dwarfdump --show-section-sizes "$DSYM" \
+            | awk '$1 == "__debug_info" {print $2}')
+          echo "dSYM __debug_info bytes: ${DEBUG_INFO_BYTES:-0}"
+          # A final-target-only dSYM was observed at ~51 KB while the complete
+          # engine target graph produces ~590 MB. Keep a conservative 100 MiB
+          # floor so a technically non-empty but unusable symbols artifact fails.
+          if [ -z "$DEBUG_INFO_BYTES" ] || [ "$DEBUG_INFO_BYTES" -lt 104857600 ]; then
+            echo "::error::dSYM .debug_info is incomplete (expected at least 100 MiB)"
+            exit 1
+          fi
+          BIN_UUID=$(dwarfdump --uuid "$APP/xr_3da" | awk '{print $2}' | sort)
+          DSYM_UUID=$(dwarfdump --uuid "$DSYM" | awk '{print $2}' | sort)
+          echo "binary UUID: $BIN_UUID"
+          echo "dSYM UUID:   $DSYM_UUID"
+          if [ -z "$BIN_UUID" ] || [ "$BIN_UUID" != "$DSYM_UUID" ]; then
+            echo "::error::dSYM UUID does not match the packaged binary"
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$DSYM" OpenXRay.dSYM.zip
+
       - name: Upload .ipa artifact
         if: ${{ matrix.sdk == 'iphoneos' }}
         uses: actions/upload-artifact@v4
@@ -330,13 +361,27 @@ jobs:
           path: OpenXRay.ipa
           if-no-files-found: error
 
+      - name: Upload dSYM artifact
+        if: ${{ matrix.sdk == 'iphoneos' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenXRay-ios-dSYM
+          path: OpenXRay.dSYM.zip
+          if-no-files-found: error
+
   # Phase 3.10: publish the device .ipa to a rolling `ios-dev` pre-release and generate a
   # SideStore/AltStore source (apps.json). The user adds the apps.json URL to SideStore once;
   # every push updates the release so SideStore offers the new build as an update.
   release:
     name: Publish ios-dev release + SideStore source
+    if: ${{ github.ref == 'refs/heads/ios-port' }}
     runs-on: ubuntu-latest
-    needs: engine-build
+    needs: [ios, engine-build, shader-check, luajit]
+    # Never cancel an in-flight two-asset update. Older runs finish first; the
+    # newest queued run then replaces both IPA and apps.json as one publication.
+    concurrency:
+      group: ios-dev-release
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -372,7 +417,7 @@ jobs:
                 "bundleIdentifier": "io.github.tryk016.openxray",
                 "developerName": "OpenXRay iOS port ($OWNER)",
                 "subtitle": "S.T.A.L.K.E.R. X-Ray engine on iOS (dev)",
-                "localizedDescription": "OpenXRay (S.T.A.L.K.E.R. X-Ray engine) ported to iOS. Development builds for on-device testing. No renderer yet (Phase 4) and no bundled gamedata, so it will crash at launch until those land — the purpose is to bring up the device-log loop.",
+                "localizedDescription": "Development build of the OpenXRay iOS port for Call of Pripyat 1.6.02. The native OpenGL ES 3.0 build is playable with user-supplied legal game data; lifecycle, memory and touch-gameplay work remains.",
                 "iconURL": "https://raw.githubusercontent.com/$REPO/${{ github.ref_name }}/misc/ios/openxray_icon.png",
                 "tintColor": "2e7d32",
                 "category": "games",
@@ -381,10 +426,10 @@ jobs:
                   {
                     "version": "$VERSION",
                     "date": "$DATE",
-                    "localizedDescription": "Dev build $VERSION (commit ${{ github.sha }}). Pre-renderer — expect a launch crash; this build is for device-log bring-up.",
+                    "localizedDescription": "Dev build $VERSION (commit ${{ github.sha }}). Playable controller test build; retail game data is not included. See doc/iOS-Port.md for current limitations.",
                     "downloadURL": "$BASE/OpenXRay.ipa",
                     "size": $SIZE,
-                    "minOSVersion": "15.0"
+                    "minOSVersion": "16.4"
                   }
                 ]
               }
@@ -399,14 +444,9 @@ jobs:
           gh release upload ios-dev --repo "$REPO" OpenXRay.ipa apps.json --clobber
           echo "::notice::SideStore source URL — $BASE/apps.json"
 
-  # Phase 4: offline GLSL ES 3.00 validation gate for the GL shader tree. The iOS
-  # renderer runs OpenGL ES 3.0, but the ~286 shaders under res/gamedata/shaders/gl
-  # are desktop GLSL 4.10 today. This job assembles each shader the way the engine
-  # does (version line + defines + recursive #include inlining) but as `#version
-  # 300 es`, and runs glslangValidator so ES incompatibilities surface here in
-  # seconds instead of one SideStore round-trip per shader. Informational for now
-  # (non-strict → always green); flip glsl_es_check.py to --strict to block once the
-  # tree compiles. Runs on Linux, no device or deps needed.
+  # Offline GLSL ES 3.00 validation for the GL shader tree. Run the exact same
+  # shader-only gate as developers: compile permutations, value-macro contracts,
+  # and all 137 VS->FS interface pairs. Runs on Linux, no device or deps needed.
   shader-check:
     name: GLSL ES 3.00 shader check
     runs-on: ubuntu-latest
@@ -414,14 +454,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install glslang
+      - name: Build pinned glslang 16.4.0
         run: |
-          sudo apt-get update
-          sudo apt-get install -y glslang-tools
-          glslangValidator --version
+          GLSLANG_SHA=168d452a4f460d24b588fed08477a81c44ee27a1
+          git clone --depth 1 --branch 16.4.0 --recursive --shallow-submodules \
+            https://github.com/KhronosGroup/glslang.git /tmp/glslang
+          test "$(git -C /tmp/glslang rev-parse HEAD)" = "$GLSLANG_SHA" || {
+            echo "::error::glslang 16.4.0 tag does not match pinned commit $GLSLANG_SHA"
+            exit 1
+          }
+          cmake -S /tmp/glslang -B /tmp/glslang-build \
+            -DCMAKE_BUILD_TYPE=Release -DENABLE_OPT=OFF -DGLSLANG_TESTS=OFF
+          cmake --build /tmp/glslang-build --target glslang-standalone --parallel 2
+          mkdir -p tools/glslang/bin
+          cp /tmp/glslang-build/StandAlone/glslang tools/glslang/bin/glslangValidator
+          tools/glslang/bin/glslangValidator --version
 
       - name: Validate GL shaders as GLSL ES 3.00
-        run: python3 misc/ios/shadercheck/glsl_es_check.py --dump 3
+        run: ./misc/ios/build_check.sh --shaders
 
   # Phase 2: LuaJIT is built inside the engine's CMake (not the deps superbuild). This job
   # verifies the iOS cross-compile in isolation: native host codegen tools (minilua/buildvm)
@@ -456,7 +506,7 @@ jobs:
           cmake -S cmake/ios/luajit-check -B build/luajit-${{ matrix.platform }}
           -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchains/ios.toolchain.cmake
           -DPLATFORM=${{ matrix.platform }}
-          -DDEPLOYMENT_TARGET=15.0
+          -DDEPLOYMENT_TARGET=16.4
           -DENABLE_BITCODE=OFF
           --log-level=VERBOSE
 

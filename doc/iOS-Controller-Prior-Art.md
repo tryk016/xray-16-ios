@@ -1,10 +1,17 @@
-# Prior art: OpenGothic iOS controller (reuse for Phase 5)
+# OpenGothic iOS controller — touch design reference
+
+**Status:** reference only; synchronized with the OpenXRay state on 2026-07-19.
+
+OpenXRay's hardware-controller path is already usable on device. One-finger
+pointer/tap input is also implemented for menus. The unfinished part is a
+virtual gameplay overlay and lifecycle-safe touch cancellation. Active tasks
+are tracked in [iOS-Port-Plan.md](iOS-Port-Plan.md), not in this document.
 
 The same developer wrote a from-scratch iOS controller + touch system for their
-**OpenGothic** iOS build (local reference: `C:\opengothic ios\ios\CONTROLLER-TECHNICAL.md`
-and `game/ui/`, `game/utils/` sources). It is a strong design to draw on for OpenXRay
-Phase 5 (touch/controls). This file records what transfers and what does not, so the
-investment isn't lost.
+**OpenGothic** iOS build. Its controller technical notes and `game/ui/` /
+`game/utils/` sources are a useful design reference for OpenXRay touch controls.
+This file records what transfers and what does not, so the investment is not
+lost.
 
 ## The crux: SDL2 vs raw GameController.framework
 
@@ -42,10 +49,10 @@ instead. Keep `gamepad.mm` only as a reference if SDL2 turns out to miss an inpu
    button is down, release the old action and suppress the new one until a real release.
 3. Evaluate analog triggers against a **configured threshold**, not the platform's
    `isPressed`, so behavior matches the tuning value.
-4. On `SDL_APP_WILLENTERBACKGROUND`, stop rendering before the app suspends (see Phase 3)
+4. On `SDL_APP_WILLENTERBACKGROUND`, stop rendering before the app suspends
    — the same lifecycle discipline the OpenGothic build follows.
 
-## STALKER-specific control scheme (to design in Phase 5)
+## STALKER-specific control scheme (future, if touch-only gameplay is required)
 
 STALKER CoP is a mouse-look FPS with a PDA/inventory. Unlike Gothic's melee rings, the
 core needs: left-stick move, right-stick/right-drag look, fire (RT), aim/ADS (LT), reload,

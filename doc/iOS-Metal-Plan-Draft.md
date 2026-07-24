@@ -1,14 +1,14 @@
-# iOS Metal Renderer — Draft Plan ("testowy plan")
+# iOS native Metal renderer — deferred RFC
 
-**Status: DRAFT for review.** Synthesized 2026-07-17 from three parallel research reports
-(codebase map of the render-backend seam, Metal architecture design, phased implementation
-plan). Numbering is provisional (`M0…M7`); on acceptance this merges into
-[iOS-Port-Plan.md](iOS-Port-Plan.md) as a post-Phase-6 phase. Section 9 lists the points
-where the three reports disagreed and how this draft resolves them.
+**Status: DEFERRED RFC.** Originally synthesized 2026-07-17 and synchronized with
+the project contract on 2026-07-24. This is not the active renderer plan.
+Numbering remains provisional (`M0…M7`). The start gate is maintained in
+[iOS-Port-Plan.md](iOS-Port-Plan.md); the canonical current renderer is documented
+in [iOS-Port.md](iOS-Port.md).
 
 ---
 
-## 1. Why, and why later (not now)
+## 1. Why, and why later
 
 The ES path works — menu renders, Zaton loads — but it pays a permanent impedance tax:
 Apple's GLES-on-Metal is a frozen, deprecated compatibility layer (ES 3.0 ceiling — no SSO,
@@ -18,23 +18,29 @@ border-clamp all absent), and essentially every Phase 4 slice was spent working 
 A native Metal backend removes the translation layer entirely:
 
 - restores location-based stage linking (the whole A2 varying saga disappears by construction);
-- three current-or-predicted ES walls are **non-issues natively**: float color-buffer
-  renderability (RGBA16F/R32F are guaranteed renderable on Apple-family GPUs — this is the
-  ES path's next predicted black screen), occlusion queries (visibility result buffers),
-  base-vertex draws (native on the A9+ / iOS 15 floor);
+- three ES impedance areas are **native features**: float color-buffer
+  renderability (the current ES deferred path works on the test device, while
+  Metal makes the format contract explicit), occlusion queries (visibility
+  result buffers), and base-vertex draws (native on the iOS 16.4 floor);
 - real GPU tooling: Metal HUD, Xcode `.gputrace` captures, API validation layer;
 - TBDR headroom the GL layer can't reach: load/store actions, memoryless G-buffer,
   MetalFX upscaling.
 
-It is also **~2.5× the ES-path effort** (see §8). It should start only after the ES path
-reaches "playable" (post-Phase 5), which then serves as the on-device visual reference for
-every Metal milestone.
+It is also **~2.5× the ES-path effort** (see §8). The ES path is now playable and
+serves as an on-device visual reference. The apparent far-field streaming defect
+was later split into two bugs and fixed: camera-sector recovery restored static
+geometry, and value-based SSAO feature-macro tests restored global ambient
+lighting. Neither required ANGLE or Metal.
 
-**Ground rules (unchanged).** One slice = one commit = self-contained, CI-buildable, tree
-never broken. Windows authors, GitHub Actions macOS runners validate
-(`.github/workflows/ios.yml`), user smoke-tests on device via SideStore;
-`Documents/xr_boot.log` is the debug channel. The ES path stays the default renderer until
-M7 — every Metal slice must leave ES fully working.
+Start this RFC only after cross-content startup validation, memory budget,
+lifecycle, and repeatable ES performance baseline are complete.
+
+**Ground rules.** One slice is self-contained and leaves the tree buildable.
+Changes compile locally on macOS, pass the GitHub Actions clean-room build, and
+are smoke-tested on device through `misc/ios/install_device.sh`. The ES path
+stays the default renderer until M7; every Metal slice must leave ES working.
+`Documents/xr_boot.log`, numeric probes, and captured reference frames are the
+debug evidence.
 
 ---
 
@@ -213,7 +219,7 @@ clear-after-draws = end + reopen (correct, rare); scissored clears = clear-quad 
 
 **Draw flush** (`CBackend::Render`): ensure encoder (reopen if stale, rebind per-pass
 persistent state) → resolve PSO if inputs changed → DS object if dirty → flush constants →
-`drawIndexedPrimitives(..., baseVertex:baseV)`. Base vertex is native on the iOS 15 floor —
+`drawIndexedPrimitives(..., baseVertex:baseV)`. Base vertex is native on the iOS 16.4 floor —
 the ES attrib-repointing workaround (slice 4.16) dies. Preserve 4.10 soft-fail semantics:
 a pass whose program failed renders nothing but never kills the frame.
 
@@ -328,8 +334,8 @@ simultaneously bound as shader texture (Metal forbids the feedback loops GL half
 - **Samplers:** no runtime LOD bias (same status as ES); border color only on newer
   families — keep the 4.19 clamp-to-edge behavior. `[[clip_distance]]` exists in MSL;
   keep ES-parity guards for v1, optional re-enable later (sunshafts).
-- **Video textures** (Theora, broken on ES today): dynamic-update texture path —
-  a chance to win menu-background video back (M2.6 stretch).
+- **Video textures:** port the dynamic-update path using the working ES Theora
+  implementation as a device reference (M2.6 stretch).
 - **ES workarounds that die here:** base-vertex emulation (4.16), depth-only null-FS hack
   (4.18 — Metal allows a legitimately nil fragment function; alpha-test vegetation shadows
   get a real discard FS), FBO-0/UIKit-framebuffer hack (4.17), DXT CPU decode
@@ -457,8 +463,8 @@ observation.
 - **M2.5 Screenshot/readback.** `mtlScreenshot`: final RT → shared buffer → PNG in
   Documents — the visual debug channel for everything after. Gate: on-demand screenshot
   matches what the user sees.
-- **M2.6 (stretch) Video textures.** Dynamic-update texture for Theora — broken on ES
-  today; wins menu-background video and PDA/TV. Gate: menu video plays (or explicitly
+- **M2.6 (stretch) Video textures.** Dynamic-update texture for Theora, matched
+  against the working ES reference. Gate: menu video plays (or explicitly
   deferred).
 
 ### M3 — Static level geometry: G-buffer + combine (est. 7 slices)
@@ -535,9 +541,10 @@ observation.
   per scene.
 - **M7.4 Pass/encoder optimization.** Merge passes, correct load/store actions,
   memoryless G-buffer on TBDR. Gate: pass count/frame down; no visual change.
-- **M7.5 Memory.** BC tier v2 (offline ASTC/EAC transcode; benefits ES too) + tier v3
-  (native BC where supported), measured against the ~1.6 GB Zaton jetsam ceiling. Gate:
-  peak memory materially down; big-level load survives.
+- **M7.5 Memory.** BC tier v2 (offline ASTC/EAC transcode; benefits ES too) +
+  tier v3 (native BC where supported), with a budget that prevents recurrence
+  of the measured ~1.6 GB transient full-prefetch spike. Gate: peak memory
+  materially down; big-level load survives.
 - **M7.6 Frame pacing + HUD.** Frame ring tuning, `presentAfterMinimumDuration`; Metal HUD
   + engine stats; optional programmatic `.gputrace` dump. Gate: stable paced FPS from
   device.
@@ -558,11 +565,11 @@ observation.
    Metal as a third `RendererModule`, runtime-selectable, ES as fallback and parity
    reference through M7.** Costs binary size + the `s_render_modules` widening. Retire ES
    only after parity + a few stable releases.
-3. **Minimum iOS / GPU family** *(decide at M0)* — **default: keep the iOS 15.0 floor;
+3. **Minimum iOS / GPU family** *(decide at M0)* — **default: keep the iOS 16.4 floor;
    baseline `MTLGPUFamilyApple6` (A13); treat native BC (iOS 16.4+ API) and MetalFX
    (iOS 16+) as gated fast paths.**
 4. **Implementation language** *(decide at M0.1)* — the two reports differ: the phased plan
-   recommends **metal-cpp** (single-language, greppable from Windows) with ObjC++ only in
+   recommends **metal-cpp** (single-language and easy to audit) with ObjC++ only in
    the CAMetalLayer/SDL seam; the architecture design assumes **ObjC++ `.mm`** throughout
    the HAL with C++ wrapper handles in headers. Both satisfy the shared-header hygiene
    rule. Default: **metal-cpp first**; fall back to ObjC++ if metal-cpp friction shows up
@@ -574,8 +581,8 @@ observation.
    single-immediate (GL-shaped). Metal's command buffers map naturally onto R4's
    multi-context `submit()` model; parallel encoder recording is a possible perf phase,
    not a bring-up concern.
-7. **Upscaling tech for M6.5** *(decide at M6)* — FSR 1.0 port (works on iOS 15 floor) vs
-   MetalFX spatial (iOS 16+, gated).
+7. **Upscaling tech for M6.5** *(decide at M6)* — FSR 1.0 port (works on the iOS 16.4
+   floor) vs MetalFX spatial.
 
 ---
 
@@ -587,7 +594,7 @@ observation.
 | **D3D9 state-machine impedance** | Ad-hoc state mutation + RT retargeting vs immutable PSOs and explicit passes → PSO-explosion stutter, encoder churn | State capture + lazy hashed PSO cache (DX11 backend is prior art); dedicated pass-tracker slice (M2.2) with pass-count telemetry from day one; naive pass breaks first, optimize in M7.4; `MTLBinaryArchive` warm from previous run |
 | **Occlusion queries** | Results only post-completion; naive same-frame `Get` stalls; this code never ran on iOS | Ship M0–M4 with `R_occlusion` off (status quo); M5.4 implements against the engine's existing deferred-polling contract with one-frame latency; force-off cvar stays as permanent fallback |
 | **BC textures / memory** | No BC on most A-chips; RGBA8 inflation already ~1.6 GB on Zaton → jetsam | Tier v1 decoder for correctness phases; M7.5 lands offline ASTC/EAC transcode (helps ES too) + native-BC gated path; track peak-resident in boot log every phase |
-| **CI-only build loop latency** | No local Metal/ObjC++ compile on Windows; every typo = push → CI → SideStore → device | Translator gate + all pure logic (PSO keys, pass tracker, decl mapping) CI-tested offline; one unknown per slice; boot-log-first instrumentation; batch device tests at gate slices |
+| **Metal build and device-loop latency** | A native backend adds shader translation, PSO creation and device-only validation to each slice | Compile locally on macOS; keep the translator and pure logic independently testable; one unknown per slice; use boot-log-first probes and scripted device captures |
 | **Constant-layout mismatch** | MSL/std140 packing vs the layout `R_constant_table` assumes → silently wrong lighting math | Populate tables from the SPIRV-Cross reflection blob at build (never assume offsets); CI cross-checks reflection against the GL introspection dump per shader |
 | **TBDR pass-structure perf** | Deferred pipeline ping-pongs RTs; naive encoder-per-change wrecks a tile-based GPU even when correct | Pass-count telemetry from M2.2; M7.4 dedicated optimization slice (merge, load/store, memoryless); Metal HUD numbers close the loop |
 

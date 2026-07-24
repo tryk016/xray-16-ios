@@ -369,6 +369,17 @@ ICF void CBackend::Render(D3DPRIMITIVETYPE T, u32 startV, u32 PC)
     stat.render.verts += iIndexCount;
     stat.render.polys += PC;
     constants.flush();
+    if (!GLAD_GL_ARB_vertex_attrib_binding && vb_base != 0)
+    {
+        // The ES indexed-render fallback folds baseV into classic attribute
+        // pointers because glDrawElementsBaseVertex is unavailable.  A later
+        // non-indexed draw uses startV directly; leaving that base in the VAO
+        // applies the offset twice and reads unrelated vertices.  This is most
+        // visible when full-screen passes are followed by HUD/menu quads.
+        vb_base = 0;
+        CHK_GL(glBindBuffer(GL_ARRAY_BUFFER, vb));
+        SetGLVertexPointerBase(decl, 0);
+    }
     CHK_GL(glDrawArrays(Topology, startV, iIndexCount));
     PGO(Msg("PGO:DIP:%dv/%df", iIndexCount, PC));
 }

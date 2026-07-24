@@ -3,6 +3,10 @@
 #include "xrCore/xr_token.h"
 #include "xr_input.h"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "ios/ios_display.h"
+#endif
+
 xr_vector<xr_token> vid_monitor_token;
 xr_map<u32, xr_vector<xr_token>> vid_mode_token;
 
@@ -159,6 +163,23 @@ void CRenderDevice::UpdateWindowProps()
     SDL_PumpEvents();
     UpdateWindowRects();
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // UIKit applies view/layout changes asynchronously. SelectResolution() runs
+    // before SDL_SetWindowSize(), so refresh the pixel dimensions after events
+    // and layout have been pumped instead of retaining a pre-resize drawable.
+    if (SDL_GL_GetCurrentContext())
+    {
+        int drawableWidth = 0;
+        int drawableHeight = 0;
+        SDL_GL_GetDrawableSize(m_sdlWnd, &drawableWidth, &drawableHeight);
+        if (drawableWidth > 0 && drawableHeight > 0)
+        {
+            dwWidth = static_cast<u32>(drawableWidth);
+            dwHeight = static_cast<u32>(drawableHeight);
+        }
+    }
+#endif
+
     ImGuiIO& io = ImGui::GetIO();
 
     io.DisplaySize = { static_cast<float>(psDeviceMode.Width), static_cast<float>(psDeviceMode.Height) };
@@ -233,8 +254,30 @@ void CRenderDevice::SelectResolution(const bool windowed)
         }
     }
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // Before the GL context exists, seed the render dimensions with the 2x
+    // backing-store contract. Once the context is live, use the actual EAGL
+    // drawable size so window events cannot collapse Device back to UIKit
+    // points and accidentally recreate the old downsampling path.
+    int drawableWidth = 0;
+    int drawableHeight = 0;
+    if (SDL_GL_GetCurrentContext())
+        SDL_GL_GetDrawableSize(m_sdlWnd, &drawableWidth, &drawableHeight);
+
+    if (drawableWidth > 0 && drawableHeight > 0)
+    {
+        dwWidth = static_cast<u32>(drawableWidth);
+        dwHeight = static_cast<u32>(drawableHeight);
+    }
+    else
+    {
+        dwWidth = static_cast<u32>(psDeviceMode.Width * ios_display::OpenGLDrawableScale);
+        dwHeight = static_cast<u32>(psDeviceMode.Height * ios_display::OpenGLDrawableScale);
+    }
+#else
     dwWidth = psDeviceMode.Width;
     dwHeight = psDeviceMode.Height;
+#endif
 }
 
 SDL_Window* CRenderDevice::GetApplicationWindow()

@@ -260,25 +260,6 @@ static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn,
             const glm::tvec3<GLsizei> ext(texture.extent(level));
             dxt::decode_level(k, static_cast<const u8*>(texture.data(0, face, level)),
                               ext.x, ext.y, buf.data());
-            // iOS diag (temporary, Track E): prove decoded channel order via telemetry.
-            // Expected: sky cubemaps blue-dominant (B > R); terrain/grass warm/green
-            // (R or G dominant). A B-dominant terrain or R-dominant sky here would mean
-            // a channel swap between decode and sampling — remove once verified.
-            if (face == 0 && level == skip
-                && (strstr(fn, "sky\\") || strstr(fn, "sky/")
-                    || strstr(fn, "terrain") || strstr(fn, "grass")))
-            {
-                u64 sum[4] = {};
-                const size_t n = size_t(ext.x) * ext.y;
-                for (size_t i = 0; i < n; ++i)
-                {
-                    sum[0] += buf[i * 4 + 0]; sum[1] += buf[i * 4 + 1];
-                    sum[2] += buf[i * 4 + 2]; sum[3] += buf[i * 4 + 3];
-                }
-                Msg("* iOS diag: DXT '%s' gli_fmt=%d base %dx%d avg RGBA %u %u %u %u",
-                    fn, int(texture.format()), ext.x, ext.y,
-                    u32(sum[0] / n), u32(sum[1] / n), u32(sum[2] / n), u32(sum[3] / n));
-            }
             const GLenum sub_target = texture.target() == gli::TARGET_CUBE
                 ? static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face)
                 : target;

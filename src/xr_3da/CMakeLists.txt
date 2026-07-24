@@ -78,6 +78,8 @@ if (XRAY_PLATFORM_IOS)
     set_target_properties(xr_3da PROPERTIES
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_BINARY_DIR}/Info.plist"
+        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${XR_IOS_BUNDLE_ID}"
+        XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
     )
 
     # App icon: add the asset catalog as a source so Xcode's actool compiles it into the

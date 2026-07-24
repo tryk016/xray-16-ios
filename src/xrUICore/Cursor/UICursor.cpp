@@ -72,66 +72,6 @@ void CUICursor::OnRender()
     g_btnHint->OnRender();
     g_statHint->OnRender();
 
-#if defined(XR_PLATFORM_APPLE_IOS)
-    // iOS diag (Track B): the cursor is invisible on device even though cursorVis=1 and
-    // the focus logic demonstrably works. Answer, in one run, the two open questions:
-    // is this handler reached at all, and is the cursor's own material usable?
-    // Throttled to ~1 Hz, same idiom as the other iOS diags. Placed BEFORE the
-    // IsVisible() early-out on purpose, so a vis=0 frame is reported rather than silent.
-    {
-        static u32 s_ios_cursor_diag_next = 0;
-        if (Device.dwTimeGlobal >= s_ios_cursor_diag_next)
-        {
-            s_ios_cursor_diag_next = Device.dwTimeGlobal + 1000;
-            const int shader_inited = m_static
-                ? (m_static->GetShader() ? (m_static->GetShader()->inited() ? 1 : 0) : -1)
-                : -2;
-
-            // DECISIVE: is the cursor's base texture actually resident? The leading Track B
-            // hypothesis after slice 6.9 is a texture load/bind failure on the ui\cursor
-            // family - the same textured-UI path also backs the in-game centre dot
-            // (CHUDTarget draws 'hud\cursor' + 'ui\cursor'), which is likewise absent on
-            // device, while untextured and font draws are visible.
-            // dxUIShader::GetBaseTextureResolution returns false and zeroes res when there
-            // is no base texture, so a texOk=0 or a 0x0 size answers the question outright.
-            Fvector2 ts{};
-            int tex_ok = -1;
-            if (shader_inited == 1)
-                tex_ok = m_static->GetShader()->GetBaseTextureResolution(ts) ? 1 : 0;
-
-            Msg("* iOS diag: CUICursor::OnRender reached vis=%d pos=(%.1f,%.1f) static=%d "
-                "shaderInited=%d texOk=%d texRes=%.0fx%.0f frame=%u",
-                IsVisible() ? 1 : 0, vPos.x, vPos.y, m_static ? 1 : 0, shader_inited,
-                tex_ok, ts.x, ts.y, Device.dwFrame);
-        }
-
-        // Publish sample points for the glReadPixels probe in CHW::Present.
-        //
-        // SetWndPos(vPos) below places the sprite's TOP-LEFT at vPos, and the sprite is
-        // 40x40 UI units with x scaled by get_current_kx() (see InitInternal above). On the
-        // 932x430 iOS backbuffer that is a ~22x22 px quad, so slice 6.9's single sample at
-        // vPos landed on the sprite's outermost corner texel - transparent on an arrow
-        // cursor, hence the inconclusive "background colour" reading. Sample three points
-        // biased toward the top-left, where an arrow cursor's body is solid.
-        // The UI vertex shaders map y_ui_px straight to NDC without negation, so UI y=0
-        // corresponds to GL row 0; the probe reads both orientations anyway.
-        {
-            const float kx = UICore::get_current_kx();
-            const float off_x[3] = { 5.0f * kx, 10.0f * kx, 20.0f * kx };
-            const float off_y[3] = { 6.0f, 12.0f, 20.0f };
-            g_ios_cursor_probe_ui_x = vPos.x;
-            g_ios_cursor_probe_ui_y = vPos.y;
-            for (int i = 0; i < 3; ++i)
-            {
-                g_ios_cursor_probe_x[i] =
-                    iFloor((vPos.x + off_x[i]) * float(Device.dwWidth) / UI_BASE_WIDTH);
-                g_ios_cursor_probe_y[i] =
-                    iFloor((vPos.y + off_y[i]) * float(Device.dwHeight) / UI_BASE_HEIGHT);
-            }
-        }
-    }
-#endif
-
     if (!IsVisible())
         return;
 #ifdef DEBUG

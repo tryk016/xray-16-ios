@@ -758,6 +758,9 @@ void CCC_Register()
     // Render device states
     CMD4(CCC_Integer, "r__supersample", &ps_r__Supersample, 1, 4);
     CMD4(CCC_Integer, "r__wallmarks_on_skeleton", &ps_r__WallmarksOnSkeleton, 0, 1);
+#if defined(XR_PLATFORM_APPLE_IOS)
+    CMD4(CCC_Integer, "ios_diagnostics", &psIOSDiagnostics, 0, 1);
+#endif
 
     CMD1(CCC_Editor, "rs_editor");
 

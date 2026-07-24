@@ -27,10 +27,15 @@ struct sh_pair
     shared_str shader_name;
     bool operator<(const sh_pair& other) const
     {
+        // Lexicographic order is required by xr_map/std::map.  Comparing the
+        // shader when the texture names differ made both a < b and b < a true
+        // for some mixed-shader pairs, corrupting the shared UI shader cache
+        // and returning an atlas that belonged to another widget.
         if (texture_name < other.texture_name)
             return true;
-        else
-            return shader_name < other.shader_name;
+        if (other.texture_name < texture_name)
+            return false;
+        return shader_name < other.shader_name;
     }
 };
 

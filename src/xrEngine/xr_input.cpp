@@ -398,42 +398,87 @@ void CInput::KeyUpdate()
     // once the CAMERA MOVES - standing still, they persist no matter how many frames pass -
     // so any automated visual check has to be able to walk.
     //
-    // Protocol: write "<key> <ms>" into Documents/_appdata_/autoinput.txt, e.g. "w 1500".
-    // <key> is a single letter (mapped to its SDL scancode) and <ms> is how long to hold it.
+    // Protocol: write "<key> <ms>" into Documents/_appdata_/autoinput.txt, e.g. "w 1500"
+    // or "escape 100". Letters, digits and a small allow-list of named keys map to SDL scancodes;
+    // <ms> is how long to hold the key after the initial press.
     // The file is consumed (deleted) as soon as it is read, so pushing it again re-triggers.
     //
     // The key is forced into keyboardState just before the hold loop below, so it travels the
     // ordinary IR_OnKeyboardHold path and is indistinguishable from a real held key to
     // everything downstream. Polled 4x/sec rather than per frame: this stats a file.
     //
-    // Diagnostic scaffolding - strip it, or put it behind a cvar, once the graphics work it
-    // serves is finished.
+    // This path is fully dormant in normal gameplay. install_device.sh --diagnostics
+    // enables it together with framebuffer capture for unattended visual tests.
+    if (psIOSDiagnostics)
     {
-        static u32 s_next_poll = 0;
-        static u32 s_hold_until = 0;
-        static int s_hold_key = -1;
         const u32 now = SDL_GetTicks();
 
-        if (now >= s_next_poll)
+        if (SDL_TICKS_PASSED(now, m_ios_diag_next_poll))
         {
-            s_next_poll = now + 250;
+            m_ios_diag_next_poll = now + 250;
 
             const char* home = getenv("HOME");
             string_path trigger;
             xr_sprintf(trigger, "%s/Documents/_appdata_/autoinput.txt", home ? home : ".");
             if (FILE* f = fopen(trigger, "rb"))
             {
-                char key = 0;
+                char key[32] = {};
                 unsigned ms = 0;
-                if (fscanf(f, " %c %u", &key, &ms) == 2 && ms > 0 && ms <= 30000)
+                char extra = 0;
+                if (fscanf(f, " %31s %u %c", key, &ms, &extra) == 2 && ms > 0 && ms <= 30000)
                 {
-                    if (key >= 'A' && key <= 'Z')
-                        key = char(key - 'A' + 'a');
-                    if (key >= 'a' && key <= 'z')
+                    for (char* p = key; *p; ++p)
                     {
-                        s_hold_key = SDL_SCANCODE_A + (key - 'a');
-                        s_hold_until = now + ms;
-                        Msg("* iOS diag: autoinput hold '%c' (scancode %d) for %u ms", key, s_hold_key, ms);
+                        if (*p >= 'A' && *p <= 'Z')
+                            *p = char(*p - 'A' + 'a');
+                    }
+
+                    int mapped_key = -1;
+                    if (key[0] >= 'a' && key[0] <= 'z' && key[1] == '\0')
+                        mapped_key = SDL_SCANCODE_A + (key[0] - 'a');
+                    else if (key[0] >= '1' && key[0] <= '9' && key[1] == '\0')
+                        mapped_key = SDL_SCANCODE_1 + (key[0] - '1');
+                    else if (key[0] == '0' && key[1] == '\0')
+                        mapped_key = SDL_SCANCODE_0;
+                    else if (xr_strcmp(key, "escape") == 0 || xr_strcmp(key, "esc") == 0)
+                        mapped_key = SDL_SCANCODE_ESCAPE;
+                    else if (xr_strcmp(key, "tab") == 0)
+                        mapped_key = SDL_SCANCODE_TAB;
+                    else if (xr_strcmp(key, "enter") == 0 || xr_strcmp(key, "return") == 0)
+                        mapped_key = SDL_SCANCODE_RETURN;
+                    else if (xr_strcmp(key, "space") == 0)
+                        mapped_key = SDL_SCANCODE_SPACE;
+                    else if (xr_strcmp(key, "up") == 0)
+                        mapped_key = SDL_SCANCODE_UP;
+                    else if (xr_strcmp(key, "down") == 0)
+                        mapped_key = SDL_SCANCODE_DOWN;
+                    else if (xr_strcmp(key, "left") == 0)
+                        mapped_key = SDL_SCANCODE_LEFT;
+                    else if (xr_strcmp(key, "right") == 0)
+                        mapped_key = SDL_SCANCODE_RIGHT;
+                    else if (xr_strcmp(key, "menu") == 0)
+                    {
+                        SetCurrentInputType(KeyboardMouse);
+                        if (Console)
+                            Console->Execute("main_menu");
+                        Msg("* iOS diag: autoinput command 'menu'");
+                    }
+
+                    if (mapped_key >= 0)
+                    {
+                        if (m_ios_diag_hold_key >= 0)
+                        {
+                            keyboardState[m_ios_diag_hold_key] = false;
+                            cbStack.back()->IR_OnKeyboardRelease(m_ios_diag_hold_key);
+                        }
+
+                        m_ios_diag_hold_key = mapped_key;
+                        m_ios_diag_hold_until = now + ms;
+                        SetCurrentInputType(KeyboardMouse);
+                        keyboardState[m_ios_diag_hold_key] = true;
+                        cbStack.back()->IR_OnKeyboardPress(m_ios_diag_hold_key);
+                        Msg("* iOS diag: autoinput press/hold '%s' (scancode %d) for %u ms", key,
+                            m_ios_diag_hold_key, ms);
                     }
                 }
                 fclose(f);
@@ -441,17 +486,26 @@ void CInput::KeyUpdate()
             }
         }
 
-        if (s_hold_key >= 0)
+        if (m_ios_diag_hold_key >= 0)
         {
-            if (now < s_hold_until)
-                keyboardState[s_hold_key] = true;
+            if (!SDL_TICKS_PASSED(now, m_ios_diag_hold_until))
+                keyboardState[m_ios_diag_hold_key] = true;
             else
             {
-                keyboardState[s_hold_key] = false;
-                Msg("* iOS diag: autoinput released scancode %d", s_hold_key);
-                s_hold_key = -1;
+                keyboardState[m_ios_diag_hold_key] = false;
+                cbStack.back()->IR_OnKeyboardRelease(m_ios_diag_hold_key);
+                Msg("* iOS diag: autoinput released scancode %d", m_ios_diag_hold_key);
+                m_ios_diag_hold_key = -1;
             }
         }
+    }
+    else if (m_ios_diag_hold_key >= 0)
+    {
+        keyboardState[m_ios_diag_hold_key] = false;
+        cbStack.back()->IR_OnKeyboardRelease(m_ios_diag_hold_key);
+        m_ios_diag_hold_key = -1;
+        m_ios_diag_hold_until = 0;
+        m_ios_diag_next_poll = 0;
     }
 #endif
 
@@ -569,11 +623,6 @@ void CInput::ControllerUpdate()
                 controllerState.id = event.cbutton.which;
 
             controllerState.buttons[event.cbutton.button] = true;
-#if defined(XR_PLATFORM_APPLE_IOS)
-            // iOS diag (Track C): prove SDL delivers pad buttons while a menu is up.
-            Msg("* iOS diag: SDL pad button %d down -> key %d", event.cbutton.button,
-                ControllerButtonToKey[event.cbutton.button]);
-#endif
             cbStack.back()->IR_OnControllerPress(ControllerButtonToKey[event.cbutton.button], pressedAxis);
             break;
 
@@ -907,6 +956,11 @@ void CInput::OnAppActivate(void)
     mouseState.reset();
     keyboardState.reset();
     controllerState = {};
+#if defined(XR_PLATFORM_APPLE_IOS)
+    m_ios_diag_hold_key = -1;
+    m_ios_diag_hold_until = 0;
+    m_ios_diag_next_poll = 0;
+#endif
 }
 
 void CInput::OnAppDeactivate(void)
@@ -917,6 +971,11 @@ void CInput::OnAppDeactivate(void)
     mouseState.reset();
     keyboardState.reset();
     controllerState = {};
+#if defined(XR_PLATFORM_APPLE_IOS)
+    m_ios_diag_hold_key = -1;
+    m_ios_diag_hold_until = 0;
+    m_ios_diag_next_poll = 0;
+#endif
 }
 
 void CInput::OnFrame(void)

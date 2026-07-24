@@ -447,16 +447,23 @@ if (XRAY_PLATFORM_IOS)
         FILES
         ios/ios_audio_session.h
         ios/ios_audio_session.mm
+        ios/ios_display.h
+        ios/ios_display.mm
     )
 
     # stdafx.h is a C++ PCH and (via Common/PlatformApple.inl) typedefs BOOL,
     # which collides with the Objective-C runtime — keep it out of the ObjC++ TU.
-    set_source_files_properties(ios/ios_audio_session.mm PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+    set_source_files_properties(
+        ios/ios_audio_session.mm
+        ios/ios_display.mm
+        PROPERTIES SKIP_PRECOMPILE_HEADERS ON
+    )
 
     target_link_libraries(xrEngine
         PRIVATE
         "-framework AVFoundation"
         "-framework Foundation"
+        "-framework QuartzCore"
         "-framework UIKit"
     )
 endif()

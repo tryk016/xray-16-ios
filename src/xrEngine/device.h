@@ -314,21 +314,6 @@ extern ENGINE_API CRenderDevice Device;
 
 extern ENGINE_API bool g_bBenchmark;
 
-#if defined(XR_PLATFORM_APPLE_IOS)
-// iOS diag (Track B): backbuffer pixel coordinate of the UI cursor, published once per
-// frame by CUICursor::OnRender (xrUICore) and consumed by the glReadPixels probe in
-// CHW::Present (xrRender_GL). xrRender_GL does not link xrUICore, so xrEngine - which
-// both of them do link - is the only shared place this can live. Strip together with
-// the probe once the invisible-cursor question is answered.
-// Three sample points inside the cursor sprite (slice 6.9 sampled only its top-left
-// CORNER texel, where an arrow cursor is transparent - that result was inconclusive,
-// not evidence of a missing draw).
-extern ENGINE_API int g_ios_cursor_probe_x[3];
-extern ENGINE_API int g_ios_cursor_probe_y[3];
-extern ENGINE_API float g_ios_cursor_probe_ui_x;
-extern ENGINE_API float g_ios_cursor_probe_ui_y;
-#endif
-
 typedef fastdelegate::FastDelegate0<bool> LOADING_EVENT;
 extern ENGINE_API xr_list<LOADING_EVENT> g_loading_events;
 

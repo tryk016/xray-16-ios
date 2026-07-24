@@ -4,10 +4,11 @@
 # install it on the tethered iPhone. This replaces SideStore/Sideloadly for the
 # development loop — see doc/iOS-Port-Journal.md, slice 6.13.
 #
-#   ./misc/ios/install_device.sh                       # newest local .ipa, sign + install
+#   ./misc/ios/install_device.sh                       # current build .app, or newest local .ipa fallback
 #   ./misc/ios/install_device.sh --launch              # ...and launch it afterwards
+#   ./misc/ios/install_device.sh --diagnostics         # launch with cable input + frame capture enabled
 #   ./misc/ios/install_device.sh path/to/Some.ipa      # explicit .ipa (or .app)
-#   ./misc/ios/install_device.sh --renew               # refresh the 7-day profile only
+#   ./misc/ios/install_device.sh --renew               # refresh the provisioning profile only
 #
 # Exit code 0 = installed. Anything else = nothing was installed.
 #
@@ -38,7 +39,7 @@
 set -u -o pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || exit 1
 
 BUNDLE_ID="io.github.tryk016.openxray.RMJWWPF379"
 TEAM_ID="RMJWWPF379"
@@ -51,24 +52,21 @@ STUB="$REPO_ROOT/misc/ios/provisioning-stub"
 fail() { echo ""; echo "FAIL: $*"; exit 1; }
 
 do_launch=0
+diagnostics=0
 renew_only=0
 input=""
 for arg in "$@"; do
     case "$arg" in
         --launch) do_launch=1 ;;
+        --diagnostics) diagnostics=1; do_launch=1 ;;
         --renew)  renew_only=1 ;;
-        -*) echo "usage: $0 [--launch] [--renew] [path/to/app.ipa]" >&2; exit 2 ;;
+        -*) echo "usage: $0 [--launch|--diagnostics] [--renew] [path/to/app.ipa]" >&2; exit 2 ;;
         *)  input="$arg" ;;
     esac
 done
 
-# --- signing identity -------------------------------------------------------
-# Only identities with a matching private key can sign, and -v lists exactly
-# those. If this comes up empty the cert expired or the keychain is locked;
-# minting a new one needs `xcodebuild -allowProvisioningUpdates` (see --renew).
-IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null \
-    | awk -v team="$TEAM_ID" '/Apple Development/ {print $2; exit}')
-[ -n "$IDENTITY" ] || fail "no Apple Development identity with a private key in the keychain"
+WORK=$(mktemp -d -t xrinstall)
+trap 'rm -rf "$WORK"' EXIT
 
 # --- provisioning profile ---------------------------------------------------
 # Find a profile for our App ID that is still valid. Profiles are CMS-wrapped
@@ -78,19 +76,17 @@ find_profile() {
     now=$(date +%s)
     shopt -s nullglob
     for f in "$PROFILE_DIR"/*.mobileprovision; do
-        security cms -D -i "$f" 2>/dev/null > /tmp/.xrprof.$$ || continue
-        /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /tmp/.xrprof.$$ 2>/dev/null \
+        security cms -D -i "$f" 2>/dev/null > "$WORK/profile.plist" || continue
+        /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" "$WORK/profile.plist" 2>/dev/null \
             | grep -q "^$TEAM_ID\.$BUNDLE_ID$" || continue
-        exp=$(/usr/libexec/PlistBuddy -c "Print :ExpirationDate" /tmp/.xrprof.$$ 2>/dev/null)
+        exp=$(/usr/libexec/PlistBuddy -c "Print :ExpirationDate" "$WORK/profile.plist" 2>/dev/null)
         [ -n "$exp" ] || continue
         # PlistBuddy prints e.g. "Sun Jul 26 15:41:52 GMT 2026"
         if [ "$(date -j -f "%a %b %d %T %Z %Y" "$exp" +%s 2>/dev/null || echo 0)" -gt "$now" ]; then
-            rm -f /tmp/.xrprof.$$
             echo "$f"
             return 0
         fi
     done
-    rm -f /tmp/.xrprof.$$
     return 1
 }
 
@@ -119,21 +115,62 @@ PROFILE=$(find_profile) || { renew_profile; PROFILE=$(find_profile); }
 [ -n "${PROFILE:-}" ] || fail "still no valid profile for $BUNDLE_ID after renewal"
 echo "profile: $(basename "$PROFILE")"
 
+# --- signing identity -------------------------------------------------------
+# A keychain can hold multiple Apple Development identities. Select only a
+# private key whose certificate is explicitly authorized by this provisioning
+# profile; the profile's application identifier already pins the required team.
+security cms -D -i "$PROFILE" > "$WORK/prof.plist" \
+    || fail "could not decode the selected provisioning profile"
+IDENTITY=""
+cert_index=0
+while cert_data=$(plutil -extract "DeveloperCertificates.$cert_index" raw -o - \
+        "$WORK/prof.plist" 2>/dev/null); do
+    cert_file="$WORK/profile-cert-$cert_index.cer"
+    printf '%s' "$cert_data" | base64 -D > "$cert_file" \
+        || fail "could not decode DeveloperCertificates.$cert_index"
+    cert_fingerprint=$(openssl x509 -inform DER -in "$cert_file" \
+        -noout -fingerprint -sha1 2>/dev/null \
+        | awk -F= '{gsub(":", "", $2); print toupper($2)}')
+    if [ -n "$cert_fingerprint" ] \
+            && security find-identity -v -p codesigning 2>/dev/null \
+                | awk -v fingerprint="$cert_fingerprint" \
+                    '$2 == fingerprint {found=1} END {exit !found}'; then
+        IDENTITY="$cert_fingerprint"
+        break
+    fi
+    cert_index=$((cert_index + 1))
+done
+[ -n "$IDENTITY" ] \
+    || fail "no private key matches a DeveloperCertificate authorized by the selected profile"
+
 if [ "$renew_only" = 1 ]; then
     echo ""
-    echo "PASS — profile valid."
+    echo "PASS — profile and matching signing identity valid."
     exit 0
 fi
 
 # --- locate the payload -----------------------------------------------------
 if [ -z "$input" ]; then
-    input=$(ls -t "$IPA_DIR"/*.ipa 2>/dev/null | head -1)
-    [ -n "$input" ] || fail "no .ipa in $IPA_DIR — build one first, or pass a path"
+    # The development loop must install the product that build_check.sh just
+    # validated. Choosing an archived IPA first can silently deploy an older
+    # renderer and produce a convincing but false device-test result.
+    if [ -d "$REPO_ROOT/bin/aarch64/Release/xr_3da.app" ]; then
+        gate_stamp="$REPO_ROOT/build/ios-engine-iphoneos/.ios_full_gate_ok"
+        [ -f "$gate_stamp" ] \
+            || fail "current .app has no successful full-gate stamp — run ./misc/ios/build_check.sh"
+        stale_source=$(find src res Externals CMakeLists.txt .gitmodules cmake \
+            misc/ios/Info.plist.in misc/ios/Assets.xcassets \
+            misc/ios/build_check.sh misc/ios/shadercheck \
+            -type f -newer "$gate_stamp" -print -quit 2>/dev/null)
+        [ -z "$stale_source" ] \
+            || fail "source changed after the last full gate ($stale_source) — run ./misc/ios/build_check.sh"
+        input="$REPO_ROOT/bin/aarch64/Release/xr_3da.app"
+    else
+        input=$(ls -t "$IPA_DIR"/*.ipa 2>/dev/null | head -1)
+    fi
+    [ -n "$input" ] || fail "no current .app or local .ipa — build one first, or pass a path"
 fi
 [ -e "$input" ] || fail "$input not found"
-
-WORK=$(mktemp -d -t xrinstall)
-trap 'rm -rf "$WORK"' EXIT
 
 if [ "${input##*.}" = "ipa" ]; then
     unzip -q "$input" -d "$WORK" || fail "could not unpack $input"
@@ -155,7 +192,6 @@ cp "$PROFILE" "$APP/embedded.mobileprovision"
 
 # Entitlements must come from the profile itself; inventing them causes a
 # launch-time "invalid entitlements" kill that looks like a crash.
-security cms -D -i "$PROFILE" > "$WORK/prof.plist" || fail "could not decode the profile"
 /usr/libexec/PlistBuddy -x -c "Print :Entitlements" "$WORK/prof.plist" > "$WORK/ent.plist" \
     || fail "profile has no Entitlements"
 
@@ -175,10 +211,12 @@ if [ "$do_launch" = 1 ]; then
     # when it does - twice in one session so far. Without it the app boots to the main menu
     # and every automated capture silently photographs a menu instead of the game, which
     # looks like "the probe found nothing" rather than like a broken harness. So re-assert it
-    # (and the no-keypress gate) on every launch. Cheap, idempotent, and it removes the one
+    # (and the no-keypress gate) on every launch. Also write the diagnostics mode explicitly:
+    # ordinary --launch must not inherit expensive readback or file polling from an earlier run.
+    # Cheap, idempotent, and it removes the one
     # failure mode that produces confidently wrong results.
     echo "== ensuring unattended boot (autoload + no keypress gate) =="
-    cfg=$(mktemp -t xrcfg)
+    cfg="$WORK/user.ltx"
     if xcrun devicectl device copy from --device "$DEVICE_UDID" \
             --domain-type appDataContainer --domain-identifier "$BUNDLE_ID" --user mobile \
             --source Documents/_appdata_/user.ltx --destination "$cfg" >/dev/null 2>&1; then
@@ -187,17 +225,21 @@ if [ "$do_launch" = 1 ]; then
         else
             printf 'keypress_on_start 0\n' >> "$cfg"
         fi
+        if grep -q "^ios_diagnostics" "$cfg"; then
+            sed -i '' "s/^ios_diagnostics.*/ios_diagnostics $diagnostics/" "$cfg"
+        else
+            printf 'ios_diagnostics %s\n' "$diagnostics" >> "$cfg"
+        fi
         grep -q "^start server(" "$cfg" || printf '%s\n' "$AUTOLOAD" >> "$cfg"
         xcrun devicectl device copy to --device "$DEVICE_UDID" \
             --domain-type appDataContainer --domain-identifier "$BUNDLE_ID" --user mobile \
             --source "$cfg" --destination Documents/_appdata_/user.ltx >/dev/null 2>&1 \
-            || echo "warning: could not write user.ltx back - the app may boot to the menu"
+            || fail "could not write user.ltx; refusing to launch with an unknown diagnostics mode"
     else
-        echo "warning: could not read user.ltx - the app may boot to the menu"
+        fail "could not read user.ltx; refusing to launch with an unknown diagnostics mode"
     fi
-    rm -f "$cfg"
 
-    echo "== launching =="
+    echo "== launching (ios_diagnostics=$diagnostics) =="
     xcrun devicectl device process launch --device "$DEVICE_UDID" "$BUNDLE_ID" 2>&1 \
         | grep -vE "provisioning paramter list|devicectl manage create" \
         || fail "launch failed"

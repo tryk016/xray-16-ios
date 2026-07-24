@@ -79,7 +79,7 @@ void CUIEditKeyBind::InitKeyBind(Fvector2 pos, Fvector2 size)
     else if (CUITextureMaster::ItemExist("ui_options_string_back")) // cs (exists in soc also, that's why it's last)
         InitTexture("ui_options_string_back");
 
-    TextItemControl()->SetFont(UI().Font().pFontLetterica16Russian);
+    TextItemControl()->SetFont(UI().Font().pFontLetterica18Russian);
     SetStretchTexture(true);
     SetEditMode(false);
 }
@@ -95,6 +95,9 @@ bool CUIEditKeyBind::OnMouseDown(int mouse_btn)
 {
     if (m_isEditMode)
     {
+        if (m_isGamepadBinds)
+            return true;
+
         string64 message;
 
         m_keyboard = DikToPtr(mouse_btn, true);
@@ -107,7 +110,7 @@ bool CUIEditKeyBind::OnMouseDown(int mouse_btn)
         xr_strcpy(message, m_action->action_name);
         xr_strcat(message, "=");
         xr_strcat(message, m_keyboard->key_name);
-        SendMessage2Group("key_binding", message);
+        SendMessage2Group(m_isGamepadBinds ? "key_binding_gamepad" : "key_binding", message);
 
         return true;
     }
@@ -129,6 +132,11 @@ bool CUIEditKeyBind::OnKeyboardAction(int dik, EUIMessages keyboard_action)
     string64 message;
     if (m_isEditMode)
     {
+        // The button used to focus/activate this field is released after edit mode
+        // starts. Bind only a subsequent fresh press, never that release or a hold.
+        if (keyboard_action != WINDOW_KEY_PRESSED)
+            return true;
+
         const bool is_gamepad_key = dik > XR_CONTROLLER_BUTTON_INVALID && dik < XR_CONTROLLER_BUTTON_MAX;
 
         // strictly separate keyboard/mouse from gamepad bindings
@@ -145,7 +153,7 @@ bool CUIEditKeyBind::OnKeyboardAction(int dik, EUIMessages keyboard_action)
         xr_strcat(message, "=");
         xr_strcat(message, m_keyboard->key_name);
         OnFocusLost();
-        SendMessage2Group("key_binding", message);
+        SendMessage2Group(m_isGamepadBinds ? "key_binding_gamepad" : "key_binding", message);
         return true;
     }
     return false;
@@ -158,6 +166,9 @@ bool CUIEditKeyBind::OnControllerAction(int axis, const ControllerAxisState& sta
 
     if (m_isEditMode)
     {
+        if (controller_action != WINDOW_KEY_PRESSED)
+            return true;
+
         // strictly separate keyboard/mouse from gamepad bindings
         if (!m_isGamepadBinds)
             return true;
@@ -173,7 +184,7 @@ bool CUIEditKeyBind::OnControllerAction(int axis, const ControllerAxisState& sta
         xr_strcat(message, "=");
         xr_strcat(message, m_keyboard->key_name);
         OnFocusLost();
-        SendMessage2Group("key_binding", message);
+        SendMessage2Group("key_binding_gamepad", message);
         return true;
     }
 

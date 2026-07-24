@@ -36,7 +36,8 @@ void CUIStaticItem::RenderInternal(const Fvector2& in_pos)
     UI().AlignPixel(pos.y);
 
     Fvector2 ts{};
-    hShader->GetBaseTextureResolution(ts);
+    if (!hShader->GetBaseTextureResolution(ts) || ts.x <= 0.0f || ts.y <= 0.0f)
+        return;
 
     if (!uFlags.test(flValidSize))
         SetSize(ts);
@@ -107,7 +108,8 @@ void CUIStaticItem::RenderInternal(const Fvector2& in_pos)
 void CUIStaticItem::RenderInternal(float angle)
 {
     Fvector2 ts{};
-    hShader->GetBaseTextureResolution(ts);
+    if (!hShader->GetBaseTextureResolution(ts) || ts.x <= 0.0f || ts.y <= 0.0f)
+        return;
 
     const Fvector2 hp{ 0.5f / ts.x, 0.5f / ts.y };
 

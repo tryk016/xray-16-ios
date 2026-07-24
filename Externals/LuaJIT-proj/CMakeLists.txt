@@ -77,6 +77,8 @@ endif()
 
 # Host codegen tools (minilua/buildvm) always run on the build machine. When the target
 # is iOS, force them onto the macOS SDK instead of inheriting the target's iphoneos one.
+# Do not forward CMAKE_OSX_DEPLOYMENT_TARGET: that value is the iOS floor and is not
+# necessarily a valid macOS version (for example, iOS 16.4).
 set(HOST_TOOL_OSX_ARGS "")
 if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set(HOST_TOOL_OSX_ARGS -DCMAKE_OSX_SYSROOT=macosx)
@@ -388,7 +390,6 @@ add_custom_command(
         -G${HOST_TOOL_GENERATOR}
         -S${CMAKE_CURRENT_SOURCE_DIR}/HostBuildTools/minilua
         ${HOST_TOOL_OSX_ARGS}
-        -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
         -DCMAKE_VERBOSE_MAKEFILE=${CMAKE_VERBOSE_MAKEFILE}
         -DCMAKE_BUILD_TYPE=Release
         -DLUAJIT_DIR=${LUAJIT_DIR}

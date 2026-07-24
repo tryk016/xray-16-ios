@@ -4,6 +4,8 @@
 !.appveyor*
 !.editorconfig
 !.vscode
+!.Codex/
+!.Codex/session-log.md
 
 # exclude binaries and temporary files
 [Bb]in/

@@ -22,14 +22,6 @@ ENGINE_API bool g_bRendering = false;
 
 ENGINE_API bool g_bBenchmark = false;
 
-#if defined(XR_PLATFORM_APPLE_IOS)
-// iOS diag (Track B) - see Device.h.
-ENGINE_API int g_ios_cursor_probe_x[3] = { 0, 0, 0 };
-ENGINE_API int g_ios_cursor_probe_y[3] = { 0, 0, 0 };
-ENGINE_API float g_ios_cursor_probe_ui_x = 0.0f;
-ENGINE_API float g_ios_cursor_probe_ui_y = 0.0f;
-#endif
-
 string512 g_sBenchmarkName;
 
 int ps_fps_limit = 501;

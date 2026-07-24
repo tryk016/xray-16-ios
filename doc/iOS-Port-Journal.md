@@ -1886,3 +1886,675 @@ Commits: `b1d4e9206`, `122c5ba2a`, `0ac1cdb48`, `839c73d7a`, `69fa964cd`.
   produces an unsigned, SideStore-ready `.ipa`; added the `XR_PLATFORM_APPLE_IOS`
   macro (`src/Common/Platform.hpp`); restricted CI so only the `iOS` workflow runs on
   `ios-port` (desktop matrix + StyleCheck disabled for the branch).
+
+### 2026-07-19 — Slice 6.15: documentation becomes an operating system instead of an archive
+
+The implementation had outrun its specification by several phases. The overview
+still described Windows-only authorship, SideStore-only installs, an absent
+renderer, incomplete shader gates, and ANGLE as the active default. The resume
+guide contained mutually exclusive signing conclusions. The exhaustive plan was
+useful archaeology but no longer usable as a prioritized backlog.
+
+This slice established one source-of-truth hierarchy:
+
+- `iOS-Port.md` now holds the current product/architecture contract and measurable
+  definition of done;
+- `iOS-Port-Plan.md` is a short active roadmap organized by P0/P1/P2;
+- `iOS-Port-Resume.md` is a first-command handoff for the current Mac/device loop;
+- this journal remains append-only; current-fact corrections are recorded as
+  later entries;
+- the dated 2026-07-17 audit is explicitly a superseded snapshot;
+- the native Metal plan is explicitly deferred behind streaming, memory,
+  lifecycle, and performance gates;
+- the controller prior-art note reflects the already-working hardware controller
+  and menu-touch baseline;
+- root `AGENTS.md` and `.Codex/session-log.md` define ownership, evidence, safety,
+  and validation rules;
+- the main README and SideStore release description no longer claim that the
+  renderer is absent or that launch is expected to crash.
+
+No runtime behavior changed. The next code slice remains IOS-P0-001: correlate the
+first complete far-field frame with distance, sector/portal state, and named
+resource-streaming events.
+
+### 2026-07-19 — Slice 6.16: resolution/settings matrix narrows P0 to visibility and closes two test-loop defects
+
+This slice tested the user's hypothesis that launch graphics settings might
+cause the white/black world. It also traced the level-loading path before
+changing behavior.
+
+#### Static level data is not waiting for gameplay prefetch
+
+`xrRender_R2/r2_loader.cpp::level_Load` synchronously completes level buffers,
+visuals and sectors; `xrEngine/IGame_Level.cpp` calls that load before gameplay.
+The iOS-disabled `IGame_Persistent::Prefetch()` covers gameplay objects/models
+and deferred texture upload, not the static level visuals already loaded by
+`level_Load`.
+
+Therefore the old “skipped full prefetch causes missing static terrain”
+explanation is withdrawn as a leading cause. The strongest remaining paths are
+sector/portal traversal, frustum/HOM/SSA rejection, and construction of the
+static draw graph.
+
+#### Controlled settings matrix
+
+Every run used the same save, unattended autoload, the same current `.app` and a
+frame read from the engine-owned presentation target:
+
+| Variant | Measured result |
+|---|---|
+| `r__geometry_lod 0.75` vs `2.0` | Captures were byte-identical; no effect |
+| 932×430 vs 1864×860 internal rendering | P0 artefact unchanged; both ran near 60 FPS |
+| VSync off vs on | P0 artefact and observed frame cadence unchanged |
+| Postprocess/reflection group off | No fix after its shader permutation was repaired |
+| `r3_gbuffer_opt off` | No fix; optimized packing/decoding is not the cause |
+| `rs_vis_distance 1.0` vs `1.5` | No fix |
+| `texture_lod 0`, aniso 15 vs `texture_lod 2`, aniso 4 | No fix; texture allocation fell from about 556 MB to 186 MB |
+
+The 2× renderer uses `r__supersample` as an iOS internal scale while the
+SDL/UIKit window and input stay at logical 932×430. `CHW::GetSurfaceSize()` and
+`CRenderDevice::SelectResolution()` both preserve that distinction. The device
+rendered 1864×860 and presented it to the 2796×1290 drawable. Physical footprint
+rose from 3,176,307 K at 1× to 3,228,099 K at 2× (about 52 MB). The HUD/fonts are
+currently too small at 2×, so the device was restored to the 1× Extreme baseline.
+Presentation filtering and independent UI scaling remain P1 work.
+
+#### Low-preset runtime shader defect found and fixed
+
+Turning MSAA off selected `combine_1_nomsaa.ps` with `SSAO_QUALITY=1`. That
+permutation failed on the ES driver because `gl/ssao.ps` evaluated
+`(occ + 0.3) / (1 + 0.3)`: GLSL ES does not permit `int + float`. The failed
+final-combine shader left only sky and HUD, which initially looked like a strong
+settings clue.
+
+Changing the denominator to `1.0 + 0.3` restored the world. The offline gate had
+only modeled `SSAO_QUALITY=3`, so `glsl_es_check.py` now also compiles the two
+SSAO entry shaders under a 2/2 low-settings profile. The full gate is green:
+279/279 baseline compile, 2/2 low-settings compile, and 137/137 stage pairs.
+
+#### Test-loop integrity defect found and fixed
+
+`install_device.sh` with no explicit path selected the newest archived IPA even
+when `bin/aarch64/Release/xr_3da.app` had just been rebuilt. This silently
+installed an older renderer and produced a convincing false 932×430 result.
+The installer now prefers the current build `.app` and uses the archived IPA
+only as a fallback.
+
+**End state:** device restored to 932×430, VSync off, Extreme/full textures,
+G-buffer optimization on, MSAA 2×, autoload present and keypress gate disabled.
+No P0 fix is claimed. Next slice instruments visibility decisions rather than
+patching streaming or shaders.
+
+### 2026-07-19 — Slice 6.17: startup world fixed — vertical sector detection missed the spawn floor
+
+This slice continued the settings investigation with sector/portal and static
+draw-graph counters. It closes the misleading “movement triggers streaming”
+hypothesis.
+
+#### What the missing log proved
+
+The broken frame continued updating weather, HUD and weapon state, but produced
+no main-pass visibility record. `R_dsgraph_structure::build_subspace()` returns
+before traversal when the camera sector is `INVALID_SECTOR_ID`; that early return
+was before the temporary log. The world was not waiting for static buffers or
+textures: the renderer had no sector from which to build the static scene.
+
+At the affected save:
+
+```text
+camera=(256.24 21.47 550.82)
+exact down/up sector query: INVALID
+nearest successful probe=(256.24 21.47 558.82)
+probe radius=8.0
+sector=115
+```
+
+Once the earlier walking test reached geometry under a vertical ray,
+`last_sector_id` became 115. Walking back did not reproduce the defect because
+the renderer deliberately keeps the last valid sector when a later exact query
+fails. That persistence created the false appearance of asynchronous geometry
+arrival. No portal transition occurred, and static level data had already loaded
+synchronously.
+
+#### Fix
+
+`r2_R_calculate.cpp` now:
+
+1. compares `vCameraPositionSaved` with `vCameraPosition` (the old expression
+   accidentally compared saved direction with current position);
+2. uses the ordinary exact vertical query first;
+3. on iOS only, probes nearby floor positions at increasing radii when that exact
+   query is invalid;
+4. retains the first valid nearby sector and logs the exceptional fallback at
+   most once per second.
+
+Normal direct detection, all non-iOS platforms, and the portal traversal contract
+remain unchanged. `CSector::r_marker`, `CPortal::marker`,
+`CPortal::bDualRender`, and portal pointers are also initialized explicitly; the
+instrumentation exposed one transient uninitialized-marker frame, although that
+was not the persistent startup root cause.
+
+#### Device evidence
+
+- First patched cold launch, no input: fallback found sector 115 at radius 8 m;
+  the stable main pass traversed one outdoor sector and accepted 543 static
+  visuals. Full terrain and vegetation were visible immediately.
+- Second cold launch, no input: the fallback ran exactly once, sector 115 was
+  active by frame 34, and the same stable 543-visual draw graph followed.
+- Third cold launch, no input, after removing temporary visibility counters:
+  full world remained correct and the fallback again logged exactly once.
+- The full pre-install gate passed: 279/279 shader compile, 2/2 low-settings
+  compile, 137/137 shader links and arm64 engine build.
+- Temporary portal/frustum/HOM/SSA counters were removed after diagnosis.
+
+The prior settings matrix remains useful negative evidence: VSync, 1×/2×
+resolution, geometry LOD, visibility distance, G-buffer packing, texture
+quality/aniso, MSAA, SSAO, sun shafts, volumetrics, wet surfaces and reflections
+did not cause this defect. The 1× Extreme profile remains the device baseline;
+2× is functional but requires independent HUD/font scaling.
+
+**Remaining P0 validation:** one additional outdoor save, one indoor/portal
+location, save/reload and level transition. This entry supersedes slice 6.16's
+visibility/streaming next step and slice 6.14's conclusion that movement caused
+far-field data to arrive.
+
+### 2026-07-19 — Slice 6.18: global darkness fixed — SSAO sampled an ungenerated half-depth buffer
+
+This slice corrects the remaining lighting conclusion after slice 6.17 restored
+static geometry. The world was complete but nearly black except for a small
+correctly lit area near the player. It was not a shadow-map, tonemap, weather,
+material-LUT, cubemap, resolution, or renderer-API defect.
+
+#### Decisive on-device measurement
+
+A temporary five-band `combine_1.ps` build displayed:
+
+1. albedo;
+2. SSAO factor `occ`;
+3. hemispheric diffuse before `occ`;
+4. hemispheric diffuse after `occ`;
+5. the normal production output.
+
+The environment input and pre-SSAO hemispheric result were strong. `occ` sat
+near its remapped minimum across most of the world and reduced the entire
+ambient/hemispheric term by about six times. The local-light accumulator is
+added separately and is not multiplied by `occ`, exactly explaining the
+correctly lit circle around the player.
+
+#### Root cause
+
+`gl/common.h` assigns explicit zero defaults to ES feature macros because GLSL
+ES rejects undefined names in numeric preprocessor expressions:
+
+```glsl
+#define SSAO_QUALITY 0
+#define SSAO_OPT_DATA 0
+```
+
+`gl/ssao.ps` still used presence checks:
+
+```glsl
+#ifndef SSAO_QUALITY
+#ifndef SSAO_OPT_DATA
+```
+
+An explicit `0` is nevertheless defined. The active high-quality profile with
+`SSAO_OPT_DATA=0` therefore entered the optimized branch and sampled
+`s_half_depth`, although the CPU allocates/populates that path only when the
+option is enabled. The same mismatch meant `r2_ssao st_opt_off` did not enter
+the `return 1.0` stub, so the earlier “SSAO off did not help” test was invalid.
+
+#### Fix
+
+`res/gamedata/shaders/gl/ssao.ps` now tests values:
+
+```glsl
+#if SSAO_QUALITY == 0
+#if SSAO_OPT_DATA == 0
+```
+
+No brightness, weather, cubemap, tonemap, ANGLE, or Metal workaround was added.
+The temporary diagnostic bands were removed.
+
+#### Verification
+
+- Diagnostic A/B: before the fix, `occ` was near its floor and the post-SSAO
+  hemisphere collapsed; after the fix, `occ` became bright and spatially
+  varying, and pre/post hemisphere bands agreed outside actual occlusion.
+- Repeated with `r3_gbuffer_opt off` and the final baseline
+  `r3_gbuffer_opt on`.
+- Full gate passed: 279/279 compile, 2/2 low-settings compile, 6/6 SSAO resource
+  branches plus the value-macro contract, 137/137 links, arm64 engine build.
+- Final normal build rendered detailed terrain and vegetation globally, both
+  before and after a nine-second synthetic walk.
+- Two further cold launches reproduced the corrected frame.
+- Final boot log contained no fatal, shader compile/link, or GL error.
+- Final device profile: 932×430, VSync off, SSAO high, G-buffer optimization on,
+  MSAA 2×, texture LOD 0, anisotropy 15.
+
+#### Follow-up
+
+Cross-save/indoor startup-sector validation and memory/lifecycle work remain the
+active P0. The older HBAO/SSR helpers also contain presence-style feature tests;
+audit those as a separate P1 before enabling them. The primary SSAO path is
+fixed and verified.
+
+## 2026-07-19 — 2× resolution and HUD/menu/inventory textures
+
+- Enabled and verified `r__supersample 2`: the captured render target is
+  1864×860 instead of 932×430.
+- Fixed `dxUIShader::GetBaseTexture`: sampler units are keys in
+  `STextureList`, not vector indices. The old code could return no texture and
+  divide atlas coordinates by 0.
+- Fixed the decisive ES backend defect in the non-indexed render path. The
+  `glDrawElementsBaseVertex` fallback stores `baseV` in classic attribute
+  pointers; `glDrawArrays` must reset that base before using `startV`, otherwise
+  the offset is applied twice. This was why CPU-side inventory geometry and
+  textures were valid while no panel reached the frame.
+- Added a screen-space UI state boundary (no inherited depth, stencil or
+  culling), a zero-size texture guard, and a strict lexicographic comparator for
+  the shared UI shader cache.
+- Device result at 1864×860: textured minimap and complete inventory including
+  panels, portrait, equipment, weapons, slots, scrollbar and item icons.
+- Diagnostics used to prove texture bindings, draw state and framebuffer writes
+  were removed after verification.
+
+### 2026-07-13 — Phase 2 deps: 7 libraries cross-build static
+Commits: `b1d4e9206`, `122c5ba2a`, `0ac1cdb48`, `839c73d7a`, `69fa964cd`.
+
+- **Done:** SDL2 2.32.10, OpenAL-soft 1.25.2, libogg 1.3.6, libvorbis 1.3.7,
+  libtheora 1.1.1, lzo 2.10, and LuaJIT all cross-build **static** for both iOS SDKs
+  (device OS64 + simulator SIMULATORARM64), verified arm64.
+- **How:** a CMake ExternalProject superbuild at `cmake/ios/deps` (SDL2/OpenAL/
+  ogg/vorbis/lzo); theora via an injected CMake build at `cmake/ios/theora` (upstream
+  is autotools-only); LuaJIT via iOS-guarded fixes in `Externals/LuaJIT-proj` +
+  a standalone `cmake/ios/luajit-check`.
+- **Errors & fixes:**
+  - CMake 4.x rejected `cmake_minimum_required(<3.5)` (vorbis/lzo) →
+    `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` in the superbuild's common args.
+  - OpenAL: Xcode 26.5 `-Werror=function-effects` in `coreaudio.cpp` →
+    pre-seed `-DHAVE_WFUNCTION_EFFECTS=OFF` (skips the probe that adds the flag).
+  - LuaJIT host tools were built as iOS binaries (Abort trap 6 when run) → build
+    `minilua`/`buildvm` native (`--target=<host>-apple-macos`, `CMAKE_OSX_SYSROOT=macosx`);
+    the working `-target` form is the single-token `--target=…`.
+  - LuaJIT `use of undeclared identifier 'lj_cf_jit_util_trace*'` → `LUAJIT_DISABLE_JIT=ON`
+    (interpreter mode — the intended iOS baseline; aligns host tools + target sources).
+
+### 2026-07-13 — Phase 1: toolchain, smoke test, `.ipa`
+- **Done:** vendored `cmake/toolchains/ios.toolchain.cmake` (leetal); an engine-free
+  smoke test (`misc/ios/smoketest`) builds for simulator + device on macOS CI and
+  produces an unsigned, SideStore-ready `.ipa`; added the `XR_PLATFORM_APPLE_IOS`
+  macro (`src/Common/Platform.hpp`); restricted CI so only the `iOS` workflow runs on
+  `ios-port` (desktop matrix + StyleCheck disabled for the branch).
+
+## 2026-07-19 — 1864×860 becomes the actual iOS drawable
+
+The earlier 2x experiment used `r__supersample` to create 1864×860 engine render
+targets while UIKit and input remained 932×430. That established that the engine
+could render at the requested size, but it left presentation resolution coupled
+to a misleading renderer cvar.
+
+### Change
+
+- Added an iOS Objective-C++ bridge that sets SDL's actual EAGL view
+  `contentScaleFactor` to 2.0 immediately after context creation.
+- `CHW::GetSurfaceSize()` now reads `SDL_GL_GetDrawableSize()` instead of
+  multiplying the logical mode by `r__supersample`.
+- `CRenderDevice::SelectResolution()` preserves the actual drawable dimensions
+  after context creation and uses the 2x backing-store contract only as its
+  pre-context seed.
+- Device `user.ltx` was returned to `r__supersample 1`.
+
+### Device evidence
+
+- Full arm64 engine gate passed after regenerating the Xcode project.
+- The signed build installed under the existing
+  `io.github.tryk016.openxray.RMJWWPF379` container.
+- Boot log: `OpenGL drawable 1864x860 (UIKit window 932x430, scale 2.0)`.
+- Periodic frame capture: 1864×860.
+- Therefore the final blit is 1864×860 → 1864×860: no final spatial upscale or
+  downsample.
+
+The remaining Options readability defect is now correctly classified as a
+logical UI layout/font/contrast problem, not a framebuffer-resolution problem.
+
+## 2026-07-19 — iOS-only scope and readable Options layout
+
+### Product decision
+
+- The active product is now explicitly iOS-only. Preserving desktop behavior is
+  not an acceptance criterion and must not delay a better iPhone implementation.
+- Retail Call of Pripyat resource and gameplay compatibility remain required.
+
+### Change
+
+- `CScriptXmlInit` maps only the iOS request for `ui_mm_opt.xml` to the dedicated
+  `ui_mm_opt_ios_16.xml` widescreen layout.
+- The iOS Options panel and its control geometry are 25% larger while retaining
+  the original 1024×768 logical UI coordinate system.
+- Body text moved from `letterica16` to `letterica18`; tabs and primary actions
+  moved from `letterica18` to `letterica25`.
+- Grayscale text states were raised from 170/200/210/230 to
+  225/240/245/255, and disabled text from 70 to 120.
+- Comboboxes can opt in to applying their XML `list_font` to the closed value;
+  only the iOS Options file enables that behavior.
+- The original node names, tab IDs and all 76 `options_item` bindings were
+  preserved.
+
+### Validation
+
+- `xmllint` accepted the new XML and an automated tree comparison found the same
+  535 nodes, IDs and option bindings as the source widescreen layout.
+- Full gate passed: 279/279 shader compile, 2/2 low-settings, 6/6 SSAO branches,
+  SSAO numeric contract, 137/137 links and arm64 engine build.
+- The signed build installed over the existing app without deleting its data
+  container.
+- Boot log still reports
+  `OpenGL drawable 1864x860 (UIKit window 932x430, scale 2.0)`.
+- Device configuration remains `r__supersample 1`, `ui_style_default`, VSync off.
+- Capture `/tmp/xr-options-ios-readable-v1.png` is 1864×860, shows the enlarged
+  panel without clipping, and the user accepted its readability.
+
+### Device state
+
+- The app is running in the Options screen for visual inspection.
+- Autoload is temporarily absent so the app opens at the main menu during UI
+  work; `keypress_on_start 0` remains set.
+
+## 2026-07-21 — autonomous diagnostics isolated, CI gate made blocking, UI hardening
+
+### Hypotheses and observables
+
+- If the autonomous harness perturbs normal gameplay, a normal launch must
+  execute neither periodic `glReadPixels` nor `autoinput.txt` polling.
+- If CI is authoritative, the rolling IPA release must depend on the exact local
+  compile/link contract and an older/different-ref run must not clobber it.
+- Static UI findings were accepted only where the source established a direct
+  mismatch; inventory/PDA behavior that depends on retail XML remains a device
+  test, not a claimed fix.
+
+### Implemented
+
+- Added the zero-default `ios_diagnostics` console variable. It gates both the
+  five-second full-frame dump and four-Hz file input polling.
+- `install_device.sh --diagnostics` enables the gate; normal `--launch` writes 0.
+  Failure to read/write `user.ltx` now aborts instead of launching in an unknown
+  mode. `input.sh` and `shot.sh` verify the mode before acting.
+- Frame capture publishes an atomic generation sidecar after the PPM. `shot.sh`
+  waits up to seven seconds for a new generation, preventing stale captures from
+  a previous process.
+- Synthetic key state moved from function statics into `CInput`, uses wrap-safe
+  SDL tick comparisons, is reset on lifecycle changes, rejects extra protocol
+  tokens, and supports digit keys.
+- Removed finished cursor, framebuffer sample, DXT-channel, controller and focus
+  diagnostics. Kept the controller focus affordance as a stable gold frame,
+  without flashing, bracket glyphs or one-Hz logs.
+- Controls now use `letterica18` binding values. Controller assignments notify
+  `key_binding_gamepad`, and mouse buttons cannot be assigned into controller
+  fields. Binding capture accepts only a fresh press, so releasing the gamepad
+  Accept button that opened edit mode cannot immediately bind itself. The
+  enlarged AO row is 130 units high so its fourth button ends before SSAO Quality.
+- Frame-line, frame-window and radial-progress rendering now refuses missing or
+  0×0 base textures rather than generating non-finite UVs.
+- GitHub Actions invokes `build_check.sh --shaders` in strict mode with pinned
+  glslang 16.4.0. Release depends on that job, publishes only from `ios-port`,
+  and the workflow uses one global concurrency group for the rolling tag.
+- Device CI requests Xcode `dwarf-with-dsym`, verifies a non-empty
+  `__debug_info` section and exact binary/dSYM UUID equality, archives the dSYM,
+  and uploads it as a separate artifact. The size check intentionally uses
+  `--show-section-sizes`: piping the full 879 MB symbol dump into `grep -q`
+  would be slow and could fail under `pipefail` after the early reader exit.
+
+### Verification
+
+- Shell syntax, YAML parsing and `git diff --check`: pass.
+- glslang tag `16.4.0` exists. A clean clone configured and built the real
+  `glslang-standalone` target; its executable reports 16.4.0. This caught and
+  corrected an initially wrong CMake target name before handoff.
+- Full local gate: 279/279 stages, 2/2 low-settings, 6/6 SSAO branches, numeric
+  SSAO contract, 137/137 stage links, and arm64 engine build. The last two runs
+  rebuilt nine and then one translation unit; both passed.
+- A full local Release rebuild with Xcode debug symbols completed successfully.
+  Its dSYM contains 590,419,597 bytes of `__debug_info`, has UUID
+  `757911FA-42BC-31A2-9B2A-CDEAE241BDB5` matching the app binary, and produced a
+  292,020,812-byte zip that passed `unzip -t`.
+- No install or device validation was performed in this slice because the user
+  intentionally made the phone unavailable. The prior installed build and its
+  retail assets/save container were untouched.
+
+### Audits and remaining work
+
+- HBAO/HDAO contain dormant zero-default macro violations; SSR has one locally
+  unsafe helper test. These are not active in the current iOS profile and must
+  gain real harness entries before being enabled or changed.
+- Advanced Options and Controls need one device capture/test. Inventory/PDA/map
+  need logging of the exact retail XML selected by `ui_style_default`; focus
+  auto-scroll and viewport clipping are still open.
+- CI still needs one remote artifact run plus a deliberately failing remote
+  shader/varying canary. Device validation must also prove that normal launch is
+  free of autonomous readback/polling and that diagnostic captures are fresh.
+
+## 2026-07-21 — independent review corrections and offline UI extension
+
+An independent read-only review found four defects before handoff:
+
+- dSYM matrix values had initially landed on `deps`, while `engine-build` read
+  them. They now live on the engine matrix; only the device row requests
+  `dwarf-with-dsym`.
+- `dwTimeGlobal` freezes in paused menus. Diagnostic capture now schedules and
+  stamps with `dwTimeContinual`, so Options captures continue to advance.
+- The release initially waited on only engine+shader and used cancellable
+  workflow concurrency. It now waits on smoke, engine, shader and isolated
+  LuaJIT jobs; only publication is serialized, and an in-flight IPA/apps.json
+  replacement is never cancelled.
+- If the first metadata pull failed, `shot.sh` could accept an old token. It now
+  treats the first later token as a baseline and requires another generation,
+  waiting up to twelve seconds.
+
+Additional hardening pins glslang 16.4.0 to commit
+`168d452a4f460d24b588fed08477a81c44ee27a1`. A successful full local gate now
+writes a stamp; the default installer refuses a local app when relevant source,
+gamedata, CMake or shader-check inputs are newer than that stamp.
+
+The dense-UI follow-up was also prepared without the phone. All `CUIXml::Load`
+overloads log the requested name and actual VFS path only in diagnostic mode.
+Drag/drop inventory lists scroll an off-screen controller-focused cell into
+view, and the gold focus overlay reconstructs clipping for drag/drop, list and
+scroll ancestors. The final full gate rebuilt 1,854 translation units and passed
+279/279, 2/2, 6/6 plus the numeric contract, 137/137 and arm64. Device validation
+of those three UI behaviors remains pending.
+
+The earlier symbol-enabled validation build proved a 590,419,597-byte
+`__debug_info` section, matching UUID and valid 292,020,812-byte archive. The
+later ordinary local Release link necessarily received a new UUID, so its stale
+validation dSYM was moved out of `bin`; CI creates and checks a fresh dSYM from
+the same clean device build it packages.
+
+## 2026-07-24 — M3 Pro/Xcode 26.6 migration and iOS 16.4 revalidation
+
+### Scope and host
+
+- Source revision remained `43dadb509f49` on `ios-port`; the inherited dirty
+  worktree was preserved.
+- New host: Apple M3 Pro, 36 GiB RAM, macOS 26.5.2 (25F84), Xcode 26.6
+  (17F113), iPhoneOS/iPhoneSimulator SDK 26.5, AppleClang 21, CMake 4.4.0,
+  glslang 16.4.0 and Ninja 1.13.2.
+- The migrated shell initially selected x86_64 Homebrew programs from
+  `/usr/local`, producing `bad CPU type`. The obsolete Intel Homebrew
+  initialization was removed from `.zprofile`, and `build_check.sh` now
+  prepends `/opt/homebrew/bin` on arm64.
+- Product deployment target was corrected and enforced as iOS 16.4 throughout
+  CMake defaults, smoke/provisioning projects, CI, metadata and documentation.
+
+### Clean build evidence
+
+- Clean device and simulator smoke projects passed as arm64 with SDK 26.5 and
+  `minos 16.4`.
+- Device and simulator dependency superbuilds completed from source. Each
+  prefix contains arm64 SDL2, OpenAL Soft, Ogg, Vorbis, VorbisFile, Theora and
+  LZO archives, and their nested caches use deployment target 16.4.
+- Isolated LuaJIT checks passed for `OS64` and `SIMULATORARM64`. `minilua` and
+  `buildvm` are macOS arm64 host tools; both target archives are arm64.
+- The first device engine build exposed a cross-build bug: the target's iOS
+  `CMAKE_OSX_DEPLOYMENT_TARGET=16.4` was forwarded to LuaJIT's macOS host-tool
+  CMake, causing an invalid `-mmacosx-version-min=16.4`. Removing that forwarding
+  repaired the host/target boundary.
+- The complete simulator engine built successfully for platform
+  `IOSSIMULATOR`, arm64, minOS 16.4 and SDK 26.5. After the final CMake-symbol
+  change, the simulator was regenerated with `GCC_GENERATE_DEBUGGING_SYMBOLS=NO`
+  and a representative `xrCore` rebuild passed.
+- The final clean device gate compiled 1,854 translation units and passed
+  279/279 shader stages, 2/2 low-settings stages, 6/6 SSAO branches, the SSAO
+  numeric macro contract and 137/137 links.
+
+### dSYM correction
+
+- Xcode 26.6 generated a target-level
+  `GCC_GENERATE_DEBUGGING_SYMBOLS=NO`, overriding the cache-level CI request.
+  Applying the requested Xcode debug attributes only to `xr_3da` created a
+  technically valid but incomplete dSYM with only 51,469 bytes of
+  `__debug_info`.
+- The final fix walks the complete generated CMake target graph and applies the
+  explicit device/simulator debug choice to every compiled target. A clean
+  device build produced an 880 MB dSYM containing 590,443,673 bytes of
+  `__debug_info`.
+- The app and dSYM UUID are both
+  `92E88454-67D1-3689-8AC9-F5AED83B4828`. The final Mach-O is arm64,
+  `platform IOS`, `minos 16.4`, SDK 26.5. Its Info.plist reports iPhone/iPad
+  families and iOS 16.4.
+- The final app target now exposes a matching Xcode product bundle identifier
+  and target device family, removing Xcode 26.6's generated-plist warnings.
+
+### Device validation
+
+- The paid-team Apple Development identity has a private key. The profile is
+  for Team `RMJWWPF379` and application identifier
+  `RMJWWPF379.io.github.tryk016.openxray.RMJWWPF379`; it expires
+  2027-07-19.
+- Xcode 26.6 sees the paired, wired iPhone 15 Pro Max on iOS 26.6 with Developer
+  Mode enabled. Both its hardware UDID and CoreDevice identifier resolve to the
+  same device.
+- The clean build signed, installed over the existing bundle and launched
+  without uninstalling or replacing the data container. Autoload and
+  `keypress_on_start 0` were restored.
+- Diagnostic mode produced a fresh native 1864×860 frame from the active level
+  showing world geometry, textures, weapon and HUD. A following normal install
+  and launch explicitly restored `ios_diagnostics 0`; the final process remained
+  running.
+- The fresh runtime log grew through level script initialization and weather
+  setup without a fatal, assertion or crash. The only `failed` entry was the
+  expected unused GameSpy ATLAS initialization.
+
+### Remaining findings
+
+- The dependency prefix contains OpenAL Soft, but the application cache and
+  final link still choose Apple's SDK `OpenAL.framework`. IOS-P2-002 remains
+  open.
+- CMake 4.4 warns that the vendored iOS toolchain's old policy compatibility is
+  deprecated. LuaJIT's configure probe also prints its existing
+  `MACOSX_DEPLOYMENT_TARGET` Makefile warning although the generated host tools
+  were proven macOS arm64. Neither warning blocks the validated builds.
+- Rendering, multi-save/level, dense UI, lifecycle, memory and performance work
+  remain separate product-validation tasks; the migration test does not close
+  them.
+
+### Gate hardening after the symbol proof
+
+The earlier CI check accepted any nonzero `__debug_info`, which would have
+accepted the observed 51,469-byte final-target-only dSYM. The local full gate
+and Actions now require at least 100 MiB plus an exact app/dSYM UUID match. The
+clean 590,443,673-byte reference passes with a large safety margin.
+
+## 2026-07-24 — project cleanup and pre-macOS 27 checkpoint
+
+### Cleanup boundary
+
+- Scope is limited to `/Users/patryk/openxray`. Intel Homebrew, other projects
+  and installed applications are outside the cleanup.
+- A briefly started global ARM-tool migration was stopped when scope was
+  clarified. Its added Homebrew formulae/cask, dependencies and configuration
+  directories were removed again; the prior ARM Homebrew leaves list was
+  restored.
+- Removed ignored caches named for iOS 15, Xcode 26.4 migration, partial
+  dependency builds and the failed LuaJIT host-target experiment.
+- Removed one-shot `env-smoketest-*` and `env-luajit-*` validation trees after
+  their evidence had been recorded, plus empty `tools/` and obsolete local
+  `.claude` permissions.
+- Kept both active ARM dependency prefixes/superbuilds, device and simulator
+  engine trees, the final app and its matching dSYM for post-update comparison.
+
+### Documentation cleanup
+
+- Kept all seven intentional iOS documents. The dated audit remains an
+  immutable superseded snapshot, the controller prior-art file remains an active
+  design reference, and the Metal RFC remains explicitly deferred.
+- Removed the tracked repository-root `apps.json`: CI generates release metadata
+  from the packaged IPA, while that unused snapshot still described a
+  pre-renderer crash build.
+- Reduced completed implementation detail in the active plan, added explicit
+  evidence/acceptance contracts and corrected stale Theora/memory wording in
+  the deferred Metal RFC.
+- Added IOS-P1-009 with measurable macOS 27 build, GPU-capture and XCUITest
+  acceptance criteria.
+- Corrected README links. The journal remains append-only; despite the old
+  header saying “Newest entry first”, current entries are appended at EOF. The
+  canonical status remains `iOS-Port.md`, not the 2026-07-19 “Current facts”
+  preface above.
+
+### Recovery contract
+
+- Local checkpoint tag: `ios-pre-macos27-2026-07-24`.
+- Portable backup:
+  `/Users/patryk/openxray-backups/openxray-ios-pre-macos27-2026-07-24.bundle`.
+- Unsigned app plus matching full-dSYM archive:
+  `/Users/patryk/openxray-backups/openxray-ios-artifacts-pre-macos27-2026-07-24.zip`.
+  Installation still applies the stable bundle identifier, profile and
+  signature to a temporary copy.
+- This checkpoint does not prove that macOS 27 can capture the translated GLES
+  workload. That must be tested after the update; XCUITest automation also
+  remains implementation work.
+
+### Additional project-only cleanup
+
+- Removed the old `openxray-handoff` startup prompt and generated workflow
+  scripts because they encoded the superseded Intel/iOS 15 workflow. Preserved
+  `device-backup-2026-07-19` with saves, configuration and boot log.
+- Removed the historical local iOS 15 IPA, shader-check Python cache, temporary
+  CMake migration logs and Finder metadata.
+- The local SDL README named near the top of this journal is not present because
+  SDL is fetched by the dependency superbuild. Use the linked upstream SDL2
+  document; do not treat the missing local path as a checkout defect.
+
+### Final validation before checkpoint
+
+- The complete local gate passed after cleanup: 279/279 shader stages, 2/2
+  low-settings stages, 6/6 SSAO branches, the numeric macro contract, 137/137
+  shader links and an arm64 device build. Fourteen translation units rebuilt.
+- The dSYM still contains 590,443,673 bytes of `__debug_info`; its UUID
+  `92E88454-67D1-3689-8AC9-F5AED83B4828` matches the app. The Mach-O remains
+  arm64, platform iOS, minimum OS 16.4 and SDK 26.5.
+- Final libraries in both active prefixes contain only arm64 slices. Intel-named
+  files seen below the build trees are unlinked architecture samples shipped in
+  LZO source and Xcode compiler-identification scratch files, not migrated
+  products.
+- No device reinstall was needed for this documentation/cleanup slice. The last
+  installed build remains the previously validated normal-mode build, and its
+  data container was not touched.
+
+### Independent pre-checkpoint hardening
+
+- Review found that the full-gate stamp could still be written when the device
+  cache did not request debug symbols. `build_check.sh` now fails unless
+  `GCC_GENERATE_DEBUGGING_SYMBOLS=YES`, then always checks the 100 MiB
+  `__debug_info` floor and exact app/dSYM UUID before touching the stamp.
+- The installer no longer chooses the first Apple Development identity. It
+  decodes `DeveloperCertificates` from the selected paid-team profile and uses
+  only a matching keychain fingerprint with a private key.
+- Freshness checking now covers all `src`, `res`, `Externals`, CMake and
+  `.gitmodules` inputs, plus the iOS app metadata/assets and gate scripts.
+  Device-control, provisioning-stub and smoketest-only edits do not invalidate
+  an otherwise current engine artifact.
+- `install_device.sh --renew` proved that the current profile has a matching
+  signing identity. The hardened full gate then passed 279/279, 2/2, 6/6, the
+  numeric SSAO contract, 137/137 and a zero-unit incremental arm64 build; the
+  full dSYM size and matching UUID remained unchanged.

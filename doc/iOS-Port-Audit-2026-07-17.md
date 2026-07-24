@@ -1,5 +1,18 @@
 # OpenXRay iOS Port — Audyt stanu (2026-07-17)
 
+> **Migawka historyczna — zastąpiona 2026-07-19.** Ten raport opisuje stan
+> repozytorium z 17 lipca i nie jest aktywnym backlogiem. Aktualna specyfikacja:
+> [iOS-Port.md](iOS-Port.md). Aktualne priorytety:
+> [iOS-Port-Plan.md](iOS-Port-Plan.md).
+>
+> Po tym audycie zamknięto między innymi blocker occlusion-query przez bezpieczny
+> bypass iOS, family D osiągnęło 279/279, para-link gate 137/137, świat został
+> uruchomiony na urządzeniu, dodano AVAudioSession oraz naprawiono tekstury wideo.
+> Późniejsze pomiary rozdzieliły pozorny problem dalekiej geometrii na dwie
+> usterki: brak sektora kamery ukrywał statyczny świat, a błędne testy makr SSAO
+> tłumiły światło otoczenia. Obie naprawiono 19 lipca. Raport poniżej pozostaje
+> niezmieniony jako zapis tego, co było wiadomo 17 lipca.
+
 ## 1. Werdykt
 
 Plan pozostaje zasadniczo aktualny i poprawny: menu renderuje się, touch działa, warstwa Lua/luabind na arm64 (interpreter mode, GC64) jest solidnie i wielokrotnie zabezpieczona, a większość diffów iOS-owych jest starannie napisana i nie psuje ścieżek desktopowych. Poważnych niespodzianek nie ma, ale jest jedna twarda ściana tuż za menu: **occlusion queries** używają desktopowych enumów/entrypointów nieistniejących w ES 3.0 i wywołają NULL-pointer crash na pierwszej klatce gry — to jedyny potwierdzony blocker. Za nim stoi grupa potwierdzonych `high`, które nie zabijają procesu, ale zablokują poprawny render świata: shadery modeli (family D, wariant SKIN_NONE) nie kompilują się w ścisłym ES 3.00, cały float-owy G-buffer zależy od nieweryfikowanych rozszerzeń renderowalności float (`EXT_color_buffer_float`/`_half_float`), a warstwa audio nie ma żadnej konfiguracji `AVAudioSession`. Najważniejszy wniosek dokumentacyjny: plany i dziennik dobrze opisują to, co ZROBIONE, ale traktują „menu renderuje się" jako granicę — runtime'owe ściany ścieżki deferred (occlusion, float RT, skinning) są w dokach praktycznie nieopisane.

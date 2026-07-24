@@ -9,6 +9,7 @@
 
 #if defined(XR_PLATFORM_APPLE_IOS)
 #include <SDL_syswm.h>
+#include "xrEngine/ios/ios_display.h"
 #endif
 
 namespace xray::render::RENDER_NAMESPACE
@@ -120,6 +121,11 @@ void CHW::CreateDevice(SDL_Window* hWnd)
         Log("! OpenGL: could not make context current:", SDL_GetError());
         return;
     }
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+    if (!ios_display::set_opengl_drawable_scale(m_window, ios_display::OpenGLDrawableScale))
+        Log("! iOS: could not set the OpenGL drawable scale");
+#endif
 
     int version;
     {
@@ -326,78 +332,24 @@ void CHW::Present()
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, screenFB);
 
 #if defined(XR_PLATFORM_APPLE_IOS)
-    // iOS diag (Track B): single-pixel readback out of the render target we are about to
-    // present, taken at the UI cursor's position (published by CUICursor::OnRender).
-    // This discriminates the invisible-cursor question definitively:
-    //   cursor-coloured pixel -> the cursor DOES rasterise, and is lost after this point
-    //   background-coloured    -> the cursor draw produced no pixels at all
-    // THREE sample points, each read in BOTH Y orientations (six texels total).
-    // Slice 6.9 sampled a single point at the cursor's top-left corner texel, which is
-    // transparent on an arrow cursor - the "background colour" result it produced was
-    // inconclusive and has been discarded. The three points published by CUICursor are
-    // biased toward the sprite's top-left body; ANY one of the six coming back
-    // non-background proves the cursor rasterises and is lost after this point.
-    // Y orientation is still unproven on device: A assumes UI y=0 maps to GL row 0 (which
-    // is what the UI vertex shaders imply), B assumes the opposite.
-    // glReadPixels forces a pipeline sync, so this is throttled to ~1 Hz and MUST be
-    // stripped once the answer is in.
-    {
-        static u32 s_ios_probe_next = 0;
-        if (Device.dwTimeGlobal >= s_ios_probe_next)
-        {
-            s_ios_probe_next = Device.dwTimeGlobal + 1000;
-
-            const GLint maxX = GLint(Device.dwWidth) - 1;
-            const GLint maxY = GLint(Device.dwHeight) - 1;
-
-            GLint px[3], pyA[3], pyB[3];
-            GLubyte a[3][4] = {}, b[3][4] = {};
-            for (int i = 0; i < 3; ++i)
-            {
-                px[i] = GLint(g_ios_cursor_probe_x[i]);
-                pyA[i] = GLint(g_ios_cursor_probe_y[i]);
-                if (px[i] < 0) px[i] = 0;
-                if (px[i] > maxX) px[i] = maxX;
-                if (pyA[i] < 0) pyA[i] = 0;
-                if (pyA[i] > maxY) pyA[i] = maxY;
-                pyB[i] = maxY - pyA[i];
-
-                // reads from GL_READ_FRAMEBUFFER, which is pFB - bound just above
-                glReadPixels(px[i], pyA[i], 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, a[i]);
-                glReadPixels(px[i], pyB[i], 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, b[i]);
-            }
-
-            Msg("* iOS diag: presentProbe ui=(%.1f,%.1f) rt=%ux%u | "
-                "A0=(%d,%d)(%u,%u,%u,%u) A1=(%d,%d)(%u,%u,%u,%u) A2=(%d,%d)(%u,%u,%u,%u) | "
-                "B0=(%d,%d)(%u,%u,%u,%u) B1=(%d,%d)(%u,%u,%u,%u) B2=(%d,%d)(%u,%u,%u,%u)",
-                g_ios_cursor_probe_ui_x, g_ios_cursor_probe_ui_y, Device.dwWidth, Device.dwHeight,
-                int(px[0]), int(pyA[0]), unsigned(a[0][0]), unsigned(a[0][1]), unsigned(a[0][2]), unsigned(a[0][3]),
-                int(px[1]), int(pyA[1]), unsigned(a[1][0]), unsigned(a[1][1]), unsigned(a[1][2]), unsigned(a[1][3]),
-                int(px[2]), int(pyA[2]), unsigned(a[2][0]), unsigned(a[2][1]), unsigned(a[2][2]), unsigned(a[2][3]),
-                int(px[0]), int(pyB[0]), unsigned(b[0][0]), unsigned(b[0][1]), unsigned(b[0][2]), unsigned(b[0][3]),
-                int(px[1]), int(pyB[1]), unsigned(b[1][0]), unsigned(b[1][1]), unsigned(b[1][2]), unsigned(b[1][3]),
-                int(px[2]), int(pyB[2]), unsigned(b[2][0]), unsigned(b[2][1]), unsigned(b[2][2]), unsigned(b[2][3]));
-        }
-    }
-
-    // iOS diag: periodic full-frame dump, so visual regressions can be inspected over the
-    // cable instead of being described by hand. Reads the SAME render target the probe above
-    // samples (pFB, still bound as GL_READ_FRAMEBUFFER) at the same point in Present, so what
-    // lands on disk is exactly what reaches the screen.
+    // iOS diagnostics: periodic full-frame dump, so visual regressions can be inspected over the
+    // cable instead of being described by hand. It reads pFB while that target is still bound as
+    // GL_READ_FRAMEBUFFER, so what lands on disk is exactly what reaches the screen.
     //
     // Written as binary PPM (P6): self-describing, no image library, and trivial to convert
     // on the host - see misc/ios/shot.sh, which pulls and converts it. GL rows come out
     // bottom-up, so they are emitted in reverse to give a top-down image.
     //
-    // Cost is a full glReadPixels (~1.6 MB at 932x430) plus a file write, both of which stall
-    // the pipeline - hence once every 5 s, never per frame. Diagnostic scaffolding: it is
-    // deliberately unconditional in this build, and should go behind a cvar or be stripped
-    // once the graphics work it serves is done.
+    // Cost is a full glReadPixels plus a file write, both of which stall the pipeline. Normal
+    // gameplay and performance runs therefore leave ios_diagnostics at its default of 0.
+    if (psIOSDiagnostics)
     {
         static u32 s_ios_shot_next = 0;
-        if (Device.dwTimeGlobal >= s_ios_shot_next)
+        // dwTimeGlobal freezes while the game is paused (including Options).
+        // Continual time still advances with rendered menu frames.
+        if (Device.dwTimeContinual >= s_ios_shot_next)
         {
-            s_ios_shot_next = Device.dwTimeGlobal + 5000;
+            s_ios_shot_next = Device.dwTimeContinual + 5000;
 
             const GLint w = GLint(Device.dwWidth);
             const GLint h = GLint(Device.dwHeight);
@@ -411,9 +363,11 @@ void CHW::Present()
                     glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
 
                     const char* home = getenv("HOME");
-                    string_path tmp, dst;
+                    string_path tmp, dst, meta_tmp, meta_dst;
                     xr_sprintf(tmp, "%s/Documents/xr_shot.tmp", home ? home : ".");
                     xr_sprintf(dst, "%s/Documents/xr_shot.ppm", home ? home : ".");
+                    xr_sprintf(meta_tmp, "%s/Documents/xr_shot_meta.tmp", home ? home : ".");
+                    xr_sprintf(meta_dst, "%s/Documents/xr_shot_meta.txt", home ? home : ".");
 
                     // Write to a temp name and rename, so a pull over the cable can never
                     // catch a half-written file.
@@ -428,6 +382,19 @@ void CHW::Present()
                         }
                         fclose(f);
                         const int rc = rename(tmp, dst);
+
+                        // Publish a generation only after the frame is atomically visible.
+                        // shot.sh waits for this token to change, so it cannot mistake a
+                        // capture left by a previous process for the current frame.
+                        if (rc == 0)
+                        {
+                            if (FILE* meta = fopen(meta_tmp, "wb"))
+                            {
+                                fprintf(meta, "%u %u\n", Device.dwFrame, Device.dwTimeContinual);
+                                fclose(meta);
+                                rename(meta_tmp, meta_dst);
+                            }
+                        }
 
                         u32 mx = 0;
                         for (size_t i = 0; i < rgbaBytes; ++i)
@@ -462,11 +429,22 @@ DeviceState CHW::GetDeviceState() const
 
 std::pair<u32, u32> CHW::GetSurfaceSize()
 {
-    return
+#if defined(XR_PLATFORM_APPLE_IOS)
+    int width = 0;
+    int height = 0;
+    SDL_GL_GetDrawableSize(HW.m_window, &width, &height);
+    if (width > 0 && height > 0)
     {
-        psDeviceMode.Width,
-        psDeviceMode.Height
-    };
+        Msg("* iOS: OpenGL drawable %dx%d (UIKit window %ux%u, scale %.1f)",
+            width, height, psDeviceMode.Width, psDeviceMode.Height,
+            ios_display::OpenGLDrawableScale);
+        return { static_cast<u32>(width), static_cast<u32>(height) };
+    }
+
+    Log("! iOS: SDL_GL_GetDrawableSize failed, falling back to UIKit point size");
+#else
+#endif
+    return { psDeviceMode.Width, psDeviceMode.Height };
 }
 
 bool CHW::ThisInstanceIsGlobal() const

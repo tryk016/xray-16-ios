@@ -434,6 +434,37 @@ void CUIDragDropListEx::Draw()
 
 void CUIDragDropListEx::Update()
 {
+#if defined(XR_PLATFORM_APPLE_IOS)
+    // Controller focus can select a registered inventory cell outside this
+    // list's viewport. Keep the focused cell fully visible before the normal
+    // child update and then warp the emulated cursor to its new position.
+    if (CUIWindow* focused = UI().Focus().GetFocused())
+    {
+        CUIWindow* direct_item = focused->GetWindowBeforeParent(m_container);
+        CUICellItem* item = smart_cast<CUICellItem*>(direct_item);
+        if (item && item->OwnerList() == this && m_vScrollBar->IsShown())
+        {
+            Frect viewport, item_rect;
+            GetClientArea(viewport);
+            item->GetAbsoluteRect(item_rect);
+
+            int target = m_vScrollBar->GetScrollPos();
+            if (item_rect.top < viewport.top)
+                target += iFloor(item_rect.top - viewport.top);
+            else if (item_rect.bottom > viewport.bottom)
+                target += iCeil(item_rect.bottom - viewport.bottom);
+
+            const int previous = m_vScrollBar->GetScrollPos();
+            m_vScrollBar->SetScrollPos(target);
+            if (m_vScrollBar->GetScrollPos() != previous)
+            {
+                OnScrollV(nullptr, nullptr);
+                UI().GetUICursor().WarpToWindow(focused);
+            }
+        }
+    }
+#endif
+
     inherited::Update();
 
     if (m_drag_item)

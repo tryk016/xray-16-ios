@@ -221,6 +221,7 @@ void dxUIRender::FlushPrimitive()
     u32 primCount = 0;
     _D3DPRIMITIVETYPE d3dPrimType = D3DPT_FORCE_DWORD;
     std::ptrdiff_t p_cnt = 0;
+    const bool screenSpaceOverlay = m_PointType == pttTL;
 
     switch (m_PointType)
     {
@@ -264,7 +265,23 @@ void dxUIRender::FlushPrimitive()
     }
 
     if (primCount > 0)
+    {
+#if defined(XR_PLATFORM_APPLE_IOS)
+        if (screenSpaceOverlay)
+        {
+            // pttTL vertices are already transformed screen-space UI.  Retail
+            // hud\default state blocks can retain the scene depth/stencil/cull
+            // state on the GL backend, making large menu panels fail against
+            // the filled G-buffer while text happens to use a safer shader.
+            // Enforce the IUIRender overlay contract immediately before draw;
+            // the following shader pass will restore any state it needs.
+            RCache.set_Z(FALSE);
+            RCache.set_Stencil(FALSE);
+            RCache.set_CullMode(CULL_NONE);
+        }
+#endif
         RCache.Render(d3dPrimType, vOffset, primCount);
+    }
 
     PrimitiveType = ptNone;
     m_PointType = pttNone;

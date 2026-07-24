@@ -184,7 +184,8 @@ void CUIFrameWindow::DrawElements()
     GEnv.UIRender->SetShader(*m_shader);
 
     Fvector2 ts{};
-    m_shader->GetBaseTextureResolution(ts);
+    if (!m_shader->GetBaseTextureResolution(ts) || ts.x <= 0.0f || ts.y <= 0.0f)
+        return;
 
     Frect rect;
     GetAbsoluteRect(rect);

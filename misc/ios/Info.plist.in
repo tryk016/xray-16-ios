@@ -33,11 +33,6 @@
     <true/>
     <key>MinimumOSVersion</key>
     <string>@XR_IOS_MIN_OS@</string>
-    <key>UIDeviceFamily</key>
-    <array>
-        <integer>1</integer>
-        <integer>2</integer>
-    </array>
     <key>UIRequiredDeviceCapabilities</key>
     <array>
         <string>arm64</string>

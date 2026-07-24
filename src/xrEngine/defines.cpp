@@ -24,3 +24,7 @@ Flags32 psDeviceFlags =
 
 // textures
 int psTextureLOD = 1;
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+int psIOSDiagnostics = 0;
+#endif

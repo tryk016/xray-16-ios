@@ -1356,9 +1356,10 @@ bool CUIXmlInitBase::InitComboBox(CUIXml& xml_doc, pcstr path, int index, CUICom
     string512 _path;
     strconcat(_path, path, ":list_font");
     InitFont(xml_doc, _path, index, color, pFont);
-    //.	pWnd->SetFont				(pFont);
     pWnd->m_list_box.SetFont(pFont);
     pWnd->m_list_box.SetTextColor(color);
+    if (xml_doc.ReadAttribInt(path, index, "apply_list_font_to_text", 0) == 1)
+        pWnd->m_text.SetFont(pFont);
 
     strconcat(_path, path, ":text_color:e");
     if (xml_doc.NavigateToNode(_path, index))

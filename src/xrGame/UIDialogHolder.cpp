@@ -8,6 +8,12 @@
 #include "xrEngine/xr_level_controller.h"
 #include "xrEngine/CustomHUD.h"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "ui/UIDragDropListEx.h"
+#include "xrUICore/ListWnd/UIListWnd.h"
+#include "xrUICore/ScrollView/UIScrollView.h"
+#endif
+
 dlgItem::dlgItem(CUIWindow* pWnd)
 {
     wnd = pWnd;
@@ -143,7 +149,7 @@ void CDialogHolder::RemoveDialogToRender(CUIWindow* pDialog)
 #if defined(XR_PLATFORM_APPLE_IOS)
 namespace
 {
-// iOS-only focus affordance (Track B).
+// iOS-only focus affordance for controller navigation.
 //
 // The focus LOGIC is proven working on device (SetFocused/valuable counts/option
 // persistence all check out) - only the visual affordance is missing, and the stock
@@ -151,7 +157,7 @@ namespace
 // .seq, whose per-frame texture rebind is the prime suspect) or, for hover, a subtle
 // vanilla text tint that reads as "nothing happened" on a phone screen.
 //
-// So we draw our own frame with the 'hud\crosshair' ui_shader:
+// Draw a stable frame with the 'hud\crosshair' ui_shader:
 //   res/gamedata/shaders/gl/hud_crosshair.s
 //     shader:begin("hud_crosshair","simple_color") : fog(false) : zb(false,false)
 //                 : blend(true, blend.srcalpha, blend.invsrcalpha)
@@ -217,11 +223,47 @@ void ios_draw_focus_frame()
     const float tx = UI().ClientToScreenScaledX(3.0f);
     const float ty = UI().ClientToScreenScaledY(3.0f);
 
-    // Alternating colour proves at a glance that this is live per-frame and is ours.
-    const u32 clr = ((Device.dwTimeGlobal / 400) & 1)
-        ? color_rgba(255, 255, 0, 255)
-        : color_rgba(0, 255, 255, 255);
+    const u32 clr = color_rgba(255, 214, 64, 255);
 
+    // Dialog-local scissor stacks have already been popped by the time this
+    // overlay is drawn. Reconstruct the clipping region of known scroll/list
+    // ancestors so focus never leaks outside inventory, PDA or options views.
+    bool use_scissor = false;
+    Frect clip{};
+    for (CUIWindow* parent = focused->GetParent(); parent; parent = parent->GetParent())
+    {
+        Frect parent_clip{};
+        bool clips_children = false;
+        if (auto* inventory = smart_cast<CUIDragDropListEx*>(parent))
+        {
+            inventory->GetClientArea(parent_clip);
+            clips_children = true;
+        }
+        else if (smart_cast<CUIScrollView*>(parent) || smart_cast<CUIListWnd*>(parent))
+        {
+            parent->GetAbsoluteRect(parent_clip);
+            clips_children = true;
+        }
+
+        if (!clips_children)
+            continue;
+
+        if (!use_scissor)
+        {
+            clip = parent_clip;
+            use_scissor = true;
+        }
+        else
+        {
+            Frect intersection;
+            if (!intersection.intersection(clip, parent_clip))
+                return;
+            clip = intersection;
+        }
+    }
+
+    if (use_scissor)
+        UI().PushScissor(clip);
     GEnv.UIRender->StartPrimitive(24, IUIRender::ptTriList, IUIRender::pttTL);
     ios_push_quad(x0, y0, x1, y0 + ty, clr); // top
     ios_push_quad(x0, y1 - ty, x1, y1, clr); // bottom
@@ -229,43 +271,8 @@ void ios_draw_focus_frame()
     ios_push_quad(x1 - tx, y0, x1, y1, clr); // right
     GEnv.UIRender->SetShader(**g_ios_focus_shader);
     GEnv.UIRender->FlushPrimitive();
-
-    // Second, INDEPENDENT affordance drawn through CGameFont.
-    //
-    // The bars above go through the 'hud\crosshair' ui_shader, which has never been proven
-    // to paint a pixel on this device. CGameFont, by contrast, IS proven to paint (menu text
-    // and in-game mission text are both visible on device), and CMainMenu::OnRender /
-    // ::OnRenderPPUI_main call UI().RenderFont() immediately after DoRenderDialogs(), so
-    // anything queued here is flushed in the same frame.
-    //
-    // CGameFont::OutSet/Out take BACKBUFFER PIXELS (CGameFont::OutSetI is defined as
-    // OutSet(DI2PX(x), DI2PY(y))) - the same space x0/y0/x1/y1 above are already in, so no
-    // extra conversion is needed.
-    //
-    // If the brackets appear and the bars do not, the failure is scoped to the ui_shader
-    // draw path and NOT to draw ordering or frame-edge state. That is the answer we need.
-    if (auto* F = UI().Font().pFontDI)
-    {
-        F->SetAligment(CGameFont::alLeft);
-        F->SetHeightI(0.045f);
-        F->SetColor(clr);
-        F->Out(x0 - tx * 4.0f, (y0 + y1) * 0.5f - ty * 2.0f, ">");
-        F->Out(x1 + tx, (y0 + y1) * 0.5f - ty * 2.0f, "<");
-    }
-
-    // Throttled ~1 Hz: what we computed, so the next device log settles this without another
-    // dedicated diagnostic build. Strip together with the rest of the iOS focus diagnostics.
-    {
-        static u32 s_ios_frame_diag_next = 0;
-        if (Device.dwTimeGlobal >= s_ios_frame_diag_next)
-        {
-            s_ios_frame_diag_next = Device.dwTimeGlobal + 1000;
-            Msg("* iOS diag: focusFrame '%s' ui=(%.0f,%.0f)-(%.0f,%.0f) px=(%.0f,%.0f)-(%.0f,%.0f) "
-                "thick=(%.1f,%.1f) clr=%08x font=%d",
-                focused->WindowName().c_str(), ui_x0, ui_y0, ui_x1, ui_y1,
-                x0, y0, x1, y1, tx, ty, clr, UI().Font().pFontDI ? 1 : 0);
-        }
-    }
+    if (use_scissor)
+        UI().PopScissor();
 }
 } // namespace
 #endif
@@ -453,30 +460,8 @@ bool CDialogHolder::IR_UIOnKeyboardPress(int dik)
             return true;
     }
 
-#if defined(XR_PLATFORM_APPLE_IOS)
-    // iOS diag (Track C): trace every gamepad button through the UI focus path.
-    // Device logs are our only telemetry - strip once options-menu pad focus works.
-    const bool ios_diag_pad = dik > XR_CONTROLLER_BUTTON_INVALID && dik < XR_CONTROLLER_BUTTON_MAX;
-    if (ios_diag_pad)
-    {
-        const auto* diag_focused = UI().Focus().GetFocused();
-        const Fvector2 diag_cp = GetUICursor().GetCursorPosition();
-        Msg("* iOS diag: padPress dik=%d uiAct=%d TIR='%s' cursorVis=%d cursor=(%.0f,%.0f) focused='%s' valuable=%zu",
-            dik, static_cast<int>(GetBindedAction(dik, EKeyContext::UI)), TIR->WindowName().c_str(),
-            UI().GetUICursor().IsVisible() ? 1 : 0, diag_cp.x, diag_cp.y,
-            diag_focused ? diag_focused->WindowName().c_str() : "none", UI().Focus().ValuableCount());
-    }
-
-    if (TIR->OnKeyboardAction(dik, WINDOW_KEY_PRESSED))
-    {
-        if (ios_diag_pad)
-            Msg("* iOS diag: padPress dik=%d CONSUMED by TIR OnKeyboardAction", dik);
-        return true;
-    }
-#else
     if (TIR->OnKeyboardAction(dik, WINDOW_KEY_PRESSED))
         return true;
-#endif
 
     if (UI().GetUICursor().IsVisible() && dik > XR_CONTROLLER_BUTTON_INVALID && dik < XR_CONTROLLER_BUTTON_MAX)
     {
@@ -495,12 +480,7 @@ bool CDialogHolder::IR_UIOnKeyboardPress(int dik)
             if (UI().Focus().GetFocused())
             {
                 const Fvector2 cp = GetUICursor().GetCursorPosition();
-#if defined(XR_PLATFORM_APPLE_IOS)
-                const bool ios_diag_handled = TIR->OnMouseAction(cp.x, cp.y, WINDOW_LBUTTON_DOWN);
-                Msg("* iOS diag: ACCEPT down-click at (%.0f,%.0f) handled=%d", cp.x, cp.y, ios_diag_handled ? 1 : 0);
-#else
                 TIR->OnMouseAction(cp.x, cp.y, WINDOW_LBUTTON_DOWN);
-#endif
                 return true;
             }
             break;
@@ -512,13 +492,6 @@ bool CDialogHolder::IR_UIOnKeyboardPress(int dik)
             const auto focused = focus.GetFocused();
             const Fvector2 vec = focused ? focused->GetAbsoluteCenterPos() : UI().GetUICursor().GetCursorPosition();
             const auto [candidate, candidate2] = focus.FindClosestFocusable(vec, direction);
-
-#if defined(XR_PLATFORM_APPLE_IOS)
-            Msg("* iOS diag: focusNav dir=%d from=(%.0f,%.0f) cand='%s' cand2='%s'",
-                static_cast<int>(direction), vec.x, vec.y,
-                candidate ? candidate->WindowName().c_str() : "none",
-                candidate2 ? candidate2->WindowName().c_str() : "none");
-#endif
             if (candidate || candidate2)
             {
                 focus.SetFocused(candidate ? candidate : candidate2);

@@ -15,7 +15,20 @@
 This is a fan-made project not affiliated with GSC Game World in any way.
 However, they know about many community projects, including this, and support S.T.A.L.K.E.R. community efforts to make the game better.
 
-Installation instructions are on the [How to install and play](https://github.com/OpenXRay/xray-16/wiki/[EN]-How-to-install-and-play) page.
+Installation instructions are on the [How to install and play](https://github.com/OpenXRay/xray-16/wiki/%5BEN%5D-How-to-install-and-play) page.
+
+## iOS development port
+
+The `ios-port` branch contains an experimental arm64 iOS 16.4+ port targeting
+Call of Pripyat 1.6.02. It currently boots and renders gameplay on a physical
+iPhone through native OpenGL ES 3.0 and is intended for developers and testers
+who provide their own legal retail assets.
+
+This branch is developed as an iOS-only product. Preserving Windows, Linux,
+BSD, or macOS behavior is not part of its acceptance criteria.
+
+The current status, limitations and device workflow are documented in
+[doc/iOS-Port.md](doc/iOS-Port.md). This is not an App Store release.
 
 ## Supported game platforms
 - Call of Chernobyl 1.4.22.
@@ -79,7 +92,7 @@ Take a look at our [Issues](https://github.com/openxray/xray-16/issues) page:
 * You may also want to look at issues labeled as [help wanted](https://github.com/OpenXRay/xray-16/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc+label%3A%22Help+wanted%22). Some of them are difficult ones, though.
 
 Make sure to visit our [wiki](https://github.com/OpenXRay/xray-16/wiki):
-* [Build instructions for Windows](https://github.com/OpenXRay/xray-16/wiki/[EN]-How-to-build-and-setup-on-Windows).
+* [Build instructions for Windows](https://github.com/OpenXRay/xray-16/wiki/%5BEN%5D-How-to-build-and-setup-on-Windows).
 * [Build instructions for Linux and other platforms](https://github.com/OpenXRay/xray-16/wiki/%5BEN%5D-How-to-build-and-setup-on-Linux-and-MacOS).
 
 The `dev` branch is the default and base branch for the project. It is used for development, and all pull requests should go there. But be aware that this branch sometimes may be broken, and we can only rarely do force pushes to this branch.
@@ -92,7 +105,7 @@ The code base is based on X-Ray 1.6.02 that is used in S.T.A.L.K.E.R.: Call of P
 You may provide financial support for this project by donating via different ways:
 * [GitHub Sponsors](https://github.com/sponsors/OpenXRay), [Patreon](https://patreon.com/openxray), [Open Collective](https://opencollective.com/openxray) – many team members and contributors are located all over the world, and we provide a way to support of us worldwide.
 * [Boosty](https://boosty.to/openxray) – a large part of the team and many contributors are located in Russia, and we provide a way to support us from Russia and Belarus.
-* Please, contact @1yohji in [our Discord](discord.gg/sjRMQwv) if you would like to use cryptocurrency.
+* Please, contact @1yohji in [our Discord](https://discord.gg/sjRMQwv) if you would like to use cryptocurrency.
 
 Raised funds will be used to support our developers and contributors, and also we may use them to pay for paid services on GitHub, etc.
 Thank you for your support!
