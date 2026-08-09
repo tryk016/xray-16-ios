@@ -523,3 +523,15 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   present; Video options showed `Optimal` and `1864x860`.
 - App terminated after testing; exact-token lease released and shared lock
   returned `free`. No performance claim, commit or push.
+
+## 2026-08-09 — consolidated commit and post-commit gate
+
+- Commit `27d966ddc8a5` consolidates the reviewed iOS checkpoint; not pushed.
+- Post-commit full gate rebuilt 68 TUs and passed BC strict/sanitized, retail
+  74/74, installer 13/13, CI 79/79, numeric 30/30, low 2/2, SSAO 6/6,
+  shaders 279/279 and links 137/137.
+- Current stamp: source `449dd3f9…`, UUID `545F8958-0B1F-3D85-BDF2-758CF9553A16`,
+  bundle `eeacc4b2…`, iOS 16.4, forced-off shader cache; dSYM `__debug_info`
+  513,541,671 bytes. Current hash and no-device signing preflight pass.
+- The post-commit artifact is not device-tested; the preceding visual smoke
+  belongs to the prior stamped artifact. No phone, lease, Simulator or push.

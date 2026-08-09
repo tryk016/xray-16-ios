@@ -12,7 +12,7 @@ the stable `io.github.tryk016.openxray.RMJWWPF379` identifier, preserving data.
 The physical-device baseline renders Call of Pripyat through native OpenGL ES
 3.0 at a real 1864×860 drawable with 1:1 presentation and is playable with a
 Bluetooth controller. The sector fallback and SSAO value-macro fixes resolved
-the separate missing-world and global-darkness defects.
+their proven defects; a later dark-frame smoke remains causally unresolved.
 IOS-P0-003 startup-sector v1 has host-complete `level_load`/`QuickLoad` epoch
 evidence and exact/fallback/retained/unresolved/recovered outcomes. `retained`
 only reuses a prior valid sector after authoritative camera application; JSON
@@ -39,7 +39,7 @@ git status --short
 ./misc/ios/install_device.sh --preflight  # host-only signing/preflight check
 ```
 
-Preserve all unrelated working-tree changes; the current tree contains an uncommitted iOS reliability/menu/profile slice and documentation.
+Preserve unrelated work. The consolidated source checkpoint is commit `27d966ddc`; inspect `git status` before every new slice.
 
 When the phone is available and the matching FastDevice gate is green:
 
@@ -69,12 +69,12 @@ file polling in performance evidence and use ordinary launch for final baselines
 | Lua | LuaJIT interpreter mode |
 | Presentation | logical 932×430, drawable/render targets 1864×860 |
 
-The codec gate rebuilt 1 TU; the latest hash-only rerun retained its UUID/bundle.
-UUID `44D1A9FA-F8AF-3CD5-AC97-386F0D2999D2`; source
-`02d9ca8d88910cb4ff485e3fe9a0fb378c1e9baa8eb4a66e0c28cca8a76d64f2`; bundle
-`38ab03ef4a7417f16ed93acb653e772d536ba8ddb099e099f784e06eb9547f6e`; OpenAL
+The post-commit full gate rebuilt 68 TUs. UUID
+`545F8958-0B1F-3D85-BDF2-758CF9553A16`; source
+`449dd3f9d6bcd540d1ed6739fa111219f7c9d95fddcc0eed8529e10326a28da6`; bundle
+`eeacc4b2d878f62ca70a33cf51e9014b2f20de20a28a64e50096879467c68351`; OpenAL
 Soft 1.25.2 static SHA-256 `86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914`.
-Gates: BC strict/sanitized, retail 74/74, installer 13/13, shaders 279/279, low 2/2, SSAO 6/6, numeric 30/30, links 137/137; IOS/minOS 16.4, shader cache forced off.
+Gates: BC strict/sanitized, retail 74/74, installer 13/13, CI 79/79, shaders 279/279, low 2/2, SSAO 6/6, numeric 30/30, links 137/137; IOS/minOS 16.4, shader cache forced off.
 A real preflight validated the existing profile/keychain and temporary signed copy without lease, provisioning or device access. The older UIScene stamp is local/Simulator evidence, not current.
 
 ## Proven on device

@@ -61,11 +61,14 @@ device-untested.
 
 1. Before every short phone batch, record its completed baseline epoch, then
    require the exact expected marker batch with the expected PID and trigger.
-2. Load one additional outdoor save and one indoor/portal location; separately
+2. On the next outdoor batch, add equal-duration stationary and forward-path
+   captures; do not attribute lighting changes unless game-time/weather and
+   sector evidence separate movement from elapsed-time effects.
+3. Load one additional outdoor save and one indoor/portal location; separately
    require resolved classification and an objective world frame.
-3. Exercise QuickLoad/save-reload and one level transition with the same
+4. Exercise QuickLoad/save-reload and one level transition with the same
    baseline-plus-exact-batch discipline.
-4. Record current and peak physical footprint during a 30-minute controller run.
+5. Record current and peak physical footprint during a 30-minute controller run.
 
 **Acceptance:**
 

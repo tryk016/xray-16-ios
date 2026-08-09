@@ -4216,3 +4216,28 @@ signing identity, Team ID or bundle ID was changed. No explicit save/container
 deletion or retail-data mutation command was issued; the normal same-identifier
 app update and diagnostic control-file writes were the only intended device
 mutations. No before/after container manifest was collected.
+
+## 2026-08-09 — consolidated commit and post-commit full gate
+
+The accumulated, individually reviewed iOS slices were consolidated in commit
+`27d966ddc8a571955abdb861839ece5d3b77289a` (`ios: consolidate playable
+port checkpoint`). No push occurred.
+
+Because the artifact digest intentionally includes Git HEAD, the pre-commit
+stamp became obsolete at commit time. A fresh `./misc/ios/build_check.sh --full`
+then rebuilt 68 translation units and passed the strict/sanitized BC contract,
+retail 74/74, installer 13/13, local CI 79/79, numeric macros 30/30, low 2/2,
+SSAO 6/6, shaders 279/279 and links 137/137. The dSYM contains 513,541,671
+`__debug_info` bytes and UUID `545F8958-0B1F-3D85-BDF2-758CF9553A16`, matching
+the app. The authoritative stamp is source
+`449dd3f9d6bcd540d1ed6739fa111219f7c9d95fddcc0eed8529e10326a28da6`, bundle
+`eeacc4b2d878f62ca70a33cf51e9014b2f20de20a28a64e50096879467c68351`,
+OpenAL Soft 1.25.2 static SHA-256
+`86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914`,
+platform IOS, minOS 16.4 and shader cache forced off. An independent recompute
+matched the source hash exactly, and the host-only installer preflight passed.
+
+This post-commit artifact was not installed or run on a phone. The immediately
+preceding device smoke used the prior stamped build-10045 artifact, so its visual
+evidence must not be attributed to this new UUID. No Simulator, phone command,
+lease, install or push occurred during the post-commit gate verification.

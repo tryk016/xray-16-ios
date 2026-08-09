@@ -4,8 +4,8 @@ Canonical specification for the OpenXRay iOS project.
 
 **Last synchronized:** 2026-08-09
 
-**Status:** playable development build; startup geometry and global-lighting
-blockers fixed, reliability validation in progress
+**Status:** playable development build; startup-sector and known SSAO defects
+fixed, later movement-correlated dark-frame observation still under investigation
 
 **Target game:** S.T.A.L.K.E.R.: Call of Pripyat 1.6.02
 
@@ -31,8 +31,9 @@ The port is past initial bring-up. On a physical iPhone it can:
 - install and launch over USB in either a normal zero-readback mode or an
   explicit unattended diagnostic mode with synthetic input and fresh captures.
 
-It is not release-ready. The startup geometry and global ambient-lighting
-blockers are fixed. Diagnostic lifecycle recovery, LOWMEMORY handling and
+It is not release-ready. The startup geometry defect and proven SSAO macro
+defect are fixed, but a later dark-frame smoke remains causally unresolved.
+Diagnostic lifecycle recovery, LOWMEMORY handling and
 decoded-texture lazy reload are device-proven; normal lock/audio cycles,
 multi-level validation, memory budgets and a repeatable performance baseline
 remain.
@@ -285,6 +286,15 @@ disabled because it previously added an approximately 1.6 GB transient spike.
   `r3_msaa 2x` may remain in an inherited config, but the current GL path forces
   `o.msaa=false`, so MSAA is not an active or advertised profile feature.
 
+A later diagnostic smoke on the preceding stamped build-10045 artifact opened
+a separate end-to-end visual question: its initial gameplay frame was dark
+across terrain and vegetation, and a frame after an acknowledged 12-second
+forward request showed lighter nearby terrain while distant vegetation remained
+dark. Camera position, game time and weather were not held constant, and there
+was no stationary control. This observation neither invalidates the proven SSAO
+macro mechanism nor proves a movement/streaming cause; controlled device A/B
+evidence remains required before classifying it.
+
 The static shader contract now covers all five numeric zero-default macros:
 `SUN_QUALITY`, `SSR_QUALITY`, `SSAO_QUALITY`, `SSAO_OPT_DATA` and
 `MSAA_SAMPLES`. Thirty mutation tests validate complete guarded zero fallbacks,
@@ -528,18 +538,18 @@ older stamp is not the current authoritative full-gate stamp.
 
 ### Current authoritative full-gate stamp
 
-The final uncached full gate passed after the IOS-P2-006 BC contract and its
-artifact-hash dependency correction. The codec gate rebuilt one translation
-unit; the final hash-only correction retained the same engine UUID and bundle.
-It passed the strict/sanitized BC contract, retail 74/74, installer 13/13,
-numeric macros 30/30, low 2/2, SSAO 6/6, shader contract 279/279 and links
-137/137. Platform is `IOS`, minOS 16.4 and shader cache is forced off. The
-authoritative stamp is:
+After commit `27d966ddc8a571955abdb861839ece5d3b77289a`, the final uncached
+full gate rebuilt 68 translation units and passed the strict/sanitized BC
+contract, retail 74/74, installer 13/13, local CI contract 79/79, numeric
+macros 30/30, low 2/2, SSAO 6/6, shader contract 279/279 and links 137/137.
+Platform is `IOS`, minOS 16.4 and shader cache is forced off. The current source
+hash was independently recomputed after the gate and exactly matches this
+stamp. This post-commit artifact has not yet been installed on a phone:
 
 ```text
-source_sha256=02d9ca8d88910cb4ff485e3fe9a0fb378c1e9baa8eb4a66e0c28cca8a76d64f2
-app_uuid=44D1A9FA-F8AF-3CD5-AC97-386F0D2999D2
-bundle_sha256=38ab03ef4a7417f16ed93acb653e772d536ba8ddb099e099f784e06eb9547f6e
+source_sha256=449dd3f9d6bcd540d1ed6739fa111219f7c9d95fddcc0eed8529e10326a28da6
+app_uuid=545F8958-0B1F-3D85-BDF2-758CF9553A16
+bundle_sha256=eeacc4b2d878f62ca70a33cf51e9014b2f20de20a28a64e50096879467c68351
 openal_provider=OpenALSoft-1.25.2-static
 openal_sha256=86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914
 __debug_info=513541671
