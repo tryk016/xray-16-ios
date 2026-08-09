@@ -206,12 +206,6 @@ private:
     mutable Ivector2 m_ios_touch_pos{ -1, -1 };
     SDL_FingerID m_ios_active_finger{};
     bool m_ios_finger_active{ false };
-
-    // Cable-driven diagnostic input is explicitly gated by ios_diagnostics. Keep its
-    // state on CInput so focus changes cannot leave a function-static synthetic key held.
-    u32 m_ios_diag_next_poll{};
-    u32 m_ios_diag_hold_until{};
-    int m_ios_diag_hold_key{ -1 };
 #endif
 
     void OpenController(int idx);

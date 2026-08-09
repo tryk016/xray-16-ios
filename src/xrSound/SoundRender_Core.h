@@ -5,6 +5,7 @@
 #include "SoundRender.h"
 #include "SoundRender_Environment.h"
 #include "SoundRender_Effects.h"
+#include "SoundInterruptionRegistry.h"
 #include "SoundRender_Scene.h"
 
 class CSoundRender_Core : public ISoundManager
@@ -70,6 +71,11 @@ protected:
     // Containers
     xr_vector<CSoundRender_Scene*> m_scenes;
 
+    // The interruption snapshot is intentionally independent from m_scenes:
+    // level teardown/creation may replace scenes before AVAudioSession ends.
+    bool m_audioInterruptionActive{};
+    xr_vector<CSoundRender_Scene*> m_audioInterruptionScenes;
+
     Lock s_sources_lock;
     xr_unordered_map<xr_string, CSoundRender_Source*> s_sources;
 
@@ -102,6 +108,8 @@ public:
 
     void stop_emitters() override;
     int pause_emitters(bool pauseState) override;
+    void begin_audio_interruption() override;
+    void end_audio_interruption() override;
 
     void set_master_volume(float f) override = 0;
 

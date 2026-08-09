@@ -341,6 +341,10 @@ void CCameraManager::ApplyDevice()
         clamp(pp_affected.noise.grain, EPS_L, 1000.0f);
         GEnv.Render->SetPostProcessParams(pp_affected);
     }
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+    Device.ios_note_camera_applied();
+#endif
 }
 
 void CCameraManager::ResetPP()

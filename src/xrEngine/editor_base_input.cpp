@@ -287,6 +287,9 @@ void ide::IR_OnActivate()
 
 void ide::IR_OnDeactivate()
 {
+#if defined(XR_PLATFORM_APPLE_IOS)
+    IInputReceiver::IR_OnDeactivate();
+#endif
     UpdateTextInput(true);
     pInput->GrabInput(true);
 

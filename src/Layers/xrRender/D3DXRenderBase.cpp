@@ -6,6 +6,10 @@
 #include "xrEngine/GameFont.h"
 #include "xrEngine/PerformanceAlert.hpp"
 
+#if defined(USE_OGL)
+#include "../xrRenderGL/glHW.h"
+#endif
+
 #if defined(XR_PLATFORM_WINDOWS) || defined(XR_PLATFORM_LINUX) || defined(XR_PLATFORM_APPLE)
 #   ifndef MASTER_GOLD
 #       define USE_RENDERDOC
@@ -21,6 +25,24 @@ namespace xray::render::RENDER_NAMESPACE
 #ifdef USE_RENDERDOC
 RENDERDOC_API_1_0_0* g_renderdoc_api;
 #endif
+
+IRender::RenderContext D3DXRenderBase::GetCurrentContext() const
+{
+#if defined(USE_OGL)
+    return HW.GetCurrentContext();
+#else
+    return IRender::PrimaryContext;
+#endif
+}
+
+bool D3DXRenderBase::MakeContextCurrent(const RenderContext context)
+{
+#if defined(USE_OGL)
+    return HW.MakeContextCurrent(context) == 0;
+#else
+    return true;
+#endif
+}
 
 void D3DXRenderBase::setGamma(float fGamma)
 {
@@ -237,6 +259,10 @@ void D3DXRenderBase::ResourcesDeferredUnload()
 {
     Resources->DeferredUnload();
 }
+void D3DXRenderBase::ResourcesLowMemoryEvict(u32& count, u64& bytes)
+{
+    Resources->LowMemoryEvict(count, bytes);
+}
 void D3DXRenderBase::ResourcesGetMemoryUsage(u32& m_base, u32& c_base, u32& m_lmaps, u32& c_lmaps)
 {
     if (Resources)
@@ -354,6 +380,9 @@ void D3DXRenderBase::OnAssetsChanged()
 xrImTextureData D3DXRenderBase::GetImGuiTextureId(pcstr texture_name)
 {
     const auto texture = Resources->_CreateTexture(texture_name);
+    texture->m_last_used_frame = Device.dwFrame;
+    // ImGui retains a raw texture handle rather than a reload-aware ref_texture.
+    texture->m_low_memory_pinned = true;
     return
     {
         texture->GetImTextureID(),

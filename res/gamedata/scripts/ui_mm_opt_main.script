@@ -93,8 +93,8 @@ end
 function options_dialog:SetCurrentValues()
 	local opt = COptionsManager()
 
-	opt:SetCurrentValues("mm_opt_video_preset")
-	opt:SaveBackupValues("mm_opt_video_preset")
+	opt:SetCurrentValues("mm_opt_ios_graphics")
+	opt:SaveBackupValues("mm_opt_ios_graphics")
 
 	opt:SetCurrentValues("mm_opt_video")
 	opt:SaveBackupValues("mm_opt_video")
@@ -178,7 +178,6 @@ function options_dialog:InitCallBacks()
 	self:AddCallback("btn_cancel",			ui_events.BUTTON_CLICKED,	self.OnBtnCancel,			self)
 	self:AddCallback("btn_default_graphic",	ui_events.BUTTON_CLICKED,	self.OnBtnDefGraph,			self)
 	self:AddCallback("btn_default_sound",	ui_events.BUTTON_CLICKED,	self.OnBtnDefSound,			self)
-	self:AddCallback("combo_preset",		ui_events.LIST_ITEM_SELECT,	self.OnPresetChanged,		self)
 	self:AddCallback("btn_simply_graphic",	ui_events.BUTTON_CLICKED,	self.OnSimplyGraphic,		self)
 	self:AddCallback("btn_keyb_default",	ui_events.BUTTON_CLICKED,	self.OnBtnKeybDefault,		self)
 	self:AddCallback("btn_check_updates",	ui_events.BUTTON_CLICKED,	self.OnBtnCheckUpdates,		self)
@@ -213,12 +212,6 @@ function options_dialog:OnBtnKeybDefault()
 	opt:SetCurrentValues	("key_binding")
 end
 
-function options_dialog:OnPresetChanged()
-	local opt					= COptionsManager()
-	opt:SetCurrentValues		("mm_opt_video_adv")
-end
-
-
 function options_dialog:OnBtnDefGraph()
 	local opt = COptionsManager()
 	opt:SendMessage2Group("mm_opt_video","set_default_value")
@@ -236,7 +229,7 @@ function options_dialog:OnBtnAccept()
 
    	console:execute("cfg_save tmp")
 
-	opt:SaveValues("mm_opt_video_preset")
+	opt:SaveValues("mm_opt_ios_graphics")
 	opt:SaveValues("key_binding")
 	opt:SaveValues("mm_opt_video")
 	opt:SaveValues("mm_opt_video_adv")
@@ -262,7 +255,7 @@ end
 
 function options_dialog:OnBtnCancel()
 	local opt				= COptionsManager()
-	opt:UndoGroup			("mm_opt_video_preset")
+	opt:UndoGroup			("mm_opt_ios_graphics")
 	opt:UndoGroup			("mm_opt_video")
 	opt:UndoGroup			("mm_opt_video_adv")
 	opt:UndoGroup			("mm_opt_sound")

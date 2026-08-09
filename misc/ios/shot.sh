@@ -18,12 +18,23 @@
 
 set -u -o pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=misc/ios/device_lease.sh
+source "$SCRIPT_DIR/device_lease.sh"
+
 DEVICE_UDID="00008130-000564403E12001C"
 BUNDLE_ID="io.github.tryk016.openxray.RMJWWPF379"
 [ "$#" -le 1 ] || { echo "usage: $0 [output.png]" >&2; exit 2; }
 OUT="${1:-/tmp/xr_shot.png}"
 WORK="$(mktemp -d -t xrshot)"
-trap 'rm -rf "$WORK"' EXIT
+cleanup()
+{
+    ios_device_lease_release
+    rm -rf "$WORK"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 PPM="$WORK/xr_shot.ppm"
 CFG="$WORK/user.ltx"
 META_OLD="$WORK/meta-old.txt"
@@ -31,7 +42,9 @@ META_NEW="$WORK/meta-new.txt"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-xcrun devicectl device copy from \
+ios_device_lease_acquire 2 || exit $?
+
+ios_run_with_timeout 15 xcrun devicectl device copy from \
     --device "$DEVICE_UDID" \
     --domain-type appDataContainer \
     --domain-identifier "$BUNDLE_ID" \
@@ -48,7 +61,7 @@ grep -Eq '^ios_diagnostics[[:space:]]+1[[:space:]]*$' "$CFG" \
 # If the first cable read fails, treat the first later token only as a baseline;
 # this costs at most one extra capture interval but can never accept a stale file.
 baseline_ready=0
-if xcrun devicectl device copy from \
+if ios_run_with_timeout 15 xcrun devicectl device copy from \
     --device "$DEVICE_UDID" \
     --domain-type appDataContainer \
     --domain-identifier "$BUNDLE_ID" \
@@ -63,7 +76,7 @@ fresh=0
 for _attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
     sleep 1
     rm -f "$META_NEW"
-    if xcrun devicectl device copy from \
+    if ios_run_with_timeout 3 xcrun devicectl device copy from \
             --device "$DEVICE_UDID" \
             --domain-type appDataContainer \
             --domain-identifier "$BUNDLE_ID" \
@@ -82,7 +95,7 @@ for _attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
 done
 [ "$fresh" = 1 ] || fail "no fresh frame arrived within 12 seconds - is the diagnostics build running?"
 
-xcrun devicectl device copy from \
+ios_run_with_timeout 15 xcrun devicectl device copy from \
     --device "$DEVICE_UDID" \
     --domain-type appDataContainer \
     --domain-identifier "$BUNDLE_ID" \

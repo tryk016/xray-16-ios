@@ -449,6 +449,15 @@ if (XRAY_PLATFORM_IOS)
         ios/ios_audio_session.mm
         ios/ios_display.h
         ios/ios_display.mm
+        ios/ios_graphics_profile.h
+        ios/ios_graphics_profile.cpp
+        ios/ios_graphics_profile_policy.h
+        ios/ios_lifecycle_state.h
+        ios/ios_low_memory_policy.h
+        ios/ios_memory.h
+        ios/ios_memory.cpp
+        ios/ios_texture_eviction_policy.h
+        ios/ios_texture_memory.h
     )
 
     # stdafx.h is a C++ PCH and (via Common/PlatformApple.inl) typedefs BOOL,

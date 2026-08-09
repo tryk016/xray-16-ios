@@ -274,6 +274,9 @@ public:
 
     virtual void level_Load(IReader* fs) = 0;
     virtual void level_Unload() = 0;
+#if defined(XR_PLATFORM_APPLE_IOS)
+    virtual void ios_begin_quick_load_sector_startup_epoch() {}
+#endif
 
     void shader_option_skinning(s32 mode) { m_skinning = mode; }
     virtual HRESULT shader_compile(pcstr name, IReader* fs, pcstr pFunctionName, pcstr pTarget, u32 Flags,
@@ -374,6 +377,7 @@ public:
     virtual void DeferredLoad(bool E) = 0;
     virtual void ResourcesDeferredUpload() = 0;
     virtual void ResourcesDeferredUnload() = 0;
+    virtual void ResourcesLowMemoryEvict(u32& count, u64& bytes) = 0;
     virtual void ResourcesGetMemoryUsage(u32& m_base, u32& c_base, u32& m_lmaps, u32& c_lmaps) = 0;
     virtual void ResourcesDestroyNecessaryTextures() = 0;
     virtual void ResourcesStoreNecessaryTextures() = 0;
@@ -395,5 +399,5 @@ public:
     virtual void OnAssetsChanged() = 0;
 
     virtual RenderContext GetCurrentContext() const = 0;
-    virtual void MakeContextCurrent(RenderContext context) = 0;
+    virtual bool MakeContextCurrent(RenderContext context) = 0;
 };

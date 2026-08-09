@@ -25,6 +25,10 @@
 
 #include <SDL.h>
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include <limits>
+#endif
+
 // refs
 class Task;
 
@@ -46,6 +50,9 @@ private:
     CTimer_paused Timer;
     CTimer_paused TimerGlobal;
     CTimer TimerMM;
+#if defined(XR_PLATFORM_APPLE_IOS)
+    u64 m_iosCameraApplyGeneration{};
+#endif
 
     void SetupStates();
 
@@ -161,6 +168,16 @@ public:
     {
         Timer.Start();
     }
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+    void ios_note_camera_applied()
+    {
+        if (m_iosCameraApplyGeneration < std::numeric_limits<u64>::max())
+            ++m_iosCameraApplyGeneration;
+    }
+
+    [[nodiscard]] u64 ios_camera_apply_generation() const { return m_iosCameraApplyGeneration; }
+#endif
 
     void Pause(bool bOn, bool bTimer, bool bSound, pcstr reason);
     bool Paused();

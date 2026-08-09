@@ -1,366 +1,242 @@
 # OpenXRay iOS — active roadmap
 
-**Last synchronized:** 2026-07-24
+**Last synchronized:** 2026-08-09
 
 **Canonical contract:** [iOS-Port.md](iOS-Port.md)
 
+**Deferred work:** [iOS-Port-Backlog.md](iOS-Port-Backlog.md)
+
 **Platform scope:** iOS-only; desktop compatibility is not an acceptance gate.
 
-**Current focus:** validate the startup-sector fix across content, then establish
-memory and lifecycle reliability
+**Current focus:** continue startup-sector, measured-profile, dense-UI and
+physical lifecycle validation in the numbered order below. IOS-P2-005's local
+pinning/cache contract is complete and has returned to the Backlog pending two
+remote runs. IOS-P2-006's behavior-preserving BC codec contract is also locally
+complete and backlogged pending a color-space decision plus iPhone reference
+frames. The UIKit scene-lifecycle migration is locally and Simulator-complete;
+its physical-device acceptance remains IOS-P1-010 and IOS-P1-002.
 
-This document contains active and future work. Historical slice details and
-resolved failures belong in [iOS-Port-Journal.md](iOS-Port-Journal.md).
+This file intentionally contains no more than five active tasks. Historical
+evidence belongs in [iOS-Port-Journal.md](iOS-Port-Journal.md). Work not listed
+here is deferred and must be promoted explicitly from the Backlog.
 
 ## Milestone status
 
 | Milestone | Outcome | Status |
 |---|---|---|
-| M0 — Toolchain | iOS arm64 toolchain, dependencies, static engine link | Complete |
-| M1 — Application | UIKit/SDL launch, sandbox paths, app bundle and IPA | Complete |
-| M2 — ES renderer | ES 3.0 context, shaders, textures, deferred world rendering | Complete with known defects |
-| M3 — Playability | Level load, controller gameplay, touch UI, audio, saves | Complete for controller testing |
-| M4 — Reliability | Streaming, memory, lifecycle, deterministic automation | In progress |
-| M5 — Performance | Resolution, frame pacing, thermal and GPU/CPU optimization | Baseline started |
-| M6 — Distribution | Reproducible tester package and documented data setup | Partial |
-| M7 — Renderer decision | Stay ES, adopt ANGLE, or start native Metal from measurements | Deferred |
+| M0 — Toolchain | arm64 dependencies and complete iOS 16.4 engine | Complete |
+| M1 — Application | UIKit/SDL launch, sandbox, bundle and install | Complete |
+| M2 — ES renderer | ES 3.0 deferred world renderer | Complete with known debt |
+| M3 — Playability | Level, controller, touch menu, audio and saves | Controller-playable |
+| M4 — Reliability | Multi-level, memory, lifecycle and automation | In progress |
+| M5 — Performance | Fixed 1864×860 profiles and measured baseline | Device validation in progress |
+| M6 — Distribution | Reproducible tester package and data setup | Deferred |
+| M7 — Renderer decision | ES, ANGLE or native Metal from measurements | Deferred |
 
-M0 was clean-room revalidated on 2026-07-24 after moving to an Apple M3 Pro:
-macOS 26.5.2, Xcode 26.6, SDK 26.5 and CMake 4.4.0 build device and simulator
-dependencies plus the complete engine for deployment target iOS 16.4.
+## 1. IOS-P0-003: validate startup-sector recovery across content
 
-## P0 — release validation
+**Priority:** P0.
 
-### IOS-P0-003: validate startup-sector recovery across content
+**Evidence level:** affected Zaton save proven on three cold launches; v1
+startup-sector evidence oracle is host-complete (parser 17/17, mutation 9/9,
+strict/ASan/UBSan PASS and final Sol xhigh approval); other saves, indoor/portal
+starts, QuickLoad, transitions and device visual proof remain untested.
 
-**Evidence:** The affected Zaton save is fixed on three cold launches without
-input. Exact vertical sector detection fails at the spawn, the nearest-floor
-probe finds sector 115 at 8 m, and the full static world renders from the first
-playable frames.
+The exact vertical query misses the affected spawn floor. The iOS-only
+nearest-floor fallback finds sector 115 at 8 m and renders the complete static
+world without movement. Full prefetch remains prohibited because it previously
+added an approximately 1.6 GB transient spike.
 
-**Next slice:**
+The phone-free regression policy now proves exact-query bypass, the independent
+56-probe order, first-hit selection, unchanged camera height, no-hit metadata
+and invalid-sector commit protection. v1 also validates `level_load`/`QuickLoad`
+epochs, the exact/fallback/retained/unresolved/recovered outcomes and an anchored
+oracle stream; `retained` is prior valid-sector evidence after authoritative
+camera application, not fresh detection. Strict C++ policy, ASan/UBSan, the
+partial 1,383-TU engine gate and the final uncached full gate pass. This protects
+the mechanism only; real CDB results across additional content remain
+device-untested.
 
-1. Load at least one additional outdoor save and one indoor/portal location.
-2. Confirm direct detection remains the normal path and fallback runs only when
-   the exact query is invalid.
-3. Exercise save/reload and a level transition.
+**Next actions:**
+
+1. Before every short phone batch, record its completed baseline epoch, then
+   require the exact expected marker batch with the expected PID and trigger.
+2. Load one additional outdoor save and one indoor/portal location; separately
+   require resolved classification and an objective world frame.
+3. Exercise QuickLoad/save-reload and one level transition with the same
+   baseline-plus-exact-batch discipline.
 4. Record current and peak physical footprint during a 30-minute controller run.
 
 **Acceptance:**
 
-- Three cold launches and two save/level combinations start with complete world
-  geometry and no movement workaround.
-- Indoor and portal-adjacent starts select the correct sector.
-- No approximately 1.6 GB prefetch spike or new unbounded growth.
-- The diagnostic visibility counters are absent from the final test build.
+- Three cold launches and two save/level combinations record the baseline epoch,
+  exact expected batch, resolved classification and objective complete-world
+  frame without a movement workaround.
+- Indoor and portal-adjacent starts select the correct sector with the same
+  sector and visual evidence kept distinct.
+- No prefetch spike, unbounded growth or diagnostic visibility counters.
 
-## P1 — correctness and reliability
+## 2. IOS-P1-005: validate graphics profiles and presentation baseline
 
-### IOS-P1-001: make CI gates authoritative
+**Priority:** P1, immediately after IOS-P0-003.
 
-**Evidence level:** local proven; first remote artifact and negative canary
-remain untested.
+**Evidence level:** profile UI, read-only 1864×860, all three initial
+tier/target selections and correct Performance/Quality/Optimal world frames
+proven on device. Five diagnostic foreground cycles retained the drawable.
+`serious thermal` forced Optimal from balanced to performance in both normal
+and diagnostic mode. The unscaled nanosecond work/elapsed source, sub-ms sample
+retention and resume warmup pass host, Simulator and full Release gates.
+The expanded deterministic policy contract covers exact 24/31/40 ms
+thresholds, complete tier traversal, cooldown boundaries, warmup/gaps,
+30/60/120 Hz and uneven cadence. It also proves that blocked or mixed
+power/thermal windows cannot be reused for an upgrade while they still permit
+downgrades. Strict warnings and ASan/UBSan pass. Measured downgrade/upgrade and
+frame pacing remain device-untested.
 
-CI now uses the strict local shader contract, pinned glslang, serialized release
-publication and a device dSYM contract of at least 100 MiB plus exact UUID
-match. Exact checkpoint values are retained in the journal, not this roadmap.
+The framebuffer remains fixed at 1864×860 with a 1:1 present in every mode:
 
-**Remaining:**
+- Performance: low runtime tier, 60 FPS target.
+- Optimal: balanced 30 FPS start, p90/hysteresis adaptation.
+- Quality: full runtime tier, 30 FPS target.
 
-- Run a temporary deliberately broken shader and varying pair through Actions
-  to prove the remote job, not only the local wrapper, turns red.
-- Confirm the first remote device job publishes both IPA and dSYM artifacts.
+Optimal may change only visibility, geometry LOD, local-shadow quality and
+shadowed-light fade. Resolution, textures, shader/resource topology, SSAO,
+VSync, MSAA and postprocessing remain fixed.
 
-**Acceptance:** a deliberately broken shader or varying pair makes CI red.
+**Next actions:**
 
-### IOS-P1-002: finish iOS lifecycle
+1. Let the device cool, then record the same normal-mode camera path under all
+   fixed modes without diagnostic readback.
+2. Measure frame pacing against the 60/30 FPS targets.
+3. Drive Optimal through a measured downgrade, recovery and upgrade.
+4. Validate Low Power separately from the proven `serious thermal` path.
+5. Device-confirm the locally enforced synchronous profile reassert after
+   config reload and Options discard.
 
-**Evidence level:** source audit; full recovery cycle untested.
+**Acceptance:** the three modes select their documented tier and target;
+Optimal does not oscillate or change shader/resource topology; transitions do
+not corrupt the frame; and five foreground cycles retain 1864×860.
 
-- Stop rendering before entering background.
-- Avoid all GL calls while backgrounded.
-- Revalidate/rebind the drawable on foreground.
-- Handle `SDL_APP_LOWMEMORY`.
-- Reset touch state and release synthetic mouse input on deactivate.
-- Verify save/config flush behavior.
+## 3. IOS-P1-006: close visible UI renderer gaps
 
-**Acceptance:** five lock/background cycles and one audio interruption recover in
-the same session without stuck input, black output, or lost settings.
+**Priority:** P1.
 
-### IOS-P1-003: trustworthy memory telemetry
+**Evidence level:** Multiplayer absence, all four simplified Options tabs, HUD,
+ordinary inventory and core PDA/map surfaces are readable on device. The run
+found and fixed a fatal missing `video_adv:cap_always_active` XML contract; the
+shared Lua initializer is now satisfied by an unbound hidden compatibility
+node and all tabs re-open successfully. The phone-free focus policy now proves
+a one-correction fixed point for visible, clipped, fractional, over-height and
+externally clamped cells, including non-finite and saturated bounds. The focus
+overlay consumes the same indented clip as `CUIScrollView::Draw`; strict and
+ASan/UBSan tests, 32 UI fixtures total (1 positive baseline + 31 negative
+mutations), FastDevice, the full uncached
+Release gate and Sol xhigh review pass. Overfilled inventory visuals and the
+faction-war page remain device-untested. The isolated iOS 26.5 retail Simulator
+reaches a fully textured main menu with a live-process and screenshot oracle.
+Its later exact-save autoload path now reaches `saved_game_sync_complete` and
+`after_load` under the Apple Software Renderer after the cross-Apple
+`CLocatorAPI::Register` path-length correction. The Locator mutation contract
+passes 8/8 and the hardened retail-isolation workflow passes 62/62. Mandatory
+`large-files-sha256.tsv` size/SHA checks now agree with `files.tsv` and protect
+all allowlisted large files across preflight, staging and post-runtime; only the
+selected mutable large save may change, and it must remain a nonempty regular
+file. A two-stage log oracle snapshots before runtime proof and securely
+finalizes only after successful process termination, rejecting path/inode,
+prefix, rotation, truncation, rewrite, symlink, sequence and failure anomalies.
 
-**Evidence level:** current `phys_footprint` logging proven; eviction accounting
-and budgets unimplemented.
+The final isolated iOS 26.5 Simulator run is PASS in
+`simulator-work-20260809-013601-65931`; its dedicated Simulator
+`410EA3BC-23FC-4F4C-843D-CF4438704652` was deleted. The iOS/autoinput-only
+marker runs after `DoRenderDialogs()` and records actual semantic transitions
+with exact PID/sequence/frame/state. PID `72114` proves the controller path
+`I, I, P, E, Escape, M, Escape` as `world -> inventory -> world -> pda_tasks
+-> other -> world -> pda_tasks -> world`. In CoP retail there is no standalone
+`eptMap`: `eptTasks` is the combined Tasks/Map surface; the deliberate `E`
+shows `M` does not inherit prior Tasks state. Synchronization was 337327 ms,
+`after_load` physical footprint 3559173 K and textures 2206009 K. The 631235
+byte save remains SHA-256
+`7ff0b12ee5d0a39b7a9595d7cc491cd63a32dfc2ce276e5302f74a4cdf7214cc`; protected
+inputs are unchanged and cleanup passed. Binding JSON has
+`final_log_sha256=638434c1b8b745d7d7002237eed356144b893e823ddbce28e571b8f34dba9d96`
+and exact scope `semantic-ui-navigation-only`.
 
-- Report current `phys_footprint` separately from peak RSS.
-- Account for decoded GPU texture allocation, not only compressed source bytes.
-- Log prefetch and eviction deltas.
-- Define budgets for at least the current test device and one lower-memory target.
+Its task-specific host contracts passed and final Sol xhigh verdict is
+`APPROVE — brak P0/P1/P2`. The current authoritative full-gate stamp is kept in
+the canonical contract and Resume; this is semantic navigation only, not pixel,
+readability, performance or physical-device proof.
 
-**Acceptance:** logs can prove that an eviction lowers current memory.
+**Next actions:**
 
-### IOS-P1-004: isolate the autonomous test harness
+1. Validate focus auto-scroll and clipping in an overfilled inventory.
+2. Open the faction-war PDA page and visually validate the authored
+   three-slice/static fallback without missing-texture noise.
+3. Verify cursor, minimap, magnifier and video-wrapper textured surfaces.
 
-**Evidence level:** both launch modes and fresh-frame generation proven on
-device; normal-mode performance impact unmeasured.
-
-`ios_diagnostics` is the single fail-closed gate around file input and periodic
-frame readback. Diagnostic mode produced a fresh 1864×860 frame; ordinary launch
-restored zero and remained running.
-
-**Remaining validation:** record a normal-mode performance sample proving no
-`autoinput.txt` polling and no periodic `glReadPixels`.
-
-**Acceptance:** performance/release builds do not poll input files or execute
-periodic full-frame `glReadPixels`.
-
-### IOS-P1-005: define presentation and performance baseline
-
-**Evidence level:** drawable geometry proven on device; FPS/thermal baseline
-unmeasured.
-
-- Current device facts: logical window/input 932×430 and actual EAGL drawable
-  1864×860 (`contentScaleFactor=2.0`).
-- Engine render targets and the screen drawable are both 1864×860; presentation
-  is a 1:1 blit, with no final upscale or downsample.
-- `r__supersample` has returned to 1 and no longer controls iOS resolution.
-- Revalidate the 2x drawable after foreground recovery and any UIKit layout
-  change.
-- The Options dialog now has a dedicated iOS layout with a 25% larger panel,
-  larger fonts and stronger contrast. Keep later HUD/inventory/PDA sizing work
-  independent from that screen and from the fixed pixel resolution.
-- Measure CPU frame, GPU frame, memory and thermals with diagnostics disabled.
-- Choose a 30 FPS floor first; evaluate 60 FPS only after stability.
-
-**Acceptance:** the same scripted camera path produces a repeatable baseline
-report, and five foreground cycles retain a 1864×860 drawable.
-
-### IOS-P1-006: close visible UI renderer gaps
-
-**Evidence level:** menu/Options/HUD and core texture-path fixes proven on
-device; dense inventory/PDA behavior is only build-verified.
-
-Still confirm Advanced Options and Controls on device. For inventory/PDA/map,
-collect the new exact resolved-XML log under `ui_style_default`, then validate
-focus auto-scroll and clipping in an overfilled inventory. Also verify textured
-cursor, minimap, magnifier and video-wrapper surfaces using on-device captures.
-Do not infer a common cause without proving the draw path.
+Advanced desktop graphics controls are not part of the iOS product.
 
 **Acceptance:** menu, HUD, inventory, PDA/map and video surfaces are complete,
 readable and internally consistent on the supported iPhone baseline.
 
-### IOS-P1-007: audit ES feature-macro semantics
+## 4. IOS-P1-010: adopt UIKit scene lifecycle for iOS 27
 
-**Evidence level:** current SSAO permutations proven; dormant HBAO/HDAO/SSR
-paths are static findings only.
+**Priority:** P1.
 
-- Keep explicit zero defaults required by GLSL ES numeric `#if` expressions.
-- Replace incompatible presence tests only where the corresponding disabled or
-  non-optimized path is valid.
-- Keep the landed 6/6 disabled, full-G-buffer, optimized full/half and
-  downsample full/half profile plus the numeric macro contract in the offline
-  gate.
-- Review the older HBAO and SSR helper paths separately; do not enable them
-  merely because the primary SSAO path is fixed.
-- Static audit found dormant value-contract violations in HBAO/HDAO and a
-  locally unsafe `SSR_QUALITY` helper test. They are not active in the current
-  iOS profile. Add real harness entries before changing or enabling those paths;
-  a green profile that never includes HDAO is not evidence.
+**Evidence level:** the hash-pinned SDL2 2.32.10 UIScene backport,
+deterministic oracle, iOS 26.5/27.0 Simulator runs and final Sol xhigh approval
+are complete. Physical-device acceptance remains untested.
 
-**Acceptance:** every zero-default quality/feature macro has one documented
-meaning, disabled permutations compile, and no shader selects a resource path
-that the CPU did not allocate or populate.
+The app declares one scene, uses `SDLUIKitSceneDelegate`, starts `SDL_main`
+once, binds iOS 13+ windows to a connected `UIWindowScene`, and preserves one
+PID across one ordered Simulator recovery cycle. This is bootstrap and
+menu-boundary evidence only, not physical-device, pixel, audio or soak proof.
 
-### IOS-P1-008: make environment alias rebinding explicit
+**Next actions:**
 
-**Evidence level:** source-level risk identified; runtime stale-bind event
-unproven.
+1. Run five physical-device Safari/background cycles and confirm one PID,
+   drawable, input, saves and the UIScene transition markers.
+2. Run one separate lock/unlock cycle and one audio-interruption cycle without
+   replacing the process or losing the drawable.
 
-`dxEnvironmentRender::lerp()` can replace the GL surface ID inside an existing
-`CTexture`, while the backend texture cache primarily compares the `CTexture*`.
-This did not cause the fixed stable-darkness defect, but it can leave stale
-environment cubemaps across weather/menu transitions.
+**Acceptance:** five physical-device foreground cycles plus one lock/unlock and
+audio-interruption cycle preserve PID, input, audio, drawable and saves.
 
-- Add a surface revision or explicitly invalidate affected backend slots.
-- Log expected and actual `GL_TEXTURE_BINDING_CUBE_MAP` in one diagnostic run.
-- Exercise a weather transition and menu→world transition.
+## 5. IOS-P1-002: finish iOS lifecycle
 
-**Acceptance:** every alias ID change produces the intended bind, with no stale
-cubemap and no redundant full cache flush.
+**Priority:** P1.
 
-### IOS-P1-009: qualify macOS 27 debugging and UI automation
+**Evidence level:** the local frame gate, lifecycle inbox, persistence ordering,
+input cancellation, GL detach/rebind, LOWMEMORY path and corrected Safari/audio
+harness pass their deterministic contracts and reviews. Four diagnostic device
+cycles and one held-W cycle pass. The UIScene backport also preserves one PID
+through one Simulator recovery cycle on both iOS 26.5 and 27.0. Normal Safari
+cycles, lock/held-touch and a real audio interruption remain physical-device
+untested.
 
-**Evidence level:** pre-upgrade build/sign/install baseline proven; post-update
-GPU capture and XCUITest support untested.
+**Next actions:**
 
-1. Record macOS, Xcode, SDK, CMake and native tool versions before changing
-   caches.
-2. Regenerate device and simulator smoke tests at deployment target 16.4, then
-   run the complete gate and device install.
-3. Test Xcode GPU capture against the GLES process. If translated work is not
-   visible, prove that limitation and select Metal System Trace or a minimal
-   ANGLE/Metal probe explicitly.
-4. Add an XCUITest target that launches the app and deterministically reaches
-   Main Menu → Options.
+1. Run five normal physical-device Safari/background cycles and require one
+   PID, a valid 1864x860 drawable, responsive input and unchanged saves/config.
+2. Run one separate lock/unlock cycle while touch input is held and prove every
+   synthetic input is released without replay.
+3. Trigger one real audio interruption and require the selected OpenAL Soft
+   provider to resume the exact surviving scenes without replacing the process.
 
-**Acceptance:** build/sign/install is green after the update; one repeatable GPU
-workload capture opens in an available Apple tool (or the unsupported GLES path
-and selected alternative are documented); and UI automation reaches Options
-without manual input on three consecutive runs.
+**Acceptance:** five Safari/background cycles, one separate lock/unlock cycle
+and one audio interruption recover in the same process without stuck input,
+black output, lost audio or lost settings/saves.
 
-## P2 — product and maintenance debt
+## Definition of done for an active task
 
-### IOS-P2-001: touch robustness and gameplay controls
+The completion contract is canonical in [iOS-Port.md](iOS-Port.md). Closing an
+item from this plan requires:
 
-**Evidence level:** menu pointer/tap proven; lifecycle cancellation and virtual
-gameplay controls incomplete.
-
-- Clear active-finger state on lifecycle transitions.
-- Synthesize release for any held touch-generated button.
-- Decide whether controller-only gameplay is acceptable for the first release.
-- If not, implement virtual move/look controls and action buttons using the
-  existing input receiver contract.
-
-Reference: [iOS-Controller-Prior-Art.md](iOS-Controller-Prior-Art.md).
-
-**Acceptance:** no stuck touch/mouse state survives five lifecycle transitions;
-the first-release controller-only or virtual-gamepad scope is explicit and its
-chosen gameplay path completes a ten-minute device run.
-
-### IOS-P2-002: use OpenAL Soft intentionally
-
-**Evidence level:** OpenAL Soft archive exists; final link to Apple OpenAL proven.
-
-The dependency superbuild creates arm64 `libopenal.a`, but the Xcode 26.6 device
-cache and final link still resolve Apple's deprecated SDK
-`OpenAL.framework`.
-
-**Acceptance:** the final link uses the intended library, interruptions still
-recover, and the device log reports expected extension support.
-
-### IOS-P2-003: restore visibility-query optimization
-
-**Evidence level:** disabled iOS path source-proven; ES query benefit untested.
-
-The iOS path currently disables occlusion queries for correctness. Implement the
-ES-compatible boolean query path only after startup-world validation is closed.
-
-**Acceptance:** no invalid GL calls, no visual regression, and measured CPU/GPU
-benefit on the scripted path.
-
-### IOS-P2-004: harden signing/install tooling
-
-**Evidence level:** current single-device flow and profile-authorized
-certificate fingerprint matching are proven locally; device/artifact
-configuration remains hard-coded.
-
-- Move device UDID and local IPA directory to arguments or environment.
-- Keep the installed bundle identifier stable.
-- Preserve the profile-renewal stub and never revoke unrelated certificates.
-
-**Acceptance:** the installer selects only a certificate authorized by the
-`RMJWWPF379` provisioning profile, accepts device and artifact configuration
-without source edits, preserves the stable bundle ID and refuses an
-identity/profile mismatch before installation.
-
-### IOS-P2-005: supply-chain and CI maintenance
-
-**Evidence level:** current workflow reviewed locally; action SHA pinning and
-cache provenance incomplete.
-
-- Pin third-party GitHub Actions to reviewed commit SHAs.
-- Cache immutable dependency outputs with source/toolchain hashes.
-- Retain the simulator as compile coverage, not as the rendering authority.
-
-**Acceptance:** third-party actions use reviewed SHAs, dependency cache keys
-include source/toolchain inputs, and a clean uncached run reproduces the device
-and simulator artifacts.
-
-### IOS-P2-006: define the iOS texture color-space fallback
-
-**Evidence level:** RGBA8 expansion path source-proven; visual/color contract
-unmeasured.
-
-The CPU DXT/BC fallback currently expands sRGB variants to ordinary `GL_RGBA8`
-and does not preserve every GLI swizzle. This was not the cause of the SSAO
-lighting failure, but it can produce unintended sampling on iOS.
-
-**Acceptance:** representative sky/environment/albedo textures document their
-source format, upload format, swizzle and shader-space expectation; numeric
-probes and iOS reference frames show an intentional, bounded result.
-
-## M6 — distribution completion
-
-**Priority:** P2.
-
-**Evidence level:** local paid-team signing, cable installation and stable data
-container are proven; resumable retail-data import and the first complete remote
-release artifact set are untested.
-
-The primary developer route is local signing and cable installation. GitHub
-Actions may continue publishing an unsigned IPA and SideStore source for remote
-testers.
-
-Before calling distribution complete:
-
-- document legal retail-data import;
-- make asset transfer resumable and verifiable;
-- keep saves across signed updates;
-- remove device-specific identifiers from general instructions;
-- ensure release metadata does not claim the build is pre-renderer;
-- keep release metadata generated by CI; do not restore the removed stale
-  repository-root `apps.json` snapshot;
-- document profile/certificate recovery without destructive steps.
-
-App Store distribution is not an active target.
-
-**Acceptance:** a new authorized tester can import legally owned retail data,
-verify and resume the transfer, install the generated package without a
-device-specific source edit, update it without losing saves, and recover an
-expired profile without revoking unrelated certificates.
-
-## M7 — renderer decision gate
-
-**Priority:** deferred; it must not displace open P0/P1 reliability work.
-
-**Evidence level:** native ES correctness fixes and the current renderer
-baseline are proven; ANGLE compatibility and native Metal cost/performance are
-research estimates without an iOS prototype.
-
-Do not start an ANGLE or native Metal migration to solve either resolved startup
-bug. Missing geometry was an engine sector-detection defect; global darkness was
-a GLSL feature-macro defect. Both are fixed and verified on the ES backend.
-
-Revisit the renderer only after:
-
-1. IOS-P0-003 is complete.
-2. Lifecycle and memory telemetry are trustworthy.
-3. A repeatable ES performance baseline exists.
-4. Remaining problems are classified as engine-level or API/backend-level.
-
-Decision inputs:
-
-| Option | Choose when |
-|---|---|
-| Keep ES | Correctness is complete and performance meets the target |
-| ANGLE-on-Metal | ES API/driver behavior is the dominant remaining risk and ANGLE proves compatible in a prototype |
-| Native Metal | Long-term performance/tooling justifies the estimated 42–58 implementation slices |
-
-The native proposal is maintained separately in
-[iOS-Metal-Plan-Draft.md](iOS-Metal-Plan-Draft.md).
-
-**Acceptance:** after all four prerequisites are met, a recorded decision
-compares ES, an iOS ANGLE prototype and the native-Metal estimate using the same
-scene, correctness checks, CPU/GPU frame times, memory and tooling evidence. Any
-selected migration starts under a separately approved implementation plan.
-
-## Definition of done
-
-The completion contract is canonical in [iOS-Port.md](iOS-Port.md). Every task
-closed in this plan must include:
-
-- the tested revision and device;
+- a tested revision against the item's declared acceptance scope;
+- physical-device evidence whenever the item claims installation, runtime,
+  rendering or device behavior; a host-only tooling item may instead close on
+  a real preflight with its untested device boundary stated explicitly;
 - commands used;
-- measured evidence;
-- a journal entry stating what was proven and what remains inferred;
-- a clean `./misc/ios/build_check.sh` result for engine/shader changes.
+- measured evidence with proven/inferred/untested separated;
+- a new append-only Journal entry;
+- updated concise Resume and session log when operational state changed;
+- clean `./misc/ios/build_check.sh --full` for engine or shader changes.

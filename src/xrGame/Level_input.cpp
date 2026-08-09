@@ -470,7 +470,13 @@ void CLevel::IR_OnKeyboardRelease(int key)
     {
         IInputReceiver* IR = smart_cast<IInputReceiver*>(smart_cast<CGameObject*>(CURRENT_ENTITY()));
         if (IR)
+        {
             IR->IR_OnKeyboardRelease(GetBindedAction(key));
+#if defined(XR_PLATFORM_APPLE_IOS)
+            Msg("* iOS input: level dispatched keyboard release to entity scancode %d action %d",
+                key, GetBindedAction(key));
+#endif
+        }
     }
 }
 
@@ -721,6 +727,9 @@ void CLevel::IR_OnActivate()
 
 void CLevel::IR_OnDeactivate()
 {
+#if defined(XR_PLATFORM_APPLE_IOS)
+    IInputReceiver::IR_OnDeactivate();
+#endif
     if (CUIGameCustom* ui = CurrentGameUI())
         ui->MarkForemost(false);
 }

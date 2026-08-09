@@ -28,6 +28,11 @@
 
 #if defined(XR_PLATFORM_APPLE_IOS)
 #include "ios/ios_audio_session.h"
+#include "ios/ios_lifecycle_state.h"
+#include "ios/ios_low_memory_policy.h"
+#include "ios/ios_memory.h"
+
+#include <unistd.h>
 #endif
 
 #ifdef XR_PLATFORM_WINDOWS
@@ -54,9 +59,104 @@ ENGINE_API bool ShadowOfChernobylMode = false;
 ENGINE_API string512 g_sLaunchOnExit_params{};
 ENGINE_API string512 g_sLaunchOnExit_app{};
 ENGINE_API string_path g_sLaunchWorkingFolder{};
+extern ENGINE_API bool g_bRendering;
 
 namespace
 {
+#if defined(XR_PLATFORM_APPLE_IOS)
+ios_lifecycle::EventInbox iosLifecycleEvents;
+ios_low_memory::Policy iosLowMemoryPolicy;
+
+void ReportIOSLifecycleTransition(const bool foreground)
+{
+    const pid_t pid = getpid();
+    if (pid <= 0)
+        return;
+
+    static u64 seq = 0;
+    ++seq;
+    Msg("* iOS lifecycle v1 pid=%d seq=%llu event=%s", static_cast<int>(pid),
+        static_cast<unsigned long long>(seq), foreground ? "activate" : "deactivate");
+    FlushLog();
+}
+
+void ProcessIOSLifecycleEvents()
+{
+    const ios_lifecycle::PendingEvents events = iosLifecycleEvents.Consume();
+    const bool focusBefore = Device.b_is_InFocus;
+    bool activityApplied = false;
+
+    // Event-watch callbacks are allowed to arrive off the engine thread. Keep
+    // Console and filesystem work here on the main loop, before deactivation.
+    ios_lifecycle::ApplyActivityOrdered(events, focusBefore,
+        []
+        {
+            if (Console)
+                Console->Execute("cfg_save");
+            FlushLog();
+        },
+        [&activityApplied](const bool foreground)
+        {
+            Device.OnWindowActivate(Device.m_sdlWnd, foreground);
+            activityApplied = true;
+        });
+
+    const bool focusAfter = Device.b_is_InFocus;
+    if (ios_lifecycle::ShouldReportProcessedTransition(
+            activityApplied, focusBefore, events.foreground, focusAfter))
+        ReportIOSLifecycleTransition(focusAfter);
+
+    const bool foreground = iosLifecycleEvents.IsForeground() && Device.b_is_InFocus;
+    const bool primaryContext = GEnv.Render
+        && GEnv.Render->GetCurrentContext() == IRender::PrimaryContext;
+    const ios_low_memory::Decision decision = iosLowMemoryPolicy.Update(
+        events.lowMemory, foreground, Device.b_is_Ready, primaryContext, g_bRendering);
+
+    if (decision.trimCpu)
+    {
+        ios_memory::Log("before_lowmemory_cpu_trim", ios_memory::Capture());
+        Memory.mem_compact();
+        ios_memory::Log("after_lowmemory_cpu_trim", ios_memory::Capture());
+    }
+
+    if (!decision.evictGpu)
+        return;
+
+    // Recheck persistent UIKit state and the actual renderer context directly
+    // before the first GL delete. b_is_Active is deliberately not used here:
+    // UIKit foreground state plus focus is the stronger lifecycle invariant.
+    if (!iosLifecycleEvents.IsForeground() || !Device.b_is_InFocus || !Device.b_is_Ready
+        || !GEnv.Render || GEnv.Render->GetCurrentContext() != IRender::PrimaryContext || g_bRendering)
+    {
+        iosLowMemoryPolicy.DeferGpuEviction();
+        return;
+    }
+
+    u32 memoryBefore = 0, countBefore = 0, lightmapBefore = 0, lightmapCountBefore = 0;
+    GEnv.Render->ResourcesGetMemoryUsage(memoryBefore, countBefore, lightmapBefore, lightmapCountBefore);
+    const u64 totalBefore = static_cast<u64>(memoryBefore) + lightmapBefore;
+    Msg("* iOS low memory: warning received; loaded texture storage %llu K "
+        "(%u base and %u lightmap resources registered)",
+        static_cast<unsigned long long>(totalBefore / 1024), countBefore, lightmapCountBefore);
+    ios_memory::Log("before_lowmemory_eviction", ios_memory::Capture());
+
+    u32 evictedCount = 0;
+    u64 evictedBytes = 0;
+    GEnv.Render->ResourcesLowMemoryEvict(evictedCount, evictedBytes);
+
+    u32 memoryAfter = 0, countAfter = 0, lightmapAfter = 0, lightmapCountAfter = 0;
+    GEnv.Render->ResourcesGetMemoryUsage(memoryAfter, countAfter, lightmapAfter, lightmapCountAfter);
+    const u64 totalAfter = static_cast<u64>(memoryAfter) + lightmapAfter;
+    const u64 released = totalBefore > totalAfter ? totalBefore - totalAfter : 0;
+    Msg("* iOS low memory: eviction complete; loaded texture storage %llu K (released %llu K; "
+        "%u surfaces / %llu K selected; %u base and %u lightmap resources registered)",
+        static_cast<unsigned long long>(totalAfter / 1024),
+        static_cast<unsigned long long>(released / 1024), evictedCount,
+        static_cast<unsigned long long>(evictedBytes / 1024), countAfter, lightmapCountAfter);
+    ios_memory::Log("after_lowmemory_eviction", ios_memory::Capture());
+}
+#endif
+
 struct PathIncludePred
 {
 private:
@@ -239,11 +339,25 @@ CApplication::CApplication(pcstr commandLine, GameModule* game, const std::array
     SDL_AddEventWatch(
         [](void*, SDL_Event* event) -> int
         {
-            if (event->type == SDL_APP_WILLENTERBACKGROUND || event->type == SDL_APP_TERMINATING)
+            switch (event->type)
             {
-                if (Console)
-                    Console->Execute("cfg_save");
-                FlushLog();
+            case SDL_APP_LOWMEMORY:
+                iosLifecycleEvents.LowMemory();
+                break;
+            case SDL_APP_WILLENTERBACKGROUND:
+            case SDL_APP_TERMINATING:
+                // Publish inactivity and the time-critical save request as one
+                // atomic transition so UIKit cannot suspend us between them.
+                iosLifecycleEvents.EnterBackground(true);
+                break;
+            case SDL_APP_DIDENTERBACKGROUND:
+                iosLifecycleEvents.EnterBackground();
+                break;
+            case SDL_APP_DIDENTERFOREGROUND:
+                iosLifecycleEvents.EnterForeground();
+                break;
+            default:
+                break;
             }
             return 0;
         },
@@ -262,12 +376,12 @@ CApplication::CApplication(pcstr commandLine, GameModule* game, const std::array
         []() // interruption began
         {
             if (GEnv.Sound)
-                GEnv.Sound->pause_emitters(true);
+                GEnv.Sound->begin_audio_interruption();
         },
         []() // session reactivated after the interruption
         {
             if (GEnv.Sound)
-                GEnv.Sound->pause_emitters(false);
+                GEnv.Sound->end_audio_interruption();
         });
 #endif
 
@@ -419,6 +533,14 @@ int CApplication::Run()
         bool canCallActivate = false;
         bool shouldActivate = false;
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+        // SDL_PumpEvents may queue FOCUS_LOST/MINIMIZED before the app-level
+        // WILLENTERBACKGROUND event. The event watch has already published the
+        // atomic inbox state, so drain it before window events can deactivate
+        // the engine and preserve cfg_save -> deactivate ordering.
+        ProcessIOSLifecycleEvents();
+#endif
+
         SDL_Event events[MAX_WINDOW_EVENTS];
         const int count = SDL_PeepEvents(events, MAX_WINDOW_EVENTS,
             SDL_GETEVENT, SDL_WINDOWEVENT, SDL_WINDOWEVENT);
@@ -474,7 +596,26 @@ int CApplication::Run()
             Device.OnWindowActivate(Device.m_sdlWnd, shouldActivate);
         }
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+        ProcessIOSLifecycleEvents();
+        if (iosLifecycleEvents.TryBeginFrame())
+        {
+            Device.ProcessFrame();
+            iosLifecycleEvents.EndFrame();
+        }
+        else
+        {
+            // A lifecycle or LOWMEMORY publication won the frame-boundary
+            // race. Drain that exact snapshot and skip this frame. ProcessFrame
+            // normally owns frame pacing, so retain an explicit backoff here;
+            // otherwise the background loop busy-spins until UIKit suspends it.
+            ios_lifecycle::HandleSkippedFrame(
+                [] { ProcessIOSLifecycleEvents(); },
+                [](const int milliseconds) { Sleep(milliseconds); });
+        }
+#else
         Device.ProcessFrame();
+#endif
 
         UpdateDiscordStatus();
         FrameMarkEnd(FRAME_MARK_APPLICATION_RUN);

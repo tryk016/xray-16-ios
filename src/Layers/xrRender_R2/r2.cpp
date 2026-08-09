@@ -645,10 +645,9 @@ IRender::RenderContext CRender::GetCurrentContext() const
     return HW.GetCurrentContext();
 }
 
-void CRender::MakeContextCurrent(RenderContext context)
+bool CRender::MakeContextCurrent(RenderContext context)
 {
-    R_ASSERT3(HW.MakeContextCurrent(context) == 0,
-        "Failed to switch OpenGL context", SDL_GetError());
+    return HW.MakeContextCurrent(context) == 0;
 }
 #endif
 

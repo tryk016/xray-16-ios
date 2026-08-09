@@ -21,6 +21,11 @@ option(BUILD_SHARED_LIBS "Build shared libraries"     ${BUILD_SHARED_LIBS_DEFAUL
 option(XRAY_USE_LUAJIT   "Use LuaJIT"                 ON)
 option(XRAY_USE_ASAN     "Use AddressSanitizer"       OFF)
 option(XRAY_ENABLE_TRACY "Enable tracy profiler"      OFF)
+option(XRAY_IOS_FAST_DEVICE "Fast symbol-free iOS device iteration build" OFF)
+
+if (XRAY_IOS_FAST_DEVICE AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    message(FATAL_ERROR "XRAY_IOS_FAST_DEVICE is supported only for iOS")
+endif()
 
 include(XRay.Build)
 if (NOT XRAY_PLATFORM_IOS)

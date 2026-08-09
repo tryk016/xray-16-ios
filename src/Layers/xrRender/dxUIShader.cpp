@@ -51,6 +51,7 @@ xrImTextureData dxUIShader::GetImGuiTextureId()
     if (!texture)
         return {};
 
+    texture->m_last_used_frame = Device.dwFrame;
     return
     {
         texture->GetImTextureID(),

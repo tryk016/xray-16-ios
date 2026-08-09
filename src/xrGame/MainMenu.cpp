@@ -37,6 +37,27 @@
 #include "profile_store.h"
 #include "xrEngine/xr_input.h"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include <unistd.h>
+
+namespace
+{
+void ios_report_rendered_main_menu_frame()
+{
+    static bool reported = false;
+    if (reported)
+        return;
+
+    const pid_t process_id = getpid();
+    if (process_id <= 0)
+        return;
+
+    Msg("* iOS main menu frame v1 pid=%d frame=%u", static_cast<int>(process_id), Device.dwFrame);
+    reported = true;
+}
+} // namespace
+#endif
+
 // fwd. decl.
 extern ENGINE_API bool bShowPauseString;
 
@@ -319,6 +340,9 @@ void CMainMenu::IR_OnActivate()
 
 void CMainMenu::IR_OnDeactivate()
 {
+#if defined(XR_PLATFORM_APPLE_IOS)
+    IInputReceiver::IR_OnDeactivate();
+#endif
     MarkForemost(false);
 }
 
@@ -478,6 +502,9 @@ void CMainMenu::OnRender()
     {
         DoRenderDialogs();
         UI().RenderFont();
+#if defined(XR_PLATFORM_APPLE_IOS)
+        ios_report_rendered_main_menu_frame();
+#endif
     }
 }
 
@@ -495,6 +522,9 @@ void CMainMenu::OnRenderPPUI_main()
     {
         DoRenderDialogs();
         UI().RenderFont();
+#if defined(XR_PLATFORM_APPLE_IOS)
+        ios_report_rendered_main_menu_frame();
+#endif
     }
 
     UI().pp_stop();

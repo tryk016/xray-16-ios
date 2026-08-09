@@ -18,7 +18,7 @@
 #endif
 
 #if defined(XR_PLATFORM_APPLE_IOS)
-#include <mach/mach.h>
+#include "ios/ios_memory.h"
 #endif
 
 ENGINE_API IGame_Persistent* g_pGamePersistent = nullptr;
@@ -451,12 +451,11 @@ void IGame_Persistent::LoadEnd()
 #if defined(XR_PLATFORM_APPLE_IOS)
         // Jetsam judges phys_footprint, not our allocator's counter — log the real number
         // each load phase so the device log shows how close to the kill limit we get.
-        {
-            task_vm_info_data_t vmInfo;
-            mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
-            if (KERN_SUCCESS == task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&vmInfo, &count))
-                Msg("* phase phys_footprint: %llu K", (unsigned long long)vmInfo.phys_footprint / 1024);
-        }
+        const ios_memory::Snapshot memory = ios_memory::Capture();
+        if (memory.valid)
+            Msg("* phase phys_footprint: %llu K",
+                static_cast<unsigned long long>(memory.physicalFootprint / 1024));
+        ios_memory::Log("after_load", memory);
 #endif
         Console->Execute("stat_memory");
         loaded = true;

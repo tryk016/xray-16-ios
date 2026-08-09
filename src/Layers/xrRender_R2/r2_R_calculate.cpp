@@ -3,8 +3,194 @@
 #include "xrEngine/CustomHUD.h"
 #include "xrCore/Threading/TaskManager.hpp"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "ios_sector_fallback_policy.h"
+#include "xrEngine/IGame_Level.h"
+
+#include <cmath>
+#include <cstdio>
+#include <unistd.h>
+#endif
+
 namespace xray::render::RENDER_NAMESPACE
 {
+#if defined(XR_PLATFORM_APPLE_IOS)
+namespace
+{
+struct IosSectorStartupPayload
+{
+    char text[512]{};
+};
+
+const char* IosSectorStartupMethodName(const IosSectorStartupMethod method)
+{
+    switch (method)
+    {
+    case IosSectorStartupMethod::Exact: return "exact";
+    case IosSectorStartupMethod::Fallback: return "fallback";
+    case IosSectorStartupMethod::Retained: return "retained";
+    case IosSectorStartupMethod::None: return "none";
+    }
+
+    return "none";
+}
+
+bool BuildIosSectorLevelToken(char* const token, const size_t capacity)
+{
+    if (!g_pGameLevel || capacity < 2)
+        return false;
+
+    const pcstr source = g_pGameLevel->name().c_str();
+    if (!source || !source[0])
+        return false;
+
+    size_t index = 0;
+    for (; source[index]; ++index)
+    {
+        const char character = source[index];
+        const bool allowed = (character >= 'a' && character <= 'z')
+            || (character >= 'A' && character <= 'Z')
+            || (character >= '0' && character <= '9')
+            || character == '_' || character == '-';
+        if (!allowed || index + 1 >= capacity)
+            return false;
+
+        token[index] = character;
+    }
+
+    token[index] = '\0';
+    return true;
+}
+
+bool IsFiniteIosSectorPosition(const Fvector& position)
+{
+    return std::isfinite(position.x) && std::isfinite(position.y) && std::isfinite(position.z);
+}
+
+bool SameIosSectorPosition(const Fvector& left, const Fvector& right)
+{
+    return left.x == right.x && left.y == right.y && left.z == right.z;
+}
+
+bool IsIosFallbackProbe(const Fvector& camera, const Fvector& probe, const float radius)
+{
+    constexpr float tolerance = 0.0011f;
+    bool allowedRadius = false;
+    for (const float policyRadius : ios_sector_fallback::ProbeRadii)
+    {
+        if (radius == policyRadius)
+        {
+            allowedRadius = true;
+            break;
+        }
+    }
+    if (!allowedRadius)
+        return false;
+
+    for (const auto& direction : ios_sector_fallback::ProbeDirections)
+    {
+        const float expectedX = camera.x + direction[0] * radius;
+        const float expectedZ = camera.z + direction[1] * radius;
+        if (std::fabs(probe.x - expectedX) <= tolerance
+            && std::fabs(probe.y - camera.y) <= tolerance
+            && std::fabs(probe.z - expectedZ) <= tolerance)
+            return true;
+    }
+    return false;
+}
+
+bool BuildIosSectorStartupPayload(
+    const IosSectorStartupPendingReport& report, IosSectorStartupPayload& payload)
+{
+    if (!report.active || !report.transition.valid() || report.transition.epoch == 0
+        || !std::isfinite(report.radius) || !IsFiniteIosSectorPosition(report.camera)
+        || !IsFiniteIosSectorPosition(report.probe))
+        return false;
+
+    const pid_t process_id = getpid();
+    if (process_id <= 0)
+        return false;
+
+    string64 level_token{};
+    if (!BuildIosSectorLevelToken(level_token, sizeof(level_token)))
+        return false;
+
+    const bool resolved = report.transition.observation
+        == ios_sector_fallback::StartupObservation::ReportResolved;
+    const bool unresolved = report.transition.observation
+        == ios_sector_fallback::StartupObservation::ReportUnresolved;
+    const bool validSector = report.sector != IRender_Sector::INVALID_SECTOR_ID;
+    const bool samePosition = SameIosSectorPosition(report.camera, report.probe);
+    bool validMetadata = false;
+    switch (report.method)
+    {
+    case IosSectorStartupMethod::Exact:
+        validMetadata = resolved && validSector && samePosition && report.radius == 0.f;
+        break;
+    case IosSectorStartupMethod::Fallback:
+        validMetadata = (resolved && validSector
+                && IsIosFallbackProbe(report.camera, report.probe, report.radius))
+            || (unresolved && !validSector && samePosition && report.radius == 0.f);
+        break;
+    case IosSectorStartupMethod::Retained:
+        validMetadata = resolved && validSector && samePosition && report.radius == 0.f
+            && report.transition.trigger == ios_sector_fallback::StartupTrigger::QuickLoad;
+        break;
+    case IosSectorStartupMethod::None:
+        validMetadata = unresolved && !validSector && samePosition && report.radius == 0.f;
+        break;
+    }
+    if (!validMetadata)
+        return false;
+
+    const pcstr status = resolved
+        ? "resolved" : "unresolved";
+    const int length = std::snprintf(payload.text, sizeof(payload.text),
+        "* iOS sector startup v1 pid=%d epoch=%llu frame=%u level=%s trigger=%s status=%s method=%s "
+        "sector=%u camera=(%.3f,%.3f,%.3f) probe=(%.3f,%.3f,%.3f) radius=%.1f",
+        static_cast<int>(process_id), static_cast<unsigned long long>(report.transition.epoch), report.frame,
+        level_token, ios_sector_fallback::StartupTriggerName(report.transition.trigger), status,
+        IosSectorStartupMethodName(report.method), static_cast<u32>(report.sector),
+        report.camera.x, report.camera.y, report.camera.z,
+        report.probe.x, report.probe.y, report.probe.z, report.radius);
+    return length > 0 && static_cast<size_t>(length) < sizeof(payload.text);
+}
+
+void StoreIosSectorStartupPending(IosSectorStartupPendingReport& pending,
+    const ios_sector_fallback::PreparedTransition& transition, const IosSectorStartupMethod method,
+    const IRender_Sector::sector_id_t sector, const Fvector& camera, const Fvector& probe,
+    const float radius, const u32 frame)
+{
+    if (pending.active || !transition.valid())
+        return;
+
+    pending = { true, transition, method, sector, camera, probe, radius, frame };
+}
+
+void RetryIosSectorStartupPending(ios_sector_fallback::StartupEvidence& evidence,
+    IosSectorStartupPendingReport& pending)
+{
+    if (!pending.active)
+        return;
+
+    IosSectorStartupPayload payload;
+    if (!BuildIosSectorStartupPayload(pending, payload))
+        return;
+
+    const auto transition = pending.transition;
+    if (!evidence.CommitPrepared(transition))
+    {
+        pending = {};
+        return;
+    }
+
+    pending = {};
+    Msg("%s", payload.text);
+    FlushLog();
+}
+} // namespace
+#endif
+
 float g_fSCREEN;
 
 extern float r_dtex_range;
@@ -91,6 +277,10 @@ void CRender::Calculate()
     if (m_bFirstFrameAfterReset)
         return;
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    RetryIosSectorStartupPending(ios_sector_startup_evidence, ios_sector_startup_pending_report);
+#endif
+
     auto& dsgraph_main = get_imm_context();
 
     // Detect camera-sector
@@ -103,36 +293,25 @@ void CRender::Calculate()
         // camera without a sector and the main pass then draws only sky and HUD.
         // Probe the nearest surrounding floor only when the exact vertical query
         // failed; normal sector detection and all non-iOS platforms stay unchanged.
-        if (sector_id == IRender_Sector::INVALID_SECTOR_ID)
+        const auto fallback = ios_sector_fallback::Resolve(Device.vCameraPosition, sector_id,
+            IRender_Sector::INVALID_SECTOR_ID,
+            [&dsgraph_main](const Fvector& probePosition) { return dsgraph_main.detect_sector(probePosition); });
+        sector_id = fallback.sector;
+
+        const bool committed = ios_sector_fallback::CommitValidSector(sector_id,
+            IRender_Sector::INVALID_SECTOR_ID,
+            last_sector_id, [](const auto sector) { g_pGamePersistent->OnSectorChanged(sector); });
+        if (!ios_sector_startup_pending_report.active)
         {
-            static constexpr float probe_radii[] = { 0.5f, 1.f, 2.f, 4.f, 8.f, 16.f, 32.f };
-            static constexpr Fvector2 probe_directions[] =
-            {
-                { 1.f, 0.f }, { -1.f, 0.f }, { 0.f, 1.f }, { 0.f, -1.f },
-                { 0.70710678f, 0.70710678f }, { -0.70710678f, 0.70710678f },
-                { 0.70710678f, -0.70710678f }, { -0.70710678f, -0.70710678f },
-            };
+            const auto prepared = ios_sector_startup_evidence.PrepareDetected(committed);
+            StoreIosSectorStartupPending(ios_sector_startup_pending_report, prepared,
+                fallback.fallbackAttempted ? IosSectorStartupMethod::Fallback : IosSectorStartupMethod::Exact,
+                sector_id, Device.vCameraPosition, fallback.probePosition, fallback.matchedRadius, Device.dwFrame);
+            RetryIosSectorStartupPending(ios_sector_startup_evidence, ios_sector_startup_pending_report);
+        }
 
-            Fvector probe_position = Device.vCameraPosition;
-            float matched_radius = 0.f;
-            for (const float radius : probe_radii)
-            {
-                for (const Fvector2& direction : probe_directions)
-                {
-                    probe_position = Device.vCameraPosition;
-                    probe_position.x += direction.x * radius;
-                    probe_position.z += direction.y * radius;
-                    sector_id = dsgraph_main.detect_sector(probe_position);
-                    if (sector_id != IRender_Sector::INVALID_SECTOR_ID)
-                    {
-                        matched_radius = radius;
-                        break;
-                    }
-                }
-                if (sector_id != IRender_Sector::INVALID_SECTOR_ID)
-                    break;
-            }
-
+        if (fallback.fallbackAttempted)
+        {
             static u32 next_success_log_frame = 0;
             static u32 next_failure_log_frame = 0;
             if (sector_id != IRender_Sector::INVALID_SECTOR_ID)
@@ -143,7 +322,8 @@ void CRender::Calculate()
                     Msg("* iOS sector fallback: camera=(%.2f %.2f %.2f) probe=(%.2f %.2f %.2f) "
                         "radius=%.1f sector=%u",
                         Device.vCameraPosition.x, Device.vCameraPosition.y, Device.vCameraPosition.z,
-                        probe_position.x, probe_position.y, probe_position.z, matched_radius, u32(sector_id));
+                        fallback.probePosition.x, fallback.probePosition.y, fallback.probePosition.z,
+                        fallback.matchedRadius, u32(sector_id));
                 }
             }
             else if (Device.dwFrame >= next_failure_log_frame)
@@ -153,7 +333,7 @@ void CRender::Calculate()
                     Device.vCameraPosition.x, Device.vCameraPosition.y, Device.vCameraPosition.z);
             }
         }
-#endif
+#else
         if (sector_id != IRender_Sector::INVALID_SECTOR_ID)
         {
             if (sector_id != last_sector_id)
@@ -161,7 +341,30 @@ void CRender::Calculate()
 
             last_sector_id = sector_id;
         }
+#endif
     }
+#if defined(XR_PLATFORM_APPLE_IOS)
+    else
+    {
+        const bool quickLoadEpoch = ios_sector_startup_evidence.active()
+            && ios_sector_startup_evidence.trigger() == ios_sector_fallback::StartupTrigger::QuickLoad;
+        const bool cameraBarrierPassed = quickLoadEpoch
+            && ios_quick_load_camera_barrier.Passed(Device.ios_camera_apply_generation());
+        const bool mayPrepareNoDetection = ios_sector_startup_evidence.active()
+            && (!quickLoadEpoch || cameraBarrierPassed);
+        if (!ios_sector_startup_pending_report.active && mayPrepareNoDetection)
+        {
+            const bool retainedSector = last_sector_id != IRender_Sector::INVALID_SECTOR_ID;
+            const auto prepared = ios_sector_startup_evidence.PrepareNoDetection(retainedSector);
+            StoreIosSectorStartupPending(ios_sector_startup_pending_report, prepared,
+                retainedSector ? IosSectorStartupMethod::Retained : IosSectorStartupMethod::None,
+                last_sector_id, Device.vCameraPosition, Device.vCameraPosition, 0.f, Device.dwFrame);
+            if (prepared.valid() && quickLoadEpoch)
+                ios_quick_load_camera_barrier.Disarm();
+            RetryIosSectorStartupPending(ios_sector_startup_evidence, ios_sector_startup_pending_report);
+        }
+    }
+#endif
 
     //
     Lights.Update();

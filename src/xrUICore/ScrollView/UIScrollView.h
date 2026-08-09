@@ -67,6 +67,7 @@ public:
     CUIWindow* GetItem(u32 idx);
     void SetFixedScrollBar(bool b);
     float GetDesiredChildWidth() const;
+    [[nodiscard]] Frect GetDrawClipRect() const;
     virtual void SetSelected(CUIWindow*);
     bool SelectFirst();
     CUIWindow* GetSelected();

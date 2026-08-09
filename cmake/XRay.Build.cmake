@@ -17,8 +17,16 @@ if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set(LUAJIT_DISABLE_JIT ON CACHE BOOL "" FORCE)
 endif()
 
-# Output all libraries and executables to one folder
-set(XRAY_COMPILE_OUTPUT_FOLDER "${CMAKE_SOURCE_DIR}/bin/${CMAKE_SYSTEM_PROCESSOR}/$<CONFIG>")
+# Output all libraries and executables to one folder. FastDevice uses the
+# Release configuration for identical -O3/NDEBUG semantics, but a separate
+# destination prevents it from overwriting the symbol-complete Release app.
+if (XRAY_PLATFORM_IOS AND XRAY_IOS_FAST_DEVICE)
+    # Keep Release optimization semantics without letting a multi-config
+    # generator append a second /Release directory.
+    set(XRAY_COMPILE_OUTPUT_FOLDER "${CMAKE_SOURCE_DIR}/bin/${CMAKE_SYSTEM_PROCESSOR}/FastDevice$<0:>")
+else()
+    set(XRAY_COMPILE_OUTPUT_FOLDER "${CMAKE_SOURCE_DIR}/bin/${CMAKE_SYSTEM_PROCESSOR}/$<CONFIG>")
+endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${XRAY_COMPILE_OUTPUT_FOLDER}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${XRAY_COMPILE_OUTPUT_FOLDER}")
 set(CMAKE_PDB_OUTPUT_DIRECTORY "${XRAY_COMPILE_OUTPUT_FOLDER}")
@@ -38,12 +46,16 @@ add_compile_definitions(
     $<$<CONFIG:Release,ReleaseMasterGold>:LUABIND_NO_ERROR_CHECKING>
 )
 
-# Link-time optimization
-include(CheckIPOSupported)
-check_ipo_supported(RESULT LTO_IS_SUPPORTED)
-if (LTO_IS_SUPPORTED)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASEMASTERGOLD ON)
+# Link-time optimization. The iteration tree skips the probe and IPO
+# deliberately; the release tree retains the existing behavior.
+set(LTO_IS_SUPPORTED OFF)
+if (NOT XRAY_IOS_FAST_DEVICE)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT LTO_IS_SUPPORTED)
+    if (LTO_IS_SUPPORTED)
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASEMASTERGOLD ON)
+    endif()
 endif()
 
 # Main compiler settings

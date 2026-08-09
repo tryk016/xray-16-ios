@@ -50,10 +50,19 @@ void CTexture::surface_set(GLenum target, GLuint surf)
 {
     desc = target;
     pSurface = surf;
+    // This wrapper aliases storage owned elsewhere and cannot recreate it by
+    // filename after an eviction.
+    m_low_memory_pinned = true;
 }
 
-GLuint CTexture::surface_get() const
+GLuint CTexture::surface_get()
 {
+    // Callers retain the raw GLuint in another CTexture. Ensure the source is
+    // live before export and keep it out of lazy file-texture eviction.
+    m_last_used_frame = Device.dwFrame;
+    if (!flags.bLoaded)
+        Load();
+    m_low_memory_pinned = true;
     return pSurface;
 }
 
@@ -67,6 +76,7 @@ void CTexture::PostLoad()
 
 void CTexture::apply_load(CBackend& cmd_list, u32 dwStage)
 {
+    m_last_used_frame = Device.dwFrame;
     CHK_GL(glActiveTexture(GL_TEXTURE0 + dwStage));
     if (!flags.bLoaded) Load();
     else PostLoad();
@@ -81,6 +91,7 @@ void CTexture::apply_theora(CBackend& cmd_list, u32 dwStage)
     if (!pTheora || !pSurface)
         return;
 
+    m_last_used_frame = Device.dwFrame;
     CHK_GL(glActiveTexture(GL_TEXTURE0 + dwStage));
     CHK_GL(glBindTexture(desc, pSurface));
 
@@ -140,6 +151,7 @@ void CTexture::apply_theora(CBackend& cmd_list, u32 dwStage)
 
 void CTexture::apply_avi(CBackend& cmd_list, u32 dwStage) const
 {
+    m_last_used_frame = Device.dwFrame;
     CHK_GL(glActiveTexture(GL_TEXTURE0 + dwStage));
     CHK_GL(glBindTexture(desc, pSurface));
 
@@ -157,6 +169,7 @@ void CTexture::apply_avi(CBackend& cmd_list, u32 dwStage) const
 
 void CTexture::apply_seq(CBackend& cmd_list, u32 dwStage)
 {
+    m_last_used_frame = Device.dwFrame;
     // SEQ
     u32 frame = Device.dwTimeContinual / seqMSPF; //Device.dwTimeGlobal
     u32 frame_data = seqDATA.size();
@@ -178,6 +191,7 @@ void CTexture::apply_seq(CBackend& cmd_list, u32 dwStage)
 
 void CTexture::apply_normal(CBackend& cmd_list, u32 dwStage) const
 {
+    m_last_used_frame = Device.dwFrame;
     CHK_GL(glActiveTexture(GL_TEXTURE0 + dwStage));
     CHK_GL(glBindTexture(desc, pSurface));
 };
@@ -224,10 +238,12 @@ void CTexture::Load()
 {
     flags.bLoaded = true;
     desc_cache = 0;
-    if (pSurface) return;
+    if (pSurface)
+        return;
 
     flags.bUser = false;
     flags.MemoryUsage = 0;
+    m_low_memory_pinned = false;
     if (nullptr == cName.c_str())
         return;
     if (0 == xr_stricmp(cName.c_str(), "$null")) return;
@@ -236,6 +252,7 @@ void CTexture::Load()
     if (0 == strncmp(cName.c_str(), "$user$", sizeof("$user$") - 1))
     {
         flags.bUser = true;
+        m_low_memory_pinned = true;
         return;
     }
 
@@ -247,6 +264,7 @@ void CTexture::Load()
     string_path fn;
     if (FS.exist(fn, "$game_textures$", cName.c_str(), ".ogm"))
     {
+        m_low_memory_pinned = true;
         // AVI
         pTheora = xr_new<CTheoraSurface>();
         m_play_time = 0xFFFFFFFF;
@@ -372,6 +390,7 @@ void CTexture::Load()
     }
     else if (FS.exist(fn, "$game_textures$", cName.c_str(), ".avi"))
     {
+        m_low_memory_pinned = true;
 #ifdef XR_PLATFORM_WINDOWS // TODO
         // AVI
         pAVI = xr_new<CAviPlayerCustom>();
@@ -409,6 +428,7 @@ void CTexture::Load()
     }
     else if (FS.exist(fn, "$game_textures$", cName.c_str(), ".seq"))
     {
+        m_low_memory_pinned = true;
         // Sequence
         string256 buffer;
         IReader* _fs = FS.r_open(fn);
@@ -479,12 +499,17 @@ void CTexture::Unload()
     }
 
     CHK_GL(glDeleteTextures(1, &pSurface));
+    pSurface = 0;
     CHK_GL(glDeleteBuffers(1, &pBuffer));
+    pBuffer = 0;
 
 #ifdef XR_PLATFORM_WINDOWS
     xr_delete(pAVI);
 #endif
     xr_delete(pTheora);
+
+    flags.MemoryUsage = 0;
+    m_video_first_frame_logged = false;
 
     bind = fastdelegate::FastDelegate2<CBackend&,u32>(this, &CTexture::apply_load);
 }

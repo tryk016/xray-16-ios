@@ -106,11 +106,22 @@ void CRender::level_Load(IReader* fs)
 
     // signal loaded
     b_loaded = TRUE;
+#if defined(XR_PLATFORM_APPLE_IOS)
+    ios_quick_load_camera_barrier.Disarm();
+    ios_sector_startup_pending_report = {};
+    (void)ios_sector_startup_evidence.BeginEpoch(ios_sector_fallback::StartupTrigger::LevelLoad);
+#endif
 }
 
 void CRender::level_Unload()
 {
     ZoneScoped;
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+    ios_quick_load_camera_barrier.Disarm();
+    ios_sector_startup_pending_report = {};
+    ios_sector_startup_evidence.Deactivate();
+#endif
 
     if (!g_pGameLevel)
         return;
@@ -195,6 +206,18 @@ void CRender::level_Unload()
         //Msg("The Level Unloaded.======================== %d", ++unload_counter);
     }
 }
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+void CRender::ios_begin_quick_load_sector_startup_epoch()
+{
+    if (ios_sector_startup_evidence.BeginEpoch(ios_sector_fallback::StartupTrigger::QuickLoad))
+    {
+        const u64 cameraApplyGeneration = Device.ios_camera_apply_generation();
+        ios_quick_load_camera_barrier.Arm(cameraApplyGeneration);
+        ios_sector_startup_pending_report = {};
+    }
+}
+#endif
 
 void CRender::LoadBuffers(CStreamReader* base_fs, bool alternative)
 {

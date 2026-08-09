@@ -231,15 +231,21 @@ float CUIScrollView::Scroll2ViewV() const
 }
 
 void CUIScrollView::SetFixedScrollBar(bool b) { m_flags.set(eFixedScrollBar, b); }
+Frect CUIScrollView::GetDrawClipRect() const
+{
+    Frect result;
+    GetAbsoluteRect(result);
+    result.top += m_upIndent;
+    result.bottom -= m_downIndent;
+    return result;
+}
+
 void CUIScrollView::Draw()
 {
     if (m_flags.test(eNeedRecalc))
         RecalcSize();
 
-    Frect visible_rect;
-    GetAbsoluteRect(visible_rect);
-    visible_rect.top += m_upIndent;
-    visible_rect.bottom -= m_downIndent;
+    const Frect visible_rect = GetDrawClipRect();
     UI().PushScissor(visible_rect);
 
     auto it = m_pad->GetChildWndList().begin();

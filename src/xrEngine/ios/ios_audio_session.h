@@ -31,14 +31,14 @@ using callback = void (*)();
 // activate it, and register interruption / route-change / foreground observers.
 //
 //   onSuspend — an interruption began (Siri, phone call, alarm); the engine
-//               should freeze its emitters.
+//               snapshots and freezes exactly its current emitter scenes.
 //   onResume  — the session was reactivated after the interruption ended; the
-//               engine may unfreeze.
+//               engine resumes only that same snapshot.
 //
 // The shim itself pauses/resumes the OpenAL Soft device around the callbacks
 // (ALC_SOFT_pause_device — this is what actually restarts the CoreAudio unit);
-// callers only handle engine-side state. onSuspend/onResume are guaranteed to
-// alternate, so a counted pause (pause_emitters) can never underflow.
+// callers only handle engine-side state. The sound manager owns the pairing so
+// it remains correct when a level replaces scenes during an interruption.
 //
 // Call once at startup, before the OpenAL device is opened
 // (i.e. before Engine.Sound.Create()).

@@ -15,6 +15,96 @@
 #include "Inventory.h"
 #include "game_cl_base.h"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "xrEngine/defines.h"
+
+#include <cstring>
+#include <unistd.h>
+
+namespace
+{
+enum class IosUiState
+{
+    world,
+    inventory,
+    pda_tasks,
+    pda_map,
+    other,
+};
+
+pcstr ios_ui_state_name(IosUiState state)
+{
+    switch (state)
+    {
+    case IosUiState::world: return "world";
+    case IosUiState::inventory: return "inventory";
+    case IosUiState::pda_tasks: return "pda_tasks";
+    case IosUiState::pda_map: return "pda_map";
+    case IosUiState::other: return "other";
+    }
+    NODEFAULT;
+    return "other";
+}
+
+IosUiState ios_rendered_ui_state(CUIActorMenu* actor_menu, CUIPdaWnd* pda_menu,
+    const CUIDialogWnd* top_input_receiver)
+{
+    if (!top_input_receiver)
+        return IosUiState::world;
+
+    if (actor_menu && actor_menu->IsShown())
+    {
+        if (top_input_receiver != actor_menu)
+            return IosUiState::other;
+        return actor_menu->GetMenuMode() == mmInventory ? IosUiState::inventory : IosUiState::other;
+    }
+
+    if (pda_menu && pda_menu->IsShown())
+    {
+        if (top_input_receiver != pda_menu)
+            return IosUiState::other;
+
+        const pcstr active_section = pda_menu->GetActiveSection();
+        if (active_section && std::strcmp(active_section, "eptTasks") == 0)
+            return IosUiState::pda_tasks;
+        if (active_section && std::strcmp(active_section, "eptMap") == 0)
+            return IosUiState::pda_map;
+        return IosUiState::other;
+    }
+
+    return IosUiState::other;
+}
+
+void ios_report_rendered_ui_state(CUIActorMenu* actor_menu, CUIPdaWnd* pda_menu,
+    const CUIDialogWnd* top_input_receiver)
+{
+    static bool has_last_state = false;
+    static IosUiState last_state = IosUiState::world;
+    static u64 sequence = 0;
+
+    if (psIOSAutoInput != 1)
+    {
+        has_last_state = false;
+        return;
+    }
+
+    const IosUiState state = ios_rendered_ui_state(actor_menu, pda_menu, top_input_receiver);
+    if (!has_last_state || state != last_state)
+    {
+        const pid_t process_id = getpid();
+        if (process_id <= 0)
+            return;
+
+        ++sequence;
+        Msg("* iOS UI state v1 pid=%d seq=%llu frame=%u state=%s", static_cast<int>(process_id),
+            static_cast<unsigned long long>(sequence), Device.dwFrame, ios_ui_state_name(state));
+        last_state = state;
+        has_last_state = true;
+    }
+}
+} // namespace
+#endif
+
 #include "ui/UICellItem.h" //Alundaio
 //#include "script_game_object.h" //Alundaio
 
@@ -108,6 +198,9 @@ void CUIGameCustom::Render()
     }
     m_pMessagesWnd->Draw();
     DoRenderDialogs();
+#if defined(XR_PLATFORM_APPLE_IOS)
+    ios_report_rendered_ui_state(ActorMenu, PdaMenu, TopInputReceiver());
+#endif
 }
 
 StaticDrawableWrapper* CUIGameCustom::AddCustomStatic(const char* id, bool singleInstance, float ttlDefault /*= -1.0f*/)

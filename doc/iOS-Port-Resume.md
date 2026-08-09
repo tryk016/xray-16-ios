@@ -1,206 +1,150 @@
 # OpenXRay iOS — operational handoff
 
-**Updated:** 2026-07-24
+**Updated:** 2026-08-09
+**Docs:** [canonical](iOS-Port.md), [active](iOS-Port-Plan.md), [deferred](iOS-Port-Backlog.md).
 
-**Read first:** [iOS-Port.md](iOS-Port.md)
+Read this file completely, then the relevant active task/canonical section; search the Journal by task ID or exact symptom, never in full.
+## Current checkpoint
 
-**Active tasks:** [iOS-Port-Plan.md](iOS-Port-Plan.md)
-
-**Platform scope:** iOS-only. Do not spend project time preserving desktop
-behavior unless it directly helps the iOS build.
-
-## Current state in one paragraph
-
-The Apple M3 Pro host is fully validated with macOS 26.5.2, Xcode 26.6, SDK
-26.5 and CMake 4.4.0. Clean arm64 dependency, device, simulator and isolated
-LuaJIT builds target iOS 16.4. The complete application signs with Apple
-Developer Team `RMJWWPF379`, installs over USB, boots a Call of Pripyat save,
-renders through native OpenGL ES 3.0, and is playable with a Bluetooth
-controller. Shader gates are 279/279 compile, 2/2 low-settings, 6/6 SSAO
-branches plus the numeric macro contract, and 137/137 link. Two separate
-startup defects are fixed: a vertical collision miss left the camera without a
-sector and hid static geometry; independently, `ssao.ps` treated explicit
-zero-valued ES feature macros as enabled and suppressed global ambient light.
-The current build was installed and left running in normal mode. A diagnostic
-round-trip produced a fresh 1864×860 level/HUD frame, then normal launch restored
-`ios_diagnostics 0`. A clean full-symbol build passed the minimum 100 MiB
-`__debug_info` and exact app/dSYM UUID contract. Multi-save/level validation
-remains the current P0; exact artifact values are recorded in the journal.
-
-## Saved checkpoint before macOS 27
-
-The pre-upgrade source checkpoint is named
-`ios-pre-macos27-2026-07-24`. Its portable bundle is stored outside the
-repository at:
-
-```text
-/Users/patryk/openxray-backups/openxray-ios-pre-macos27-2026-07-24.bundle
-```
-
-The matching unsigned build product and full dSYM are archived separately at:
-
-```text
-/Users/patryk/openxray-backups/openxray-ios-artifacts-pre-macos27-2026-07-24.zip
-```
-
-The app in that archive is the reproducible build output with the bare product
-bundle identifier. `install_device.sh` copies it, applies the stable installed
-identifier and paid-team profile, signs the copy, then installs it. The archive
-does not replace the signing step.
-
-Only active ARM/iOS 16.4 caches remain:
-
-```text
-build/ios-prefix-iphoneos
-build/ios-prefix-iphonesimulator
-build/ios-deps-iphoneos
-build/ios-deps-iphonesimulator
-build/ios-engine-iphoneos
-build/ios-engine-iphonesimulator
-bin/aarch64/Release/xr_3da.app
-bin/aarch64/Release/xr_3da.app.dSYM
-```
-
-Obsolete iOS 15, Xcode 26.4, partial migration and failed LuaJIT host-tool
-caches were removed. Intel Homebrew and other projects are outside this
-repository and are not part of the cleanup.
-
-Immediately after the OS update, do not diagnose renderer behavior from an old
-cache. First record and validate the host:
-
-```bash
-sw_vers
-xcode-select -p
-xcodebuild -version
-xcodebuild -showsdks
-cmake --version
-glslangValidator --version
-xcrun devicectl list devices
-./misc/ios/build_check.sh
-./misc/ios/install_device.sh --launch
-```
-
-Then qualify GPU capture and XCUITest under IOS-P1-009. Availability of macOS 27
-tooling is not yet evidence that Apple's capture can inspect this OpenGL
-ES-on-Metal workload.
-
+The Apple M3 Pro host runs macOS 27.0 beta, Xcode/SDK 27.0 beta and CMake 4.4.0.
+Device and simulator engines build arm64 for iOS 16.4+. Team `RMJWWPF379` signs
+the stable `io.github.tryk016.openxray.RMJWWPF379` identifier, preserving data.
+The physical-device baseline renders Call of Pripyat through native OpenGL ES
+3.0 at a real 1864×860 drawable with 1:1 presentation and is playable with a
+Bluetooth controller. The sector fallback and SSAO value-macro fixes resolved
+the separate missing-world and global-darkness defects.
+IOS-P0-003 startup-sector v1 has host-complete `level_load`/`QuickLoad` epoch
+evidence and exact/fallback/retained/unresolved/recovered outcomes. `retained`
+only reuses a prior valid sector after authoritative camera application; JSON
+PASS is structural, never world-frame/pixel proof, and unresolved fails device startup.
+The simplified main/Video menu and Performance/Optimal/Quality controller are
+device-proven. Diagnostic mode no longer suppresses Low Power/thermal limits.
+Repeated diagnostic launches reached `serious thermal` and about 3.25 GB
+physical footprint, so let the phone cool before a long run.
+The reliability slice retains one PID, the 1864×860 drawable and correct frames
+across four diagnostic background/foreground cycles. LOWMEMORY evicted 47 stale
+surfaces, released 262,143 KiB and reduced footprint from 3,262,723 to 2,998,051 KiB; held W does not replay. Held touch, lock/app-switch and audio remain unproven.
+The Options crash is fixed and all four tabs plus Video Options 3x are device-proven. Dense-inventory focus has stable fixed-point auto-scroll and exact indented clipping; 32 UI fixtures and both device gates pass, while the overfilled visual is phone-pending.
+The corrected Safari/AVFAudio harness builds locally but needs a phone rerun.
+iOS selects project-owned static OpenAL Soft 1.25.2 and fail-closes Apple OpenAL, dynamic/alternate/duplicate or forwarded linker forms; its local exact-scene interruption registry is reviewed but not iPhone interruption proof.
+The hash-pinned SDL2 2.32.10 UIScene backport is locally/Simulator-complete: one scene, `SDLUIKitSceneDelegate`, one `SDL_main`, connected iOS 13+ `UIWindowScene` and scene-owned four-transition lifecycle. Isolated retail runs on iOS 26.5 (`simulator-work-20260809-135908-18426`, PID 25991) and iOS 27.0 (`simulator-work-20260809-140608-26903`, PID 35981) each reached one menu marker and one same-PID `activate -> deactivate -> activate` cycle; protected inputs and cleanup passed. This is not pixel/readability, iPhone, performance, audio-interruption or multi-cycle-soak evidence.
+IOS-P2-004 installer hardening (13/13) and IOS-P2-005 local CI provenance (79/79) are Sol-approved; remote CI and device-install/container proof remain open.
+IOS-P2-006 now has one bounds-checked BC1-BC5 codec and GLI mapping, strict/sanitized synthetic tests and five real fixtures. Runtime behavior is unchanged: source-sRGB still uses `GL_RGBA8`, swizzles are ignored, BC4=`RRR1`, BC5=`RG01`; the visual color decision remains phone-pending.
 ## First commands
-
-From `/Users/patryk/openxray`:
 
 ```bash
 git status --short
-./misc/ios/build_check.sh
-./misc/ios/install_device.sh --diagnostics
-./misc/ios/shot.sh /tmp/openxray-start.png
-./misc/ios/input.sh w 2500
-./misc/ios/shot.sh /tmp/openxray-path.png
-./misc/ios/install_device.sh --launch
+./misc/ios/build_fast_device.sh
+./misc/ios/build_check.sh --full   # required before push
+./misc/ios/install_device.sh --preflight  # host-only signing/preflight check
 ```
 
-Only one worker may build/install/use the device at a time.
+Preserve all unrelated working-tree changes; the current tree contains an uncommitted iOS reliability/menu/profile slice and documentation.
 
-## Device and signing
+When the phone is available and the matching FastDevice gate is green:
 
-| Item | Value |
+```bash
+./misc/ios/install_device.sh --fast --launch
+./misc/ios/install_device.sh --fast --autoinput
+./misc/ios/install_device.sh --fast --diagnostics
+./misc/ios/shot.sh /tmp/openxray-start.png
+./misc/ios/input.sh w 2500
+```
+
+Only one worker may own the device and shared iOS build tree. Diagnostics are
+for deterministic captures only. Device tools take the shared lease only before
+their first phone command and can reuse an outer lease solely via its exact
+`OPENXRAY_DEVICE_LEASE_TOKEN`. Autoinput keeps readback off, but disclose its
+file polling in performance evidence and use ordinary launch for final baselines.
+
+## Validation contracts
+
+| Contract | Required result |
 |---|---|
-| Program | Apple Developer Program, Individual |
-| Team ID | `RMJWWPF379` |
-| Installed bundle ID | `io.github.tryk016.openxray.RMJWWPF379` |
-| Profile duration | One year under the paid membership |
-| Install tool | `misc/ios/install_device.sh` |
-| Validated phone | iPhone 15 Pro Max, iOS 26.6, Developer Mode enabled |
-| Deployment target | iOS 16.4 |
+| Shader stages | 279/279 |
+| Shader variants | low 2/2; SSAO 6/6 plus value; numeric macros 30/30 |
+| Shader links | 137/137 |
+| BC fallback | strict + ASan/UBSan; five real GLI fixtures |
+| Binary | arm64, platform IOS, minOS 16.4 |
+| Lua | LuaJIT interpreter mode |
+| Presentation | logical 932×430, drawable/render targets 1864×860 |
 
-Do not revoke certificates. Do not change the installed bundle ID casually: the
-retail assets and saves live in that app's data container.
+The codec gate rebuilt 1 TU; the latest hash-only rerun retained its UUID/bundle.
+UUID `44D1A9FA-F8AF-3CD5-AC97-386F0D2999D2`; source
+`02d9ca8d88910cb4ff485e3fe9a0fb378c1e9baa8eb4a66e0c28cca8a76d64f2`; bundle
+`38ab03ef4a7417f16ed93acb653e772d536ba8ddb099e099f784e06eb9547f6e`; OpenAL
+Soft 1.25.2 static SHA-256 `86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914`.
+Gates: BC strict/sanitized, retail 74/74, installer 13/13, shaders 279/279, low 2/2, SSAO 6/6, numeric 30/30, links 137/137; IOS/minOS 16.4, shader cache forced off.
+A real preflight validated the existing profile/keychain and temporary signed copy without lease, provisioning or device access. The older UIScene stamp is local/Simulator evidence, not current.
 
-The installer renews/fetches the profile through the provisioning stub when
-required. It selects a keychain identity only when its certificate fingerprint
-is authorized by that exact profile; another team's first available Apple
-Development certificate cannot be selected accidentally. Both launch modes
-restore autoload and disable the “press any key” gate. `--diagnostics`
-additionally enables cable input and fresh frame capture; ordinary `--launch`
-explicitly disables their polling/readback overhead.
+## Proven on device
 
-## Current validated state
+- Paid-team signing, in-place installation, autoload and ordinary/diagnostic
+  launch work without deleting the data container.
+- Logical UIKit/input space is 932×430; EAGL drawable and engine targets are
+  1864×860 with no final spatial upscale.
+- The affected Zaton spawn has no exact vertical sector hit; an 8 m
+  nearest-floor fallback finds sector 115 and restores the complete world.
+- Three cold launches render the affected save without a movement workaround.
+- `ssao.ps` previously treated explicit zero-valued macros as enabled. Numeric
+  `SSAO_QUALITY`/`SSAO_OPT_DATA` tests restore global ambient lighting.
+- Correct lighting survives G-buffer packing variants, a scripted walk and
+  repeated cold launches.
+- Multiplayer is absent. Video exposes only Performance, Optimal and Quality,
+  read-only 1864×860, gamma, contrast and brightness.
+- All three profiles select their documented tier/target and render a complete
+  world. Resolution and shader/resource topology remain fixed.
+- With `ios_diagnostics=1`, Optimal still obeys the device constraint and
+  switched from balanced to performance when iOS reported `serious thermal`.
+- Main menu, all Options tabs, HUD, inventory and core PDA/map are readable at
+  1864×860; XCUITest reached Video Options three times. Dense inventory remains untested.
+- Four cycles on the current reliability build retained the PID, frame and
+  1864×860 drawable. A later cycle also passed after LOWMEMORY and walking.
+- A UUID-correlated W hold released at the entity, cancelled and did not replay.
+- LOWMEMORY released 262,143 KiB of decoded texture storage and reduced current
+  physical footprint by 264,672 KiB; PDA, world and inventory lazy reloads pass.
 
-### Proven
+## Still pending
 
-- Apple M3 Pro/macOS 26.5.2 with Xcode 26.6 builds clean arm64 device and
-  simulator dependency prefixes plus the complete engine at iOS 16.4.
-- LuaJIT host generators are macOS arm64 and target archives are iOS arm64.
-- A clean device build compiled 1,854 translation units and produced a full
-  dSYM above the 100 MiB gate with matching UUID.
-- Signing identity, paid-team provisioning profile (valid through 2027-07-19),
-  cable install, autoload, launch and fresh 1864×860 diagnostic capture work on
-  the migrated host. The app was returned to `ios_diagnostics 0`.
-- The affected camera position has no vertical static-collision hit.
-- With no sector, the main draw graph returns before static world geometry.
-- A probe 8 m in +Z finds sector 115 and restores normal rendering.
-- Walking only appeared to repair streaming because it eventually found a
-  sector; walking back retained the cached sector and the world stayed correct.
-- Three cold launches rendered correctly without synthetic input; the third used
-  the build with temporary visibility counters removed.
-- After geometry recovery, the remaining dark world was isolated to
-  `hdiffuse *= occ`; local light bypasses that multiplication and formed the
-  apparent bright circle.
-- `SSAO_OPT_DATA=0` incorrectly selected the ungenerated half-depth path because
-  `ssao.ps` used `#ifndef` instead of a value test. `SSAO_QUALITY=0` likewise
-  invalidated the earlier “SSAO off” test.
-- The value-test fix produced correct lighting with G-buffer packing off and on,
-  after a nine-second scripted walk, and on two additional cold launches.
-- Final baseline: 932×430 logical UIKit/input space with a real 1864×860
-  OpenGL drawable and 1:1 presentation; `r__supersample 1`, VSync off, SSAO
-  high, G-buffer optimization on, MSAA 2×, full texture quality.
+- Validate Optimal's measured downgrade/upgrade thresholds and frame pacing on
+  a repeatable normal-mode path after the phone cools.
+- For each IOS-P0-003 short phone batch, record a completed baseline epoch
+  before the exact expected oracle batch; separately require resolved sector
+  classification and an objective world frame. Run another outdoor save, an
+  indoor/portal start, QuickLoad/save-reload and a level transition.
+- Parser validation is 20/20; complete the budget: one PID, at least 1,700 seconds,
+  at least 1,500 samples with no gap over five seconds, at most 3,328 MiB
+  footprint and at most 128 MiB net growth. The separate
+  2,560 MiB target remains unprovable until a 6 GB device exists. A 20-second
+  normal-mode trace was stable near 3.20 GB, while repeated diagnostic launches
+  produced `serious thermal` and system compressor pressure.
+- Test dense inventory focus/clipping and the PDA faction-war surface. Retail
+  fallback ordering is locally fixed but not visually confirmed.
+- Device-prove held touch, lock/app-switch and the selected OpenAL Soft audio
+  interruption; corrected XCUITest is local-only.
+- Device-confirm profile reassert after Options discard/config reload.
+- Device-accept the UIScene lifecycle: five Safari foreground cycles plus a
+  separate lock/unlock and audio-interruption cycle, preserving PID, drawable,
+  input, saves and audio.
 
-### Next slice
+## Next slice
 
-After the macOS 27 host requalification, close IOS-P0-003 first: test one
-additional outdoor save and one indoor/portal location, followed by save/reload,
-a level transition and a 30-minute memory/lifecycle run. Then use
-`--diagnostics` to verify Advanced Options (especially AO/SSAO), Controls font
-and duplicate gamepad binding resolution, inspect the exact retail XML logged
-for inventory/PDA/map, and validate focus auto-scroll/clipping in a full
-inventory. Return to normal `--launch` before performance work.
+Follow the numbered order in the active Plan:
 
-## Working rules
+1. Let the phone cool, then validate IOS-P0-003 on another outdoor save and an
+   indoor/portal start: baseline completed epoch, exact batch, resolved outcome,
+   then separately an objective world frame.
+2. Device-accept IOS-P1-010 and IOS-P1-002: five Safari app-switch cycles,
+   then separate lock/held-touch and OpenAL Soft interruption cycles.
+3. Measure the same normal-mode path under all profiles.
 
-- Run `./misc/ios/build_check.sh` before every device install that follows an
-  engine or shader change.
-- The gate includes a 2/2 low-settings shader permutation check in addition to
-  the 279/279 baseline, a 6/6 SSAO resource-branch check, the numeric SSAO macro
-  contract and the 137/137 link check.
-- Shader-only checking does not rebuild/copy gamedata into the app; use the
-  engine gate before an on-device shader experiment.
-- Do not pipe the gate through `tail` or anything that masks its status.
-- Treat frame readback and file-driven input as diagnostic overhead; scripts
-  intentionally fail unless the app was launched with `--diagnostics`.
-- Label every conclusion `proven`, `inferred`, or `untested`.
-- Append each completed slice to [iOS-Port-Journal.md](iOS-Port-Journal.md).
+## Safety
 
-## Known open debt
-
-- Background/foreground rendering lifecycle and `SDL_APP_LOWMEMORY`.
-- Current physical-footprint telemetry and decoded-texture accounting.
-- Both diagnostic and normal launch modes are device-verified; a measured
-  normal-mode overhead sample is still required.
-- Touch cancellation and virtual gameplay controls.
-- Deprecated Apple OpenAL is still selected instead of OpenAL Soft.
-- Occlusion queries are disabled on iOS.
-- Presentation is fixed at a real 2x/1864×860 drawable with a 1:1 blit. HUD,
-  inventory and PDA remain independent logical layouts. Options now uses its
-  own accepted 25%-larger iOS layout with larger fonts and stronger contrast.
-- CI now enforces both local shader gates with pinned glslang and packages a
-  locally verified, UUID-matched dSYM. The first remote artifact check and a
-  deliberate negative canary remain.
-- Release publication waits for all independent build jobs and is serialized
-  without cancelling an in-flight IPA/apps.json replacement.
-- Other zero-default ES feature macros still need a presence-test audit before
-  HBAO or alternate SSR paths are enabled.
-- Environment cubemap aliases need explicit cache invalidation across ID changes;
-  the DXT fallback also needs a documented sRGB/swizzle policy. Neither caused
-  the fixed SSAO darkness.
-
-Do not begin an ANGLE or Metal migration as a workaround for either resolved
-startup defect. Renderer migration remains a measured post-stability decision.
+- Never restore full level prefetch blindly; it caused an approximately 1.6 GB
+  transient spike and jetsam.
+- Do not conflate the sector and SSAO defects or replace their proven fixes with
+  brightness, streaming, ANGLE or Metal workarounds.
+- Do not revoke certificates, change identity, uninstall or erase the container.
+- Do not claim rendering correctness without an on-device frame or numeric
+  probe.
+- Never install after a stale gate; append evidence to [iOS-Port-Journal.md](iOS-Port-Journal.md).

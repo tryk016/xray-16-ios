@@ -14,9 +14,10 @@ extern ENGINE_API bool ShadowOfChernobylMode;
 ENGINE_API extern int psTextureLOD;
 
 #if defined(XR_PLATFORM_APPLE_IOS)
-// Explicit gate for cable-driven input and framebuffer capture. It defaults to
-// off so normal gameplay and performance runs do no file polling or readback.
+// Framebuffer/readback diagnostics and lightweight cable-driven input are
+// separate so unattended performance paths do not stall on glReadPixels.
 ENGINE_API extern int psIOSDiagnostics;
+ENGINE_API extern int psIOSAutoInput;
 #endif
 
 // psDeviceFlags

@@ -7,6 +7,10 @@
 #include "XR_IOConsole.h"
 #include "xrCore/Text/StringConversion.hpp"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "ios/ios_input_lifecycle_policy.h"
+#endif
+
 #include <locale>
 
 CInput* pInput = nullptr;
@@ -54,6 +58,58 @@ ENGINE_API float psControllerCursorAutohideTime = 1.5f;
 
 static bool AltF4Pressed = false;
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+namespace
+{
+struct IosDiagnosticInputState
+{
+    u32 nextPoll{};
+    u32 holdUntil{};
+    int holdKey{ -1 };
+    char holdRequestId[37]{};
+    u32 tapMoveFrame{};
+    bool tapPending{};
+    char tapRequestId[37]{};
+
+    void Reset() { *this = {}; }
+};
+
+IosDiagnosticInputState iosDiagnosticInput;
+
+void RemoveIosAutoInputTrigger()
+{
+    const char* home = getenv("HOME");
+    string_path trigger;
+    xr_sprintf(trigger, "%s/Documents/_appdata_/autoinput.txt", home ? home : ".");
+    if (remove(trigger) == 0)
+        Msg("* iOS diag: discarded pending autoinput trigger at lifecycle boundary");
+}
+
+void PublishIosAutoInputAck(const char* requestId, const char* result)
+{
+    if (!requestId || !requestId[0])
+        return;
+
+    const char* home = getenv("HOME");
+    string_path temporary;
+    string_path published;
+    xr_sprintf(temporary, "%s/Documents/_appdata_/autoinput_ack.tmp", home ? home : ".");
+    xr_sprintf(published, "%s/Documents/_appdata_/autoinput_ack.txt", home ? home : ".");
+    if (FILE* ack = fopen(temporary, "wb"))
+    {
+        fprintf(ack, "%s %s\n", requestId, result);
+        if (fclose(ack) == 0)
+        {
+            if (rename(temporary, published) != 0)
+                remove(temporary);
+        }
+        else
+            remove(temporary);
+    }
+}
+} // namespace
+#endif
+
 // Max events per frame
 constexpr size_t MAX_KEYBOARD_EVENTS = 64;
 constexpr size_t MAX_MOUSE_EVENTS = 256;
@@ -66,6 +122,7 @@ CInput::CInput(const bool exclusive)
     exclusiveInput = exclusive;
 
 #if defined(XR_PLATFORM_APPLE_IOS)
+    iosDiagnosticInput.Reset();
     // A touchscreen has no exclusive/relative-mouse concept: exclusive mode would keep the
     // UI cursor in delta-accumulation mode (it never moves under a tap). Force the absolute
     // path and own the touch->cursor mapping ourselves (TouchUpdate) instead of relying on
@@ -400,85 +457,146 @@ void CInput::KeyUpdate()
     //
     // Protocol: write "<key> <ms>" into Documents/_appdata_/autoinput.txt, e.g. "w 1500"
     // or "escape 100". Letters, digits and a small allow-list of named keys map to SDL scancodes;
-    // <ms> is how long to hold the key after the initial press.
+    // <ms> is how long to hold the key after the initial press. "tap <x> <y>" performs one
+    // pointer click in logical window coordinates so unattended tests can operate menu controls
+    // that deliberately do not expose keyboard navigation.
     // The file is consumed (deleted) as soon as it is read, so pushing it again re-triggers.
     //
     // The key is forced into keyboardState just before the hold loop below, so it travels the
     // ordinary IR_OnKeyboardHold path and is indistinguishable from a real held key to
     // everything downstream. Polled 4x/sec rather than per frame: this stats a file.
     //
-    // This path is fully dormant in normal gameplay. install_device.sh --diagnostics
-    // enables it together with framebuffer capture for unattended visual tests.
-    if (psIOSDiagnostics)
+    // This path is fully dormant in ordinary gameplay. --diagnostics enables it
+    // with framebuffer capture; --autoinput enables only this lightweight poll
+    // so normal renderer/profile measurements can follow a repeatable route.
+    if (psIOSDiagnostics || psIOSAutoInput)
     {
         const u32 now = SDL_GetTicks();
 
-        if (SDL_TICKS_PASSED(now, m_ios_diag_next_poll))
+        if (iosDiagnosticInput.tapPending)
         {
-            m_ios_diag_next_poll = now + 250;
+            const u32 elapsedFrames = Device.dwFrame - iosDiagnosticInput.tapMoveFrame;
+            if (elapsedFrames > 120)
+            {
+                PublishIosAutoInputAck(iosDiagnosticInput.tapRequestId, "cancelled");
+                iosDiagnosticInput.tapPending = false;
+                Msg("* iOS diag: cancelled stale autoinput tap from frame=%u at frame=%u",
+                    iosDiagnosticInput.tapMoveFrame, Device.dwFrame);
+            }
+            else if (SDL_TICKS_PASSED(now, iosDiagnosticInput.nextPoll))
+            {
+                iosDiagnosticInput.tapPending = false;
+                const int tapX = m_ios_touch_pos.x;
+                const int tapY = m_ios_touch_pos.y;
+                cbStack.back()->IR_OnMouseMove(0, 0);
+                cbStack.back()->IR_OnMousePress(MOUSE_1);
+                cbStack.back()->IR_OnMouseRelease(MOUSE_1);
+                PublishIosAutoInputAck(iosDiagnosticInput.tapRequestId, "accepted");
+                Msg("* iOS diag: autoinput tap click (%d, %d) frame=%u", tapX, tapY, Device.dwFrame);
+            }
+        }
+
+        if (SDL_TICKS_PASSED(now, iosDiagnosticInput.nextPoll))
+        {
+            iosDiagnosticInput.nextPoll = now + 250;
 
             const char* home = getenv("HOME");
             string_path trigger;
             xr_sprintf(trigger, "%s/Documents/_appdata_/autoinput.txt", home ? home : ".");
             if (FILE* f = fopen(trigger, "rb"))
             {
-                char key[32] = {};
-                unsigned ms = 0;
-                char extra = 0;
-                if (fscanf(f, " %31s %u %c", key, &ms, &extra) == 2 && ms > 0 && ms <= 30000)
+                char command[64] = {};
+                if (fgets(command, sizeof(command), f)
+                    && (strchr(command, '\n') != nullptr || feof(f)))
                 {
-                    for (char* p = key; *p; ++p)
-                    {
-                        if (*p >= 'A' && *p <= 'Z')
-                            *p = char(*p - 'A' + 'a');
-                    }
+                    char requestId[37] = {};
+                    int requestPrefixLength = 0;
+                    const char* payload = command;
+                    if (sscanf(command, " id %36[0-9a-fA-F-] %n", requestId, &requestPrefixLength) == 1
+                        && requestPrefixLength > 0)
+                        payload = command + requestPrefixLength;
 
-                    int mapped_key = -1;
-                    if (key[0] >= 'a' && key[0] <= 'z' && key[1] == '\0')
-                        mapped_key = SDL_SCANCODE_A + (key[0] - 'a');
-                    else if (key[0] >= '1' && key[0] <= '9' && key[1] == '\0')
-                        mapped_key = SDL_SCANCODE_1 + (key[0] - '1');
-                    else if (key[0] == '0' && key[1] == '\0')
-                        mapped_key = SDL_SCANCODE_0;
-                    else if (xr_strcmp(key, "escape") == 0 || xr_strcmp(key, "esc") == 0)
-                        mapped_key = SDL_SCANCODE_ESCAPE;
-                    else if (xr_strcmp(key, "tab") == 0)
-                        mapped_key = SDL_SCANCODE_TAB;
-                    else if (xr_strcmp(key, "enter") == 0 || xr_strcmp(key, "return") == 0)
-                        mapped_key = SDL_SCANCODE_RETURN;
-                    else if (xr_strcmp(key, "space") == 0)
-                        mapped_key = SDL_SCANCODE_SPACE;
-                    else if (xr_strcmp(key, "up") == 0)
-                        mapped_key = SDL_SCANCODE_UP;
-                    else if (xr_strcmp(key, "down") == 0)
-                        mapped_key = SDL_SCANCODE_DOWN;
-                    else if (xr_strcmp(key, "left") == 0)
-                        mapped_key = SDL_SCANCODE_LEFT;
-                    else if (xr_strcmp(key, "right") == 0)
-                        mapped_key = SDL_SCANCODE_RIGHT;
-                    else if (xr_strcmp(key, "menu") == 0)
+                    int tapX = 0;
+                    int tapY = 0;
+                    char extra = 0;
+                    if (sscanf(payload, " tap %d %d %c", &tapX, &tapY, &extra) == 2 && tapX >= 0 && tapY >= 0
+                        && tapX < Device.m_rcWindowClient.w && tapY < Device.m_rcWindowClient.h)
                     {
+                        const Ivector2 previous = m_ios_touch_pos;
+                        m_ios_touch_pos.set(tapX, tapY);
+                        const int dx = previous.x < 0 ? 0 : tapX - previous.x;
+                        const int dy = previous.y < 0 ? 0 : tapY - previous.y;
                         SetCurrentInputType(KeyboardMouse);
-                        if (Console)
-                            Console->Execute("main_menu");
-                        Msg("* iOS diag: autoinput command 'menu'");
+                        cbStack.back()->IR_OnMouseMove(dx, dy);
+                        iosDiagnosticInput.tapMoveFrame = Device.dwFrame;
+                        iosDiagnosticInput.tapPending = true;
+                        xr_strcpy(iosDiagnosticInput.tapRequestId, requestId);
+                        iosDiagnosticInput.nextPoll = now + 500;
+                        Msg("* iOS diag: autoinput tap move (%d, %d) frame=%u", tapX, tapY, Device.dwFrame);
                     }
-
-                    if (mapped_key >= 0)
+                    else
                     {
-                        if (m_ios_diag_hold_key >= 0)
+                        char key[32] = {};
+                        unsigned ms = 0;
+                        if (sscanf(payload, " %31s %u %c", key, &ms, &extra) == 2 && ms > 0 && ms <= 30000)
                         {
-                            keyboardState[m_ios_diag_hold_key] = false;
-                            cbStack.back()->IR_OnKeyboardRelease(m_ios_diag_hold_key);
-                        }
+                            for (char* p = key; *p; ++p)
+                            {
+                                if (*p >= 'A' && *p <= 'Z')
+                                    *p = char(*p - 'A' + 'a');
+                            }
 
-                        m_ios_diag_hold_key = mapped_key;
-                        m_ios_diag_hold_until = now + ms;
-                        SetCurrentInputType(KeyboardMouse);
-                        keyboardState[m_ios_diag_hold_key] = true;
-                        cbStack.back()->IR_OnKeyboardPress(m_ios_diag_hold_key);
-                        Msg("* iOS diag: autoinput press/hold '%s' (scancode %d) for %u ms", key,
-                            m_ios_diag_hold_key, ms);
+                            int mapped_key = -1;
+                            if (key[0] >= 'a' && key[0] <= 'z' && key[1] == '\0')
+                                mapped_key = SDL_SCANCODE_A + (key[0] - 'a');
+                            else if (key[0] >= '1' && key[0] <= '9' && key[1] == '\0')
+                                mapped_key = SDL_SCANCODE_1 + (key[0] - '1');
+                            else if (key[0] == '0' && key[1] == '\0')
+                                mapped_key = SDL_SCANCODE_0;
+                            else if (xr_strcmp(key, "escape") == 0 || xr_strcmp(key, "esc") == 0)
+                                mapped_key = SDL_SCANCODE_ESCAPE;
+                            else if (xr_strcmp(key, "tab") == 0)
+                                mapped_key = SDL_SCANCODE_TAB;
+                            else if (xr_strcmp(key, "enter") == 0 || xr_strcmp(key, "return") == 0)
+                                mapped_key = SDL_SCANCODE_RETURN;
+                            else if (xr_strcmp(key, "space") == 0)
+                                mapped_key = SDL_SCANCODE_SPACE;
+                            else if (xr_strcmp(key, "up") == 0)
+                                mapped_key = SDL_SCANCODE_UP;
+                            else if (xr_strcmp(key, "down") == 0)
+                                mapped_key = SDL_SCANCODE_DOWN;
+                            else if (xr_strcmp(key, "left") == 0)
+                                mapped_key = SDL_SCANCODE_LEFT;
+                            else if (xr_strcmp(key, "right") == 0)
+                                mapped_key = SDL_SCANCODE_RIGHT;
+                            else if (xr_strcmp(key, "menu") == 0)
+                            {
+                                SetCurrentInputType(KeyboardMouse);
+                                if (Console)
+                                    Console->Execute("main_menu");
+                                PublishIosAutoInputAck(requestId, "accepted");
+                                Msg("* iOS diag: autoinput command 'menu'");
+                            }
+
+                            if (mapped_key >= 0)
+                            {
+                                if (iosDiagnosticInput.holdKey >= 0)
+                                {
+                                    keyboardState[iosDiagnosticInput.holdKey] = false;
+                                    cbStack.back()->IR_OnKeyboardRelease(iosDiagnosticInput.holdKey);
+                                }
+
+                                iosDiagnosticInput.holdKey = mapped_key;
+                                iosDiagnosticInput.holdUntil = now + ms;
+                                xr_strcpy(iosDiagnosticInput.holdRequestId, requestId);
+                                SetCurrentInputType(KeyboardMouse);
+                                keyboardState[iosDiagnosticInput.holdKey] = true;
+                                cbStack.back()->IR_OnKeyboardPress(iosDiagnosticInput.holdKey);
+                                PublishIosAutoInputAck(requestId, "accepted");
+                                Msg("* iOS diag: autoinput request %s press/hold '%s' (scancode %d) for %u ms",
+                                    iosDiagnosticInput.holdRequestId, key, iosDiagnosticInput.holdKey, ms);
+                            }
+                        }
                     }
                 }
                 fclose(f);
@@ -486,26 +604,29 @@ void CInput::KeyUpdate()
             }
         }
 
-        if (m_ios_diag_hold_key >= 0)
+        if (iosDiagnosticInput.holdKey >= 0)
         {
-            if (!SDL_TICKS_PASSED(now, m_ios_diag_hold_until))
-                keyboardState[m_ios_diag_hold_key] = true;
+            if (!SDL_TICKS_PASSED(now, iosDiagnosticInput.holdUntil))
+                keyboardState[iosDiagnosticInput.holdKey] = true;
             else
             {
-                keyboardState[m_ios_diag_hold_key] = false;
-                cbStack.back()->IR_OnKeyboardRelease(m_ios_diag_hold_key);
-                Msg("* iOS diag: autoinput released scancode %d", m_ios_diag_hold_key);
-                m_ios_diag_hold_key = -1;
+                keyboardState[iosDiagnosticInput.holdKey] = false;
+                cbStack.back()->IR_OnKeyboardRelease(iosDiagnosticInput.holdKey);
+                Msg("* iOS diag: autoinput request %s released scancode %d",
+                    iosDiagnosticInput.holdRequestId, iosDiagnosticInput.holdKey);
+                iosDiagnosticInput.holdKey = -1;
+                iosDiagnosticInput.holdRequestId[0] = '\0';
             }
         }
     }
-    else if (m_ios_diag_hold_key >= 0)
+    else
     {
-        keyboardState[m_ios_diag_hold_key] = false;
-        cbStack.back()->IR_OnKeyboardRelease(m_ios_diag_hold_key);
-        m_ios_diag_hold_key = -1;
-        m_ios_diag_hold_until = 0;
-        m_ios_diag_next_poll = 0;
+        if (iosDiagnosticInput.holdKey >= 0)
+        {
+            keyboardState[iosDiagnosticInput.holdKey] = false;
+            cbStack.back()->IR_OnKeyboardRelease(iosDiagnosticInput.holdKey);
+        }
+        iosDiagnosticInput.Reset();
     }
 #endif
 
@@ -950,6 +1071,10 @@ void CInput::iRelease(IInputReceiver* p)
 
 void CInput::OnAppActivate(void)
 {
+#if defined(XR_PLATFORM_APPLE_IOS)
+    RemoveIosAutoInputTrigger();
+#endif
+
     if (CurrentIR())
         CurrentIR()->IR_OnActivate();
 
@@ -957,24 +1082,49 @@ void CInput::OnAppActivate(void)
     keyboardState.reset();
     controllerState = {};
 #if defined(XR_PLATFORM_APPLE_IOS)
-    m_ios_diag_hold_key = -1;
-    m_ios_diag_hold_until = 0;
-    m_ios_diag_next_poll = 0;
+    iosDiagnosticInput.Reset();
 #endif
 }
 
 void CInput::OnAppDeactivate(void)
 {
-    if (CurrentIR())
-        CurrentIR()->IR_OnDeactivate();
+#if defined(XR_PLATFORM_APPLE_IOS)
+    RemoveIosAutoInputTrigger();
+    if (iosDiagnosticInput.tapPending)
+    {
+        PublishIosAutoInputAck(iosDiagnosticInput.tapRequestId, "cancelled");
+        Msg("* iOS diag: lifecycle cancelled autoinput tap request %s",
+            iosDiagnosticInput.tapRequestId);
+    }
+
+    const auto plan = ios_input_lifecycle::PlanDeactivation(
+        m_ios_finger_active, iGetAsyncKeyState(MOUSE_1));
+    if (IInputReceiver* receiver = CurrentIR(); receiver && plan.releaseSyntheticTouchButton)
+        receiver->IR_OnMouseRelease(MOUSE_1);
+#endif
+
+    // Release callbacks may synchronously change or destroy the current UI
+    // receiver, so never reuse a pointer captured before those callbacks.
+    if (IInputReceiver* receiver = CurrentIR())
+        receiver->IR_OnDeactivate();
 
     mouseState.reset();
     keyboardState.reset();
     controllerState = {};
 #if defined(XR_PLATFORM_APPLE_IOS)
-    m_ios_diag_hold_key = -1;
-    m_ios_diag_hold_until = 0;
-    m_ios_diag_next_poll = 0;
+    m_ios_finger_active = false;
+    m_ios_active_finger = 0;
+    if (iosDiagnosticInput.holdKey >= 0)
+        Msg("* iOS diag: lifecycle cancelled autoinput request %s scancode %d",
+            iosDiagnosticInput.holdRequestId, iosDiagnosticInput.holdKey);
+    iosDiagnosticInput.Reset();
+
+    // Do not replay input queued before the app resigned active. Cursor
+    // position is intentionally retained for gamepad focus navigation.
+    SDL_FlushEvents(SDL_KEYDOWN, SDL_KEYMAPCHANGED);
+    SDL_FlushEvents(SDL_MOUSEMOTION, SDL_MOUSEWHEEL);
+    SDL_FlushEvents(SDL_FINGERDOWN, SDL_FINGERMOTION);
+    SDL_FlushEvents(SDL_CONTROLLERAXISMOTION, SDL_CONTROLLERBUTTONUP);
 #endif
 }
 

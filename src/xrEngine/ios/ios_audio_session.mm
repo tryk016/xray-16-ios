@@ -26,18 +26,9 @@
 #import <AVFoundation/AVFoundation.h>
 #import <UIKit/UIKit.h>
 
-// The iOS build currently compiles/links against Apple's deprecated
-// OpenAL.framework (CI proved it: SDK deprecation warnings; no alext.h there),
-// even though cmake/ios/deps also builds openal-soft. ALC_SOFT_pause_device is
-// a Soft-only extension, so resolve the entry points AT RUNTIME via
-// alcGetProcAddress: on OpenAL Soft the pause halts the mixer + CoreAudio unit;
-// on Apple's framework the lookups return null and the calls are skipped — the
-// AVAudioSession reactivation alone is what un-mutes there.
-#if __has_include(<OpenAL/alc.h>)
-#include <OpenAL/alc.h>
-#else
+// Resolve ALC_SOFT_pause_device entry points at runtime. This keeps the
+// interruption path safe if a device does not expose the extension.
 #include <AL/alc.h>
-#endif
 
 typedef void (*LPALCDEVICEPAUSESOFT)(ALCdevice*);
 typedef void (*LPALCDEVICERESUMESOFT)(ALCdevice*);
@@ -54,8 +45,9 @@ namespace
 ios_audio::callback g_on_suspend = nullptr;
 ios_audio::callback g_on_resume = nullptr;
 
-// Only touched on the main queue — no atomics needed. Pairs begin/end so the
-// engine's counted pause (CSoundRender_Scene::pause_emitters) never underflows.
+// Only touched on the main queue — no atomics needed. Failed activation leaves
+// this true, so the next interruption-end / did-become-active notification
+// retries the AVAudioSession activation and matching engine resume.
 bool g_interrupted = false;
 
 ALCdevice* current_al_device()
@@ -94,6 +86,8 @@ void begin_interruption()
         if (const auto pause = reinterpret_cast<LPALCDEVICEPAUSESOFT>(
                 alcGetProcAddress(device, "alcDevicePauseSOFT")))
             pause(device);
+        else
+            Log("! iOS audio: contract error: alcDevicePauseSOFT missing during interruption");
     }
 }
 
@@ -110,6 +104,8 @@ void end_interruption(const char* why)
         if (const auto resume = reinterpret_cast<LPALCDEVICERESUMESOFT>(
                 alcGetProcAddress(device, "alcDeviceResumeSOFT")))
             resume(device); // restarts the CoreAudio unit (OpenAL Soft only)
+        else
+            Log("! iOS audio: contract error: alcDeviceResumeSOFT missing during interruption");
     }
     if (g_on_resume)
         g_on_resume();

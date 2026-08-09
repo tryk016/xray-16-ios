@@ -12,6 +12,7 @@
 #include <SDL.h>
 #include <SDL_syswm.h>
 
+#import <Foundation/Foundation.h>
 #import <QuartzCore/CAEAGLLayer.h>
 #import <UIKit/UIKit.h>
 
@@ -40,4 +41,22 @@ bool set_opengl_drawable_scale(SDL_Window* window, const float scale)
         return true;
     }
 }
+
+ThermalState thermal_state()
+{
+    switch ([NSProcessInfo processInfo].thermalState)
+    {
+    case NSProcessInfoThermalStateFair:
+        return ThermalState::Fair;
+    case NSProcessInfoThermalStateSerious:
+        return ThermalState::Serious;
+    case NSProcessInfoThermalStateCritical:
+        return ThermalState::Critical;
+    case NSProcessInfoThermalStateNominal:
+    default:
+        return ThermalState::Nominal;
+    }
+}
+
+bool low_power_mode_enabled() { return [NSProcessInfo processInfo].lowPowerModeEnabled; }
 } // namespace ios_display

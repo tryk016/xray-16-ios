@@ -18,6 +18,9 @@ on:
       - '**/*.md'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   ios:
     name: iOS ${{ matrix.name }}
@@ -37,7 +40,7 @@ jobs:
             package_ipa: false
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Show toolchain versions
         run: |
@@ -85,7 +88,7 @@ jobs:
 
       - name: Upload .ipa
         if: ${{ matrix.package_ipa }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: OpenXRay-ios-smoketest-ipa
           path: misc/ios/smoketest/OpenXRay-smoketest-unsigned.ipa
@@ -110,19 +113,132 @@ jobs:
             sdk: iphonesimulator
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Show toolchain versions
+      - name: Validate dependency cache inputs
+        id: deps-inputs
+        shell: bash
         run: |
-          sw_vers
-          xcodebuild -version
-          cmake --version
+          set -euo pipefail
+          inputs=(
+            ".github/workflows/ios.yml"
+            "cmake/ios/deps/CMakeLists.txt"
+            "cmake/toolchains/ios.toolchain.cmake"
+            "cmake/ios/theora/CMakeLists.txt"
+            "cmake/ios/apply_sdl2_scene_patch.py"
+            "cmake/ios/sdl2_scene_patch_manifest.json"
+            "cmake/ios/patches/sdl2-2.32.10-uikit-scene.patch"
+          )
+          for path in "${inputs[@]}"; do
+            if [ ! -f "$path" ] || [ -L "$path" ]; then
+              echo "::error::dependency cache input must be a regular non-symlink file: $path"
+              exit 1
+            fi
+          done
+          sha256="${{ hashFiles('.github/workflows/ios.yml', 'cmake/ios/deps/CMakeLists.txt', 'cmake/toolchains/ios.toolchain.cmake', 'cmake/ios/theora/CMakeLists.txt', 'cmake/ios/apply_sdl2_scene_patch.py', 'cmake/ios/sdl2_scene_patch_manifest.json', 'cmake/ios/patches/sdl2-2.32.10-uikit-scene.patch') }}"
+          if ! [[ "$sha256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::hashFiles did not produce a lowercase SHA-256 for all dependency cache inputs"
+            exit 1
+          fi
+          echo "dependency-inputs-sha256=$sha256"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Fingerprint dependency toolchain
+        id: deps-toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          ambient_overrides=(
+            DEVELOPER_DIR SDKROOT CC CXX CFLAGS CXXFLAGS CPPFLAGS LDFLAGS CMAKE_GENERATOR
+            _BUILD_LIBTOOL _CMAKE_CXX_COMPILER _CMAKE_C_COMPILER _CMAKE_INSTALL_NAME_TOOL
+            _CMAKE_OSX_SYSROOT_INT _IOS_TOOLCHAIN_HAS_RUN _PLATFORM _SDK_VERSION _XCODE_VERSION_INT
+          )
+          for variable in "${ambient_overrides[@]}"; do
+            if [ "${!variable+x}" = x ]; then
+              echo "::error::ambient toolchain override is forbidden: $variable"
+              exit 1
+            fi
+          done
+          required_runner_fields=(ImageOS ImageVersion RUNNER_OS RUNNER_ARCH)
+          for variable in "${required_runner_fields[@]}"; do
+            if [ -z "${!variable-}" ]; then
+              echo "::error::required runner field is empty: $variable"
+              exit 1
+            fi
+          done
+          fingerprint="$(mktemp)"
+          trap 'rm -f "$fingerprint"' EXIT
+          fail() {
+            echo "::error::$1"
+            exit 1
+          }
+          require_value() {
+            [ -n "$2" ] || fail "fingerprint field is empty: $1"
+            printf '%s=%s\n' "$1" "$2" >> "$fingerprint"
+          }
+          require_command_output() {
+            local name="$1"
+            shift
+            local value
+            value="$("$@")" || fail "fingerprint command failed: $name"
+            require_value "$name" "$value"
+          }
+          require_value "ImageOS" "$ImageOS"
+          require_value "ImageVersion" "$ImageVersion"
+          require_value "RUNNER_OS" "$RUNNER_OS"
+          require_value "RUNNER_ARCH" "$RUNNER_ARCH"
+          require_command_output "sw_vers" /usr/bin/sw_vers
+          require_command_output "xcode-select-path" /usr/bin/xcode-select -p
+          require_command_output "xcodebuild-version" /usr/bin/xcodebuild -version
+          sdk="${{ matrix.sdk }}"
+          require_value "matrix-sdk" "$sdk"
+          require_command_output "sdk-path" /usr/bin/xcrun --sdk "$sdk" --show-sdk-path
+          require_command_output "sdk-version" /usr/bin/xcrun --sdk "$sdk" --show-sdk-version
+          require_command_output "sdk-build" /usr/bin/xcrun --sdk "$sdk" --show-sdk-build-version
+          clang_path="$(/usr/bin/xcrun --sdk "$sdk" --find clang)" || fail "clang path lookup failed"
+          libtool_path="$(/usr/bin/xcrun --sdk "$sdk" --find libtool)" || fail "libtool path lookup failed"
+          install_name_tool_path="$(/usr/bin/xcrun --sdk "$sdk" --find install_name_tool)" || fail "install_name_tool path lookup failed"
+          require_value "clang-path" "$clang_path"
+          require_value "libtool-path" "$libtool_path"
+          require_value "install-name-tool-path" "$install_name_tool_path"
+          require_command_output "clang-version" "$clang_path" --version
+          cmake_path="$(command -v cmake)" || fail "cmake path lookup failed"
+          python3_path="$(command -v python3)" || fail "python3 path lookup failed"
+          require_value "cmake-path" "$cmake_path"
+          require_command_output "cmake-version" "$cmake_path" --version
+          require_value "python3-path" "$python3_path"
+          require_command_output "python3-version" "$python3_path" --version
+          generator="Unix Makefiles"
+          "$cmake_path" --help | /usr/bin/grep -F "Unix Makefiles" >/dev/null \
+            || fail "required CMake generator is unavailable: Unix Makefiles"
+          require_value "generator" "$generator"
+          [ -x /usr/bin/make ] || fail "/usr/bin/make is unavailable"
+          require_value "make-path" "/usr/bin/make"
+          require_command_output "make-version" /usr/bin/make --version
+          cat "$fingerprint"
+          sha256="$(/usr/bin/shasum -a 256 "$fingerprint" | /usr/bin/awk '{print $1}')"
+          if ! [[ "$sha256" =~ ^[0-9a-f]{64}$ ]]; then
+            fail "toolchain fingerprint did not produce a lowercase SHA-256"
+          fi
+          echo "dependency-toolchain-sha256=$sha256"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+      # This only binds cache provenance to reviewed inputs. The default ios-port
+      # branch is not protected, so this workflow does not claim cache-poisoning resistance.
+      - name: Cache dependency prefix
+        id: deps-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: build/ios-prefix-${{ matrix.sdk }}
+          key: >-
+            openxray-ios-deps-v1-${{ github.ref_name }}-${{ runner.os }}-${{ runner.arch }}-${{ matrix.sdk }}-${{ matrix.platform }}-ios16.4-bitcodeOFF-Release-UnixMakefiles-${{ steps.deps-toolchain.outputs.sha256 }}-${{ steps.deps-inputs.outputs.sha256 }}
 
       - name: Cross-build dependency superbuild (${{ matrix.platform }})
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           set -e
           PREFIX="$PWD/build/ios-prefix-${{ matrix.sdk }}"
-          cmake -S cmake/ios/deps -B "build/ios-deps-${{ matrix.sdk }}" \
+          cmake -S cmake/ios/deps -B "build/ios-deps-${{ matrix.sdk }}" -G "Unix Makefiles" \
             -DIOS_TOOLCHAIN_FILE="$PWD/cmake/toolchains/ios.toolchain.cmake" \
             -DPLATFORM=${{ matrix.platform }} \
             -DDEPLOYMENT_TARGET=16.4 \
@@ -147,7 +263,7 @@ jobs:
           echo "all dependency static libs present and arm64"
 
       - name: Upload deps prefix
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ios-deps-${{ matrix.sdk }}
           path: build/ios-prefix-${{ matrix.sdk }}
@@ -180,7 +296,7 @@ jobs:
             debug_format: dwarf
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           submodules: recursive
 
@@ -191,7 +307,7 @@ jobs:
           cmake --version
 
       - name: Download deps prefix
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: ios-deps-${{ matrix.sdk }}
           path: build/ios-prefix-${{ matrix.sdk }}
@@ -355,7 +471,7 @@ jobs:
 
       - name: Upload .ipa artifact
         if: ${{ matrix.sdk == 'iphoneos' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: OpenXRay-ios-ipa
           path: OpenXRay.ipa
@@ -363,7 +479,7 @@ jobs:
 
       - name: Upload dSYM artifact
         if: ${{ matrix.sdk == 'iphoneos' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: OpenXRay-ios-dSYM
           path: OpenXRay.dSYM.zip
@@ -386,7 +502,7 @@ jobs:
       contents: write
     steps:
       - name: Download .ipa
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: OpenXRay-ios-ipa
 
@@ -452,7 +568,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Validate iOS CI contract
+        run: python3 misc/ios/test_ios_ci_contract.py
 
       - name: Build pinned glslang 16.4.0
         run: |
@@ -490,7 +609,7 @@ jobs:
             platform: SIMULATORARM64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Init LuaJIT submodule
         run: git submodule update --init Externals/LuaJIT

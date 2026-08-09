@@ -241,6 +241,7 @@ public:
     void DeferredUpload();
     void DeferredUnload();
     void Evict();
+    void LowMemoryEvict(u32& count, u64& bytes);
     void StoreNecessaryTextures();
     void DestroyNecessaryTextures();
     void Dump(bool bBrief);

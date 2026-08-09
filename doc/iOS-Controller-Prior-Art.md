@@ -4,8 +4,8 @@
 
 OpenXRay's hardware-controller path is already usable on device. One-finger
 pointer/tap input is also implemented for menus. The unfinished part is a
-virtual gameplay overlay and lifecycle-safe touch cancellation. Active tasks
-are tracked in [iOS-Port-Plan.md](iOS-Port-Plan.md), not in this document.
+virtual gameplay overlay and lifecycle-safe touch cancellation. Deferred touch
+tasks are tracked in [iOS-Port-Backlog.md](iOS-Port-Backlog.md), not here.
 
 The same developer wrote a from-scratch iOS controller + touch system for their
 **OpenGothic** iOS build. Its controller technical notes and `game/ui/` /

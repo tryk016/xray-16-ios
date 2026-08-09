@@ -196,8 +196,12 @@ const CLocatorAPI::file* CLocatorAPI::Register(
 {
     ZoneScoped;
 
-    string256 temp_file_name;
-    xr_strcpy(temp_file_name, sizeof temp_file_name, name);
+    CHECK_OR_EXIT(name && *name, "Cannot register an empty filesystem path.");
+
+    string_path temp_file_name;
+    const int copy_error = xr_strcpy(temp_file_name, sizeof temp_file_name, name);
+    CHECK_OR_EXIT(copy_error == 0,
+        make_string("Filesystem path exceeds %zu bytes: %s", sizeof(temp_file_name) - 1, name));
     xr_fs_strlwr(temp_file_name);
 
     restore_path_separators(temp_file_name);

@@ -22,6 +22,7 @@ cmake_minimum_required(VERSION 3.23)
 project(OpenXRayIOSDeps LANGUAGES NONE)
 
 include(ExternalProject)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # ---- Required / defaulted inputs ------------------------------------------------------
 foreach(_req IOS_TOOLCHAIN_FILE PLATFORM)
@@ -65,6 +66,26 @@ set(_dep_common_args
 
 # ---- SDL2 -----------------------------------------------------------------------------
 # The window / input / GL-context layer. First-class iOS support in SDL2's own CMake.
+set(_sdl2_scene_patch_script "${CMAKE_CURRENT_LIST_DIR}/../apply_sdl2_scene_patch.py")
+set(_sdl2_scene_patch_manifest "${CMAKE_CURRENT_LIST_DIR}/../sdl2_scene_patch_manifest.json")
+set(_sdl2_scene_patch "${CMAKE_CURRENT_LIST_DIR}/../patches/sdl2-2.32.10-uikit-scene.patch")
+foreach(_sdl2_scene_patch_input IN ITEMS
+        "${_sdl2_scene_patch_script}"
+        "${_sdl2_scene_patch_manifest}"
+        "${_sdl2_scene_patch}")
+    if(NOT EXISTS "${_sdl2_scene_patch_input}")
+        message(FATAL_ERROR "Required SDL2 UIKit scene patch input is missing: ${_sdl2_scene_patch_input}")
+    endif()
+endforeach()
+
+# This generated command identity is a dependency of the ExternalProject step.
+# Changing its command, source pin or patch inputs reruns the controlled patch
+# before SDL's configure/build steps; an old ExternalProject stamp cannot hide it.
+set(_sdl2_scene_patch_command_file
+    "${CMAKE_CURRENT_BINARY_DIR}/openxray-sdl2-scene-patch-command.txt")
+file(GENERATE OUTPUT "${_sdl2_scene_patch_command_file}" CONTENT
+    "url=https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-2.32.10.tar.gz\nsha256=5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165\nscript=${_sdl2_scene_patch_script}\nmanifest=${_sdl2_scene_patch_manifest}\npatch=${_sdl2_scene_patch}\n")
+
 ExternalProject_Add(dep_SDL2
     URL      https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-2.32.10.tar.gz
     URL_HASH SHA256=5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165
@@ -76,6 +97,24 @@ ExternalProject_Add(dep_SDL2
         -DSDL_TEST=OFF
         -DSDL2_DISABLE_INSTALL=OFF
     BUILD_ALWAYS OFF
+)
+
+ExternalProject_Add_Step(dep_SDL2 openxray_uikit_scene_patch
+    COMMAND "${Python3_EXECUTABLE}" "${_sdl2_scene_patch_script}"
+        --source <SOURCE_DIR>
+        --manifest "${_sdl2_scene_patch_manifest}"
+        --patch "${_sdl2_scene_patch}"
+        --url https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-2.32.10.tar.gz
+        --url-sha256 5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165
+    DEPENDS
+        "${CMAKE_CURRENT_LIST_FILE}"
+        "${_sdl2_scene_patch_command_file}"
+        "${_sdl2_scene_patch_script}"
+        "${_sdl2_scene_patch_manifest}"
+        "${_sdl2_scene_patch}"
+    DEPENDEES update
+    DEPENDERS configure
+    COMMENT "Applying the checked SDL2 UIKit UIScene lifecycle backport"
 )
 
 # ---- OpenAL Soft ----------------------------------------------------------------------

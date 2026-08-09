@@ -1,5 +1,11 @@
 #include "stdafx.h"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "ios/ios_graphics_profile.h"
+#include "ios/ios_graphics_profile_policy.h"
+#include "ios/ios_lifecycle_state.h"
+#endif
+
 #include "Render.h"
 
 #include "xrCore/FS_impl.h"
@@ -86,7 +92,13 @@ void CRenderDevice::RenderEnd(void)
             Msg("* MEMORY USAGE: %d K", Memory.mem_usage() / 1024);
             Msg("* End of synchronization A[%d] R[%d]", b_is_Active, b_is_Ready);
             FIND_CHUNK_COUNTER_FLUSH();
-            if (g_pGamePersistent->GameType() == 1 && !psDeviceFlags.test(rsAlwaysActive)) // haCk
+#if defined(XR_PLATFORM_APPLE_IOS)
+            const bool bypassStartupPause = ios_lifecycle::ShouldBypassPauseForAlwaysActive(
+                psDeviceFlags.test(rsAlwaysActive));
+#else
+            const bool bypassStartupPause = psDeviceFlags.test(rsAlwaysActive);
+#endif
+            if (g_pGamePersistent->GameType() == 1 && !bypassStartupPause) // haCk
             {
                 const Uint32 flags = SDL_GetWindowFlags(m_sdlWnd);
                 if ((flags & SDL_WINDOW_INPUT_FOCUS) == 0)
@@ -263,9 +275,33 @@ void CRenderDevice::ProcessFrame()
 {
     ZoneScoped;
 
+    // UIKit may suspend the process immediately after the background
+    // notification. Do not enter FrameMove/ImGui or any renderer-facing frame
+    // sequence while inactive; the outer loop still pumps SDL lifecycle events.
+#if defined(XR_PLATFORM_APPLE_IOS)
+    if (!b_is_InFocus)
+    {
+        Sleep(10);
+        return;
+    }
+#endif
+
+    // Apply a selected or config-invalidated profile before FrameMove and
+    // DoRender so no frame can observe legacy desktop values from cfg_load.
+#if defined(XR_PLATFORM_APPLE_IOS)
+    ios_graphics_profile_before_frame();
+#endif
+
     if (!BeforeFrame())
         return;
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    static u64 previousProfileFrameStartNs = 0;
+    const u64 profileFrameStartNs = TimerMM.GetElapsed_ns();
+    const u64 profileElapsedNs = previousProfileFrameStartNs
+        ? profileFrameStartNs - previousProfileFrameStartNs : 0;
+    previousProfileFrameStartNs = profileFrameStartNs;
+#endif
     const u64 frameStartTime = TimerGlobal.GetElapsed_ms();
 
     FrameMove();
@@ -287,6 +323,13 @@ void CRenderDevice::ProcessFrame()
 
     const u64 frameEndTime = TimerGlobal.GetElapsed_ms();
     const u64 frameTime = frameEndTime - frameStartTime;
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+    const u64 profileFrameEndNs = TimerMM.GetElapsed_ns();
+    ios_graphics_profile_on_frame(
+        ios_graphics::NanosecondsToMilliseconds(profileFrameEndNs - profileFrameStartNs),
+        ios_graphics::NanosecondsToSeconds(profileElapsedNs));
+#endif
 
     u32 updateDelta = 1000 / ps_fps_limit;
 
@@ -569,15 +612,70 @@ void CRenderDevice::OnWindowActivate(SDL_Window* window, bool activated)
     else
         pInput->GrabInput(false);
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+    b_is_Active = ios_lifecycle::EffectiveDeviceActive(
+        activated, psDeviceFlags.test(rsAlwaysActive));
+#else
     b_is_Active = activated || psDeviceFlags.test(rsAlwaysActive);
+#endif
 
     if (activated != b_is_InFocus)
     {
         b_is_InFocus = activated;
         if (b_is_InFocus)
         {
+            // ProcessFrame is intentionally stopped while backgrounded. Drop
+            // the inactive wall-clock gap so the first foreground frame cannot
+            // feed a multi-second delta into adaptation or animation code.
+            Timer.Start();
+            fTimeDeltaReal = EPS_S + EPS_S;
+#if !defined(XR_PLATFORM_APPLE_IOS)
             TaskScheduler->Pause(false);
+#else
+            // Force a real backend detach/rebind and retain the exact SDL
+            // result. A same-context TLS lookup alone can report a stale
+            // success after backgrounding.
+            const bool contextRestored = !b_is_Ready || (GEnv.Render
+                && GEnv.Render->MakeContextCurrent(IRender::NoContext)
+                && GEnv.Render->MakeContextCurrent(IRender::PrimaryContext));
+            if (!contextRestored)
+            {
+                Msg("! iOS: foreground activation deferred; OpenGL context restore failed");
+                b_is_InFocus = false;
+                b_is_Active = ios_lifecycle::EffectiveDeviceActive(
+                    false, psDeviceFlags.test(rsAlwaysActive));
+                pInput->GrabInput(false);
+                TaskScheduler->Pause(true);
+                return;
+            }
+#endif
+#if defined(XR_PLATFORM_APPLE_IOS)
+            // CHW restores the primary context from seqAppActivate. If that
+            // failed, symmetrically roll every activation callback back so
+            // gameplay clocks remain suspended until the durable UIKit
+            // foreground state can retry the whole transaction.
+            const bool activationComplete = ios_lifecycle::CompleteActivation(
+                [this] { seqAppActivate.Process(); },
+                [this]
+                {
+                    return !b_is_Ready || (GEnv.Render
+                        && GEnv.Render->GetCurrentContext() == IRender::PrimaryContext);
+                },
+                [this] { seqAppDeactivate.Process(); });
+            if (!activationComplete)
+            {
+                Msg("! iOS: foreground activation deferred; primary OpenGL context is not current");
+                b_is_InFocus = false;
+                b_is_Active = ios_lifecycle::EffectiveDeviceActive(
+                    false, psDeviceFlags.test(rsAlwaysActive));
+                pInput->GrabInput(false);
+                TaskScheduler->Pause(true);
+                return;
+            }
+            TaskScheduler->Pause(false);
+#else
             seqAppActivate.Process();
+#endif
             app_inactive_time += TimerMM.GetElapsed_ms() - app_inactive_time_start;
         }
         else

@@ -2558,3 +2558,1661 @@ clean 590,443,673-byte reference passes with a large safety margin.
   signing identity. The hardened full gate then passed 279/279, 2/2, 6/6, the
   numeric SSAO contract, 137/137 and a zero-unit incremental arm64 build; the
   full dSYM size and matching UUID remained unchanged.
+
+## 2026-07-24 — macOS 27 and Xcode 27 requalification
+
+### Proven environment and cache recovery
+
+- The updated host is an Apple M3 Pro with 36 GiB, macOS 27.0 beta
+  (`26A5388g`), Xcode 27.0 beta (`27A5228h`), iPhoneOS/iPhoneSimulator SDK
+  27.0, AppleClang 21.0.0 and CMake 4.4.0. Xcode first-launch setup is complete.
+- Xcode sees the paired iPhone 15 Pro Max on iOS 26.6 and the installed
+  iPhone 17 simulator runtime. The downloaded Metal toolchain reports status
+  `installed`; `metal`, `metallib` and the `Metal System Trace` template are
+  available.
+- Nested dependency and LuaJIT host-tool caches still referenced the removed
+  Xcode 26.5 path under `/Applications/Xcode.app`. Only generated cache state
+  was discarded; the host-tool directories were first quarantined and removed
+  after the new builds passed. No source change was required.
+- Fresh device and simulator smoke tests passed as arm64, platform IOS and
+  IOSSIMULATOR, minimum OS 16.4 and SDK 27.0. Device and simulator dependency
+  superbuilds rebuilt all seven expected arm64 archives.
+- Isolated LuaJIT device/simulator checks passed with macOS arm64 host tools and
+  iOS arm64 target archives. AppleClang 21 adds non-fatal warnings in the
+  vendored LuaJIT and luabind sources.
+- The complete simulator engine built successfully as arm64,
+  `platform IOSSIMULATOR`, `minos 16.4`, SDK 27.0.
+
+### Full gate, signing and device evidence
+
+- The clean device gate rebuilt 1,854 translation units and passed 279/279
+  shader stages, 2/2 low-settings stages, 6/6 SSAO resource branches, the SSAO
+  numeric macro contract and 137/137 shader links.
+- The final Mach-O is arm64, `platform IOS`, `minos 16.4`, SDK 27.0. Its dSYM
+  contains 513,353,999 `__debug_info` bytes; app and dSYM share UUID
+  `66122874-7481-3540-9C4F-8C171313E766`.
+- `install_device.sh --renew` validated the paid-team profile and matching
+  private key. The app then signed, installed over
+  `io.github.tryk016.openxray.RMJWWPF379` without uninstalling and launched from
+  the existing data container.
+- Diagnostic mode produced fresh native 1864×860 loading and gameplay frames.
+  The gameplay frame showed the loaded world, textures, HUD and weapon. A final
+  ordinary install/launch restored `ios_diagnostics 0`.
+
+### GPU tooling and remaining work
+
+- A ten-second whole-device `Metal System Trace` recorded successfully and
+  saved a 142 MB trace. Its table of contents includes `xr_3da`; export produced
+  47,766 `metal-gpu-execution-points`, proving that Xcode can inspect the
+  translated GLES-on-Metal workload.
+- `xctrace --attach` could not resolve the same process by name or PID even
+  though Xcode 27 `devicectl device info processes` listed it. Whole-device
+  recording is the working capture path. Trace finalization/export also emits
+  non-fatal overlapping-dylib timeline warnings in this beta.
+- Plain `lipo` is no longer exposed in the macOS 27 shell path; `xcrun lipo`
+  works and was used for artifact verification.
+- XCUITest Main Menu → Options automation remains unimplemented and is the only
+  unfinished acceptance branch of IOS-P1-009. Rendering correctness across
+  additional saves/levels, dense UI, lifecycle, memory and performance remain
+  separate validation work.
+
+## 2026-07-24 — iOS product graphics profiles and simplified menus
+
+### Product/UI change
+
+- Added an iOS-only construction-time filter for both known Multiplayer button
+  names. Filtering happens before menu-item allocation, so repository fallback
+  XML and retail XML in the device container follow the same product contract.
+- Replaced the editable 932×430 `vid_mode` combo with a read-only
+  `Device.dwWidth` × `Device.dwHeight` value. The supported device therefore
+  reports the real 1864×860 render target/drawable without requesting another
+  scale or restart.
+- Replaced renderer, window mode, legacy five-level `_preset` and Advanced
+  graphics controls with three modes: Performance, Optimal and Quality.
+  Gamma, contrast and brightness remain directly adjustable.
+
+### Profile architecture
+
+- All modes keep the native 1864×860 resolution and current shader/resource
+  topology. Performance applies a low runtime tier with a 60 FPS target;
+  Quality applies the full runtime tier at 30 FPS; Optimal starts balanced at
+  30 FPS.
+- Optimal measures frame work before limiter sleep and uses two-second p90
+  windows. It lowers one tier after two windows over 31 ms or one over 40 ms,
+  and raises only after eight windows below 24 ms. Resume warmup plus 8/20
+  second downgrade/upgrade cooldowns prevent oscillation.
+- Adaptation changes only `rs_vis_distance`, `r__geometry_lod`,
+  `r2_ls_squality` and `r2_slight_fade`. Low Power Mode or serious/critical
+  thermal state forces the performance tier at 30 FPS; fair thermal state caps
+  the controller at balanced.
+- Textures, SSAO, shader macros, render targets, MSAA, VSync and postprocess
+  features are not switched at runtime. Audit also corrected a stale project
+  claim: GLES currently forces MSAA off, so inherited `r3_msaa 2x` config text
+  is not evidence of active multisampling.
+
+### Verification and evidence boundary
+
+- Added a deterministic C++ policy test plus a static iOS UI contract gate.
+  They verify downgrade/upgrade/cooldown/suspension behavior, exactly three
+  tokens, no legacy preset/Advanced exposure, native read-only resolution and
+  the runtime-safe knob allowlist.
+- The first arm64 iPhoneOS engine gate passed with 69 recompiled translation
+  units. A complete arm64 iPhoneSimulator build then linked successfully
+  against SDK 27.0 with minimum iOS 16.4.
+- Device and simulator targets share the same final `bin` product path. The
+  full gate and installer now reject any payload whose Mach-O platform is not
+  `IOS` or whose minimum OS is not 16.4, preventing a later simulator build
+  from being mistaken for an installable device artifact.
+- After the simulator build, a forced device relink and complete gate passed:
+  policy/UI gates, 279/279 shader stages, 2/2 low-settings stages, 6/6 SSAO
+  branches, the numeric macro contract, 137/137 links and arm64 engine. The
+  final app is `platform IOS`, minOS 16.4, SDK 27.0; its 513,358,781-byte
+  `__debug_info` and app share UUID
+  `A8883D4D-13B4-330B-BFBA-F7C9EEB8BBE2`.
+- No phone was used for this slice. Menu appearance, profile persistence,
+  runtime transitions, frame pacing, thermal response and the proposed tier
+  values remain explicitly untested on device.
+
+## 2026-07-26 — agent context and handoff structure
+
+### Problem and decision
+
+- The former root instruction could be read as requiring every agent to load
+  the complete specification, Plan, Resume, 179,765-byte Journal and
+  42,923-byte Metal RFC before changing the port.
+- The source documents totalled approximately 74,000 model tokens when loaded
+  together. The Journal alone represented roughly 45,000, despite normally
+  containing only a few relevant historical sections for a task.
+- Markdown remains the source of truth. Converting handoffs to JSON/JSONL would
+  repeat keys, increase token cost and reduce human readability. JSONL is
+  reserved for a future generated evidence/performance stream only when a tool
+  consumes it.
+
+### Structure change
+
+- `AGENTS.md` now requires a bounded bootstrap: full Resume, relevant active
+  task, relevant canonical section, then targeted `rg`/bounded reads from the
+  Journal. Backlog and Metal RFC are loaded only for their explicit workflows.
+- The active Plan now contains exactly five ordered tasks:
+  IOS-P0-003, IOS-P1-005, IOS-P1-006, IOS-P1-002 and IOS-P1-003.
+- Deferred P1/P2, distribution and renderer-decision items retain their IDs,
+  evidence levels and acceptance criteria in `iOS-Port-Backlog.md`. Their
+  presence does not authorize implementation.
+- Resume was reduced from 228 lines to a concise current checkpoint, commands,
+  contracts, proven/build-only boundary, next slice and safety rules.
+- The prior 417-line Codex session log was preserved verbatim under
+  `.Codex/archive/`; the active session log now contains only recent operational
+  state.
+
+### Evidence boundary
+
+- This was documentation/routing work only. Engine, shader, UI resource and
+  build artifacts were not changed, so the previous complete gate remains the
+  latest code validation.
+- Link, heading, task-ID and context-size checks are the acceptance evidence for
+  this slice. No phone was required.
+
+## 2026-07-26 — autonomous profile, UI, lifecycle and memory device pass
+
+### Scope and safety
+
+- Used one device owner throughout. Every engine change passed
+  `./misc/ios/build_check.sh` before installation.
+- Installed only over `io.github.tryk016.openxray.RMJWWPF379`; the retail asset
+  and save container was never removed.
+- Diagnostic readback was used only for deterministic UI/render evidence.
+  Normal mode was restored after testing. At the end the installed build has
+  `ios_diagnostics 0`, Graphics Profile `Optimal`, and no game process is
+  running.
+
+### Proven profile and presentation behavior
+
+- Main Menu and Options are readable at a native 1864×860 capture. Multiplayer
+  is absent. Video contains exactly Performance, Optimal and Quality, read-only
+  1864×860, gamma, contrast and brightness.
+- Performance, Optimal and Quality each selected their documented initial
+  tier/target in the device log. Performance and Quality world captures plus
+  the final Optimal world frame retained complete geometry, textures, HUD and
+  correct global lighting without the former lit-circle defect.
+- Five controlled foreground cycles increased the app's activation/deactivation
+  counters by exactly 5/5 except for the final active state (10 activations,
+  9 deactivations). The exact post-cycle frame remained 1864×860 and correct.
+  This is diagnostic-mode lifecycle evidence; normal-mode cycles and audio
+  interruption remain open.
+- A 20-second normal-mode Optimal Activity Monitor trace sampled `xr_3da`
+  21 times. CPU ranged 33.14–77.81% with 55.66% mean. Physical footprint was
+  3,194.94–3,199.72 MiB with 3,197.81 MiB mean; resident memory averaged
+  627.23 MiB and compressed memory averaged 2,578.80 MiB. The static-camera
+  duration is too short to be a performance target or memory budget.
+
+### Proven UI and deterministic input behavior
+
+- Ordinary inventory and the core PDA/map pages are complete and readable in
+  native captures. Dense overfilled-inventory focus/scroll/clipping remains
+  untested.
+- The retail PDA load still reports missing
+  `ui_ingame2_pda_buttons_background_e` and `ui_pda2_fr_*` faction-frame and
+  delimiter textures. Basic PDA/map captures do not exercise all of those
+  fraction-war surfaces, so this remains a real UI gap.
+- `misc/ios/input.sh` now accepts `tap x y` in logical 932×430 coordinates.
+  Same-frame, one-frame, two-frame and four-frame move/click sequences were
+  rejected by device behavior: the first event only established focus.
+  Waiting 500 ms in continual time after the cursor move, then refreshing the
+  pointer and sending press/release, opened Options with one command. The
+  device log recorded `move (230,276) frame=496` followed by `click frame=516`.
+- The fixed `autoinput.txt` filename still has a cable copy/delete race. A
+  transient command failure was observed; this harness issue is not claimed
+  fixed.
+- iPhone Mirroring accepted macOS keyboard input: Escape closed the PDA and
+  Home Screen plus `devicectl` launch supported controlled lifecycle cycles.
+  Coordinate mouse injection did not reach the game. Mirroring requires the
+  physical phone to be locked.
+
+### Thermal constraint bug and correction
+
+- Independent review found that `CanMeasure()` included
+  `psIOSDiagnostics == 0` before Low Power/thermal handling. Diagnostics
+  therefore suspended not only p90 adaptation, but also the canonical
+  Performance constraint.
+- Moved Low Power, serious/critical and fair thermal handling before
+  `CanMeasure()`. Diagnostics/inactive/paused state now suspends only p90
+  measurement. A second review reported no findings.
+- Device evidence resolved the formerly untested branch. With
+  `ios_diagnostics 1`, the log selected Optimal/balanced and immediately
+  changed to Optimal/performance while the device reported `serious thermal`.
+- Constraint telemetry now distinguishes `low power mode`, `serious thermal`,
+  `critical thermal`, and combined Low Power plus thermal states. This changes
+  only the logged reason, not tier policy. Independent review covered all
+  combinations and reported no findings.
+
+### User-reported error and memory evidence
+
+- During the final repeated diagnostic launch, the user saw an error and the
+  process disappeared. The app log contains no `FATAL`, assertion or GL error.
+  It ends after normal level synchronization and repeated 1864×860 diagnostic
+  shots.
+- That run logged `serious thermal`, process heap 2,396,656 K and
+  `phys_footprint 3,251,907 K`. System crash-log inventory contained
+  contemporaneous Jetsam events with `largestProcess: xr_3da` and
+  `vm-compressor-thrashing`; the latest inspected reports used the preceding
+  build UUID and do not prove the exact termination reason of the user's final
+  popup. Thermal plus compressor pressure is therefore a strong inference, not
+  a closed crash diagnosis.
+- To avoid reheating the phone, normal mode was restored by copying only the
+  existing `user.ltx` back with `ios_diagnostics 0`; the game was not
+  relaunched.
+
+### Final build evidence and remaining boundary
+
+- Final full gate: graphics-policy PASS, UI-contract PASS, 279/279 shader
+  stages, 2/2 low-settings stages, 6/6 SSAO branches plus value-macro PASS,
+  137/137 links and one rebuilt arm64 translation unit.
+- Final artifact is platform IOS, minimum OS 16.4, SDK 27.0. App/full-dSYM UUID
+  is `04DB2BAB-241F-3E95-BC36-9C69C337E97A`; full dSYM `__debug_info` is
+  513,360,029 bytes.
+- The final telemetry build installed successfully and reached the loaded level.
+  The last accepted render capture,
+  `/tmp/openxray-ios-test-20260726/44-final-profile-order-regression.png`, is
+  1864×860 with SHA-256
+  `3162c2fa9c227dc82692604a69ba0a78a6718a8e01d8895b651b6f31329b83a0`
+  and comes from the immediately preceding UUID
+  `5BD2156E-29D8-3371-80A3-23E0959BF49F`; the only subsequent source change was
+  constraint-reason logging.
+- Still unproven: Optimal measured downgrade/recovery/upgrade, Low Power
+  separately from serious thermal, same-path normal-mode frame pacing, another
+  outdoor save, indoor/portal start, save/reload, level transition, dense
+  inventory focus, faction-war PDA, normal lifecycle/audio interruption,
+  low-memory recovery and a 30-minute memory budget run.
+
+## 2026-07-26 — content-addressed gates and FastDevice iteration build
+
+### Objective and measured baseline
+
+The user requested the previously proposed iteration-time work, then explicitly
+limited this slice to local work without using the phone. The historical
+approximately 38-second full-gate estimate was remeasured rather than assumed:
+on the current M3 Pro/Xcode 27 host, sequential shader compilation took 4.88
+seconds and ten CPU/memory-bounded workers took 1.53 seconds. A cached default
+Release gate now takes 4.33 seconds; the final uncached full gate took 5.52
+seconds. These are host-side gate timings, not runtime performance evidence.
+
+### Implemented build contracts
+
+- `glsl_es_check.py` now validates shaders through an ordered ten-worker pool,
+  bounded by host or cgroup memory. Output and pass counts remain deterministic.
+- Shader compile/link output is cached by content digest. Keys cover shader and
+  renderer inputs, gate scripts, expected counts, Python/host identity, the
+  resolved glslang executable and its macOS dylib closure. Hash failures and
+  source changes during a gate are fatal; cache publication is atomic.
+- `build_check.sh` distinguishes a cached default device gate from `--full`.
+  Full mode deliberately reruns all shader compile/link work and is the pre-push
+  contract. Partial `--shaders` and `--engine` modes never write install stamps.
+- Existing CMake trees are refreshed only when a content hash of all
+  `CMakeLists.txt`, `.cmake` and `.in` inputs, the controlling build script,
+  broad typed cache values, CMake/Xcode versions or build context changes. Build
+  context includes Git HEAD/branch, local date and CMake-visible CI variables.
+  The symbol-complete tree explicitly forces and verifies
+  `XRAY_IOS_FAST_DEVICE=OFF`.
+- Device/full stamps bind the complete source manifest, Mach-O UUID, platform,
+  minimum OS and complete relative-path app-bundle hash. A later ordinary gate
+  removes an older full stamp when source, UUID or bundle content differs.
+- `build_fast_device.sh` configures a separate
+  `build/ios-engine-fastdevice-iphoneos` tree and writes
+  `bin/aarch64/FastDevice/xr_3da.app`. It uses Release `-O3/NDEBUG` semantics,
+  explicitly omits LTO and full dSYM generation, and never installs or launches.
+- Both build paths run `sync_app_resources.sh`, so `res/gamedata` and
+  `res/fsgame.ltx` reach the app bundle even when no engine target relinks.
+- `install_device.sh --fast` selects only a valid FastDevice stamp. Both normal
+  and FastDevice paths verify source hash and UUID, copy the app, then verify the
+  copied full-bundle hash before any signing or device action.
+
+### Local build and negative-test evidence
+
+- The first cold FastDevice tree compiled 1,855 translation units in 227.01
+  seconds. It initially failed only the post-build path assertion because Xcode
+  appended `/Release`; an empty generator expression now keeps the intended
+  `FastDevice/xr_3da.app` path. The corrected incremental run took 9.76 seconds.
+- The final FastDevice no-op cache hit took 5.11 seconds. Its 75 MiB arm64
+  executable bundle reports platform IOS, minOS 16.4 and SDK 27.0, UUID
+  `96F29EA3-886F-3527-9E91-C1854A66D421`; no FastDevice dSYM exists. The
+  symbol-complete Release app is 88 MiB and its dSYM is 739 MiB.
+- Current Xcode build settings and binary inspection prove FastDevice uses
+  `-O3`, `NDEBUG`, no debug info, no `LLVM_LTO`/`-flto` and no dSYM. The current
+  symbol-complete Release tree also has no active LTO because its Xcode 27 IPO
+  probe reports unsupported;
+  the prior thin-LTO cost assumption was false for this environment.
+- A temporary resource-only file reached the FastDevice app with zero C++
+  recompiles and was removed from the bundle by the next `rsync --delete`.
+- Relative-root bundle hashes matched across two copied logical trees. A
+  deliberate FastDevice bundle mutation changed the digest and resource sync
+  restored it. A root-only Release bundle mutation caused the next default gate
+  to invalidate the otherwise matching full stamp; the probe was removed and a
+  new full gate restored the final stamp.
+- Temporary `.cmake` and `.in` inputs changed the CMake configuration digest;
+  deleting them restored it. A changed CI environment changed the build-context
+  digest. Temporary shader/renderer/source probes also produced the expected
+  cache misses and stale-stamp rejection.
+- Bash syntax, Python parsing, ShellCheck (apart from two pre-existing
+  informational `SC2012` notices) and `git diff --check` pass. Three read-only
+  review rounds drove fixes for cache atomicity, TOCTOU, dynamic dependencies,
+  complete configure inputs, stale stamps, full-bundle authentication and
+  Fast/Release mode isolation. The final review reported no P1/P2 findings.
+
+### Final evidence boundary
+
+The final symbol-complete gate passed graphics policy, UI contract, 279/279
+shader stages, 2/2 low-settings stages, 6/6 SSAO branches plus value-macro
+contract, 137/137 links and the arm64 iPhoneOS 16.4 engine. Release app and dSYM
+remain UUID `04DB2BAB-241F-3E95-BC36-9C69C337E97A`; `__debug_info` remains
+513,360,029 bytes. No install, launch, Mirroring, screenshot or other phone
+action occurred. FastDevice installation and runtime behavior therefore remain
+untested. Nothing was committed or pushed.
+
+### Diagnostic-input header fan-out reduction
+
+The remaining local-only optimization moved exactly five cable-diagnostic
+fields (`nextPoll`, `holdUntil`, `holdKey`, `tapMoveFrame`, `tapPending`) out of
+`CInput` and into an iOS-only file-local state in `xr_input.cpp`. Normal touch
+position and active-finger state remain per-instance in `xr_input.h`.
+
+Reference audit found no use of the five fields outside `xr_input.cpp`.
+OpenXRay creates one `CInput` instance for the process, so the file-local state
+matches the current iOS application contract. It would not preserve independent
+state for overlapping `CInput` instances; supporting that hypothetical case
+would require a larger sidecar map and is outside the iOS-only product scope.
+
+The compile-cost discriminator was decisive:
+
+- removing the fields from `xr_input.h` rebuilt 1,383 FastDevice translation
+  units and took 199.42 seconds;
+- adding a temporary field only to the file-local `.cpp` state rebuilt one unit
+  and took 6.30 seconds;
+- removing that temporary field again rebuilt one unit and took 6.33 seconds;
+- the final symbol-complete Release gate rebuilt the same 1,383 units, took
+  344.50 seconds including full dSYM work, and passed every gate.
+
+The final Release artifact is arm64 platform IOS, minOS 16.4, SDK 27.0. App and
+dSYM UUID are `1080C791-9890-3C5E-8A45-0B15BC24543C`; `__debug_info` contains
+513,359,537 bytes. FastDevice returned to the probe-free source state with UUID
+`5E43D1A6-F019-308F-B2A6-2D1865C5AA6C`.
+
+### Resource-override boundary
+
+`CLocatorAPI` currently copies the bundled `fsgame.ltx` and complete engine
+`gamedata` overlay into Documents on every launch. A pre-launch direct copy of
+XML, Lua or shaders to `Documents/gamedata` would therefore be overwritten.
+The next safe design is a bundle-resource version marker plus an explicit
+restore path; it must be device-validated before direct Documents sync becomes
+an advertised workflow. This slice deliberately stopped at the proven
+bundle-level `sync_app_resources.sh` path.
+
+No install, launch, simulator, Mirroring or phone action occurred. Diagnostic
+press/hold/tap timing remains behaviorally unchanged by code inspection and
+local compile/link evidence, but the refactor itself is not runtime-proven.
+Nothing was committed or pushed.
+
+## 2026-08-01 — local lifecycle, LOWMEMORY and simulator reliability slice
+
+### Scope and hypothesis
+
+The user authorized autonomous local work but explicitly excluded the physical
+phone. The slice targeted three device risks that could still be closed from
+code and host evidence: lifecycle events racing a rendered frame, an
+unimplemented low-memory response despite the observed approximately 3.2 GB
+footprint, and profile/UI state being overwritten by legacy config paths.
+Phone runtime correctness and a measured memory reduction remained outside the
+claim boundary.
+
+### Implemented contracts
+
+- SDL lifecycle callbacks now publish to a single atomic event inbox. The main
+  thread drains activity, persistence and low-memory work from one snapshot;
+  `TryBeginFrame()` establishes a total order between a frame and a concurrent
+  background transition. Persistence is requested together with inactivity,
+  saved before deactivation and never performed from the SDL callback.
+- iOS deactivation stops scheduling/input and explicitly detaches the EAGL
+  context. Reactivation must successfully restore the primary context before
+  focus, input and scheduling resume; failed restoration remains durable and is
+  retried rather than rendering through an invalid context. The drawable and
+  engine size are refreshed after a successful restore.
+- `SDL_APP_LOWMEMORY` now records Mach current/peak footprint telemetry and
+  performs allocator compaction on the main thread. GPU work waits for an
+  active foreground primary context and no frame in progress. Each notification
+  may evict at most 256 MiB of file-backed textures unused for 300 frames.
+- Texture accounting records uploaded storage, including complete decoded RGBA8
+  mip chains for DXT sources. Eviction clears storage and lazy reloads on next
+  use. Raw-handle consumers such as environment/colormap aliases, UI and ImGui
+  exports pin their source wrappers so the bounded batch cannot invalidate an
+  untracked live alias.
+- A dedicated `ResourcesLowMemoryEvict` path leaves the legacy renderer eviction
+  API unchanged. Profile selection is applied before each frame and is
+  synchronously reasserted after `cfg_load`, closing the window in which a
+  following `vid_restart` could consume legacy values.
+- PDA investigation proved that the reported faction-frame names were probes of
+  alternative XML topologies, not missing retail textures. Authored FrameLine
+  and static forms are now attempted first and the nine-slice fallback is only
+  used when required.
+
+### Review and local evidence
+
+- Added deterministic host tests for lifecycle ordering, decoded texture
+  accounting/eviction selection, graphics-profile policy and UI/config ordering.
+  Three review passes first found five P1 issues, then three remaining P1
+  issues; accepted fixes covered frame/lifecycle ordering, failed-context retry,
+  exact renderer result propagation, raw texture-handle lifetime and immediate
+  config reassert. The final focused review reported no P0/P1 findings.
+- Final FastDevice validation passed all policy/UI gates, 279/279 shader stages,
+  2/2 low-settings stages, 6/6 SSAO branches plus value-macro contract and
+  137/137 links. Its UUID is
+  `BCC55AFC-69E7-39D9-94D2-1CEFE83148E6`.
+- The exact final source built for arm64 iOS Simulator, platform
+  `IOSSIMULATOR`, minOS 16.4 and SDK 27.0. On iOS 26.5 it launched through
+  AVAudioSession, OpenAL, input and filesystem initialization, cached 776 bundled
+  files and stopped at the expected absent retail
+  `Documents/gamedata/configs/system.ltx` boundary. The simulator process was
+  terminated after inspection.
+- A separate iOS 27 Simulator probe traps in UIKit before SDL with
+  `NoSceneLifecycleAdoption`; SDL 2.32.10 has no scene lifecycle integration.
+  `IOS-P1-010` records a deferred UIScene migration because changing the launch
+  ownership model without physical-device lifecycle/save validation is unsafe.
+- Final uncached full gate passed every policy/UI/shader/link contract and
+  rebuilt 1,383 arm64 iPhoneOS translation units. The platform IOS, minOS 16.4,
+  SDK 27.0 app and full dSYM share UUID
+  `BB5691C2-BB4A-311A-AE3C-CE0D352C66AE`; dSYM `__debug_info` is 513,393,184
+  bytes.
+
+### Evidence boundary and state
+
+No phone, install, Mirroring, capture or device-container action occurred. The
+new lifecycle recovery, real low-memory notification, physical-footprint drop,
+texture lazy reload in a retail level and PDA fallback remain device-untested.
+The prior phone artifact/container and stopped-process state are unchanged.
+Nothing was committed or pushed.
+
+## 2026-08-01 — lifecycle input and persistence follow-up
+
+Two read-only audits were run after the preceding local reliability slice.
+They found two concrete lifecycle defects that did not require the phone to
+fix.
+
+- Direct touch bypasses SDL's mouse bitset, and `CInput::OnAppDeactivate()`
+  cleared local state without guaranteeing receiver release callbacks. In
+  addition, the level, main menu and editor overrides did not call the base
+  `IInputReceiver` release helper. Deactivation now sends one synthetic
+  `MOUSE_1` release only for touch-only state, re-reads `CurrentIR()` after that
+  re-entrant callback, dispatches receiver-wide keyboard/mouse/controller
+  releases, clears the active finger and diagnostic hold/tap state, and flushes
+  stale queued input while retaining the logical cursor position.
+- SDL queues focus/minimize window events before
+  `SDL_APP_WILLENTERBACKGROUND`. The old loop could therefore deactivate before
+  processing the atomic persistence request. The inbox is now drained
+  immediately after SDL pumps events and before window-event dispatch;
+  `ApplyActivityOrdered` is shared by production and host test code and enforces
+  `persist -> deactivate`. The later drain/frame permit remains to consume
+  events published during dispatch.
+- The touch review found one P1 after the first patch: the synthetic release
+  could mutate the receiver stack, invalidating a cached pointer. Re-reading
+  `CurrentIR()` closed it; follow-up review reported no P0/P1. Independent
+  review of the persistence patch also reported no P0/P1.
+- The audio audit found no additional local P1 in the interruption state
+  machine. It confirmed that the current artifact links deprecated system
+  `OpenAL.framework`; selecting the already-built OpenAL Soft archive remains
+  the separate deferred `IOS-P2-002` backend task and was not mixed into this
+  lifecycle change.
+- Final FastDevice passed all policy/UI/shader/link contracts and rebuilt one
+  unit after the review fix. UUID:
+  `FB44464E-0FFB-3F99-B652-E7C944F1EFD4`.
+- The exact final arm64 iOS Simulator build (minOS 16.4, SDK 27.0) again launched
+  on iOS 26.5 through AVAudioSession, OpenAL, input and 776-file filesystem
+  initialization, then reached the expected missing-retail-`system.ltx`
+  boundary. The process was terminated.
+- Final uncached full gate passed the lifecycle, memory, profile, UI, 279/279,
+  2/2, 6/6 plus value-macro and 137/137 contracts, rebuilding five iPhoneOS
+  units. App/full-dSYM UUID is
+  `35F1BD5F-410A-3773-87EF-27B5D8E8BB25`; `__debug_info` is 513,393,286 bytes.
+
+No phone, device installation/container action, Mirroring, capture, commit or
+push occurred. Held-input cancellation, save ordering, audio interruption and
+context recovery remain device-untested.
+
+## 2026-08-02 — external working-set review closure
+
+### Scope and confirmed defects
+
+An external read-only review covered the complete uncommitted iOS working set.
+Every reported item was then rechecked against current code and split between
+confirmed defects and rejected hypotheses. No physical-phone action was in
+scope.
+
+- The outer iOS loop had no pacing when `TryBeginFrame()` rejected a frame.
+  Background or pending lifecycle work could therefore busy-spin until UIKit
+  suspended the process. The skipped-frame path now drains once and sleeps
+  10 ms; its host test enforces drain-before-backoff ordering.
+- The broad claim that every resume leaked background wall time was false:
+  normal single-player deactivation already freezes both `CTimer_paused`
+  clocks. A real gap remained when a saved `rs_always_active=1` bypassed that
+  pause, and a failed final context check could unpause callbacks before a
+  retry. iOS now ignores that desktop policy, removes it from Options and rolls
+  every activation callback back when final context validation fails.
+- Optimal profile measurements used scaled integer milliseconds. Work and
+  start-to-start elapsed time now come from unscaled `TimerMM` nanoseconds;
+  sub-millisecond samples are retained and a lifecycle-sized gap restores the
+  five-second warmup.
+- A repeated `CTexture::Load()` incorrectly marked every existing surface as
+  low-memory pinned. It now preserves the established ownership/pin state, so
+  ordinary level textures remain valid eviction candidates.
+- The artifact hash now includes all three mandatory policy tests. Empty or
+  malformed tap coordinates get controlled validation, and the 300-frame
+  eviction comment records both 60 and 30 FPS durations.
+- The p90 empty-window, OpenGL `surface_get` constness and faction-war fallback
+  reports were rejected after tracing their reachable call sites and retail
+  asset topology; no speculative change was made.
+
+### Review and validation
+
+- Standalone graphics, lifecycle and texture-memory policy tests, the UI
+  contract, shell validation, artifact-input manifest and `git diff --check`
+  passed.
+- Two final independent read-only reviews returned APPROVE with no P0/P1/P2.
+- FastDevice passed 279/279 shader stages, 2/2 low-settings, 6/6 SSAO branches
+  plus value-macro contract and 137/137 links. Final UUID:
+  `BCF77E6D-2F7E-333D-BD02-986A09FF58EC`.
+- The exact source built as arm64 `IOSSIMULATOR`, minOS 16.4, SDK 27.0 and ran
+  on iOS 26.5 through AVAudioSession, OpenAL, input and 776 cached files to the
+  expected missing-retail-`system.ltx` boundary. The simulator process was
+  terminated. Its launch identifier is the base
+  `io.github.tryk016.openxray`, distinct from the signed device identifier.
+- The final uncached iPhoneOS gate rebuilt 21 translation units and passed all
+  contracts. App and full dSYM share UUID
+  `F7AF56B7-06F8-3D0A-A7BC-63A61DEF86F7`; `__debug_info` is 513,394,351 bytes.
+
+No phone, device install/container action, Mirroring, capture, commit or push
+occurred. Busy-spin elimination, always-active clock isolation, failed-restore
+rollback, real Optimal adaptation and LOWMEMORY reduction still need physical
+device evidence.
+
+## 2026-08-03 — reliability device proof and Options XML crash closure
+
+### Device and automation boundary
+
+The physical iPhone 15 Pro Max ran iOS 26.6 and remained on Team
+`RMJWWPF379` with bundle identifier
+`io.github.tryk016.openxray.RMJWWPF379`; installation was in place and did not
+erase the retail container. A minimal XCTest/XCUIAutomation host and test bundle
+were signed and installed, but Xcode timed out while enabling automation mode
+and then requested interactive authorization. No password or passcode was
+guessed. The reusable runner remains provisional until its generated scheme and
+first-device authorization are automated.
+
+`build_fast_device.sh` passed graphics, lifecycle, texture-memory and UI policy
+gates, cached 279/279 shader compilation, 2/2 low-settings, 6/6 SSAO plus value
+macro and 137/137 links. It rebuilt 14 units before the first install. The
+matching artifact retained UUID `BCF77E6D-2F7E-333D-BD02-986A09FF58EC` and was
+installed with diagnostics without deleting the data container.
+
+### Options defect found and fixed
+
+Inventory and the pause menu rendered at 1864×860. Opening Options then stopped
+fresh captures and logged a fatal `XML node not found` for
+`video_adv:cap_always_active` in `ui_mm_opt_ios_16.xml`, reached from
+`ui_mm_opt_video_adv.script`. The simplified iOS UI hides Advanced, but the
+shared Lua constructor still initializes its controls.
+
+The iOS XML now supplies `cap_always_active` and `check_always_active` as hidden
+compatibility nodes without an `options_item`; desktop `rs_always_active`
+therefore remains neither exposed nor writable on iOS. The UI contract enforces
+both node presence and absence of a binding. The contract, `git diff --check`
+and FastDevice gate passed; no translation unit rebuilt because this was a
+resource/checker change. A fresh in-place installation then rendered Video,
+Sound, Game and Controls, including `Optimal` and read-only `1864×860`, with no
+new fatal entry.
+
+### Lifecycle and LOWMEMORY measurements
+
+Four scripted Safari-background/OpenXRay-foreground cycles on the current
+reliability build retained PID 32231. Every cycle logged `app deactivate`,
+`app activate` and `foreground drawable 1864x860 (engine 1864x860)`; fresh world
+or PDA frames followed. This proves the diagnostic background path and current
+context restore, not lock-screen, normal-mode, held-input or audio behavior.
+
+`devicectl device process sendMemoryWarning` reported an `NSPOSIXErrorDomain`
+ENOENT even though the current engine log proved delivery. At the foreground
+safe point the first useful batch measured:
+
+- before: physical footprint 3,262,723 KiB, uploaded textures 2,220,790 KiB;
+- selection: 47 stale surfaces from 929 candidates, 262,143 KiB released against
+  the 262,144 KiB budget;
+- after: physical footprint 2,998,051 KiB, uploaded textures 1,958,646 KiB.
+
+Thus uploaded storage fell by 262,144 KiB within rounding and current physical
+footprint fell by 264,672 KiB. Fresh 1864×860 captures then proved complete PDA,
+world/HUD and inventory surfaces, followed by a five-second forward walk and a
+background/foreground cycle. No fatal, assertion or black frame followed. A
+second immediate `sendMemoryWarning` returned the same tool error without a new
+engine event, so repeated-warning/coalescing behavior remains unproven.
+
+The final game process was stopped after evidence collection to preserve phone
+battery. No app/container uninstall, certificate action, commit or push was
+performed. The full symbol-complete gate is still required before publication.
+
+## 2026-08-03 — phone-free XCUITest runner and review closure
+
+### Reproducible local runner
+
+The provisional XCTest/XCUIAutomation experiment was converted into a
+repeatable tool under `misc/ios/ui_automation` without accessing the phone.
+CMake generates the Xcode project, and `prepare_scheme.py` derives the host and
+test buildable references from generated schemes before adding the testable and
+macro-expansion relationships idempotently. Two unit tests cover repeated
+patching and rejection of a missing target.
+
+`run.sh --build` now performs a clean generic-device `build-for-testing`, then
+strictly verifies both the host and nested runner signatures. Clean rebuilding
+is intentional: review reproduced an incremental Xcode 27 path that re-signed
+the nested `.xctest` after the containing Runner app, leaving the outer
+signature invalid even though `xcodebuild` returned success. The runner also
+serializes one owner per build directory, rejects extra arguments and existing
+result bundles, checks for a local Apple Development identity and reserves all
+device access for explicit `--test`. Test teardown terminates OpenXRay even
+after an assertion failure.
+
+Xcode 27's XCTest/XCUIAutomation binaries require iOS 17.0, so that minimum is
+isolated to the test bundle. `AutomationHost` and the OpenXRay product remain at
+iOS 16.4. The generated `.xctestrun` references the test bundle, runner and
+target app correctly. First-device authorization and deterministic Main Menu to
+Options navigation remain unproven because `--test` was not run.
+
+### Follow-up review and final gate
+
+Two read-only reviews found and closed five concrete gaps: a shared-build-tree
+race, a test that could leave the game running, ignored extra runner arguments,
+undocumented signing prerequisites and a static Options contract that checked
+only XML. The contract now also proves that shared Advanced Lua constructs both
+hidden always-active compatibility nodes.
+
+The lifecycle review also found one surviving direct read of
+`rs_always_active` at the end of precache. iOS now routes that startup-pause
+decision through `ShouldBypassPauseForAlwaysActive`, making the saved desktop
+flag fully inert as already required by the lifecycle policy test and canonical
+contract.
+
+Python unit tests, UI contract, `bash -n`, ShellCheck and `git diff --check`
+passed. The final uncached full gate passed graphics/lifecycle/texture/UI
+policies, 279/279 shader stages, 2/2 low-settings, 6/6 SSAO branches plus the
+value-macro contract, 137/137 links and the arm64 iPhoneOS build. One
+translation unit rebuilt. App and full dSYM share UUID
+`DEBA5EDC-F455-32A9-A767-A04848A20614`; dSYM `__debug_info` is 513,394,539
+bytes.
+
+No phone, device installation, launch, Mirroring, container, certificate,
+commit or push action occurred. The previously stopped game remains untouched.
+
+## 2026-08-03 — final static-contract review correction
+
+Follow-up review showed that the first Lua and startup-pause checks could be
+satisfied by expected text left only in comments. This corrects the preceding
+section's review-closure claim: those two P2 test weaknesses were still open at
+that checkpoint even though the production implementations were correct.
+
+The checker now removes Lua/C++ comments, requires active anchored Advanced-Lua
+calls, isolates `CRenderDevice::RenderEnd()` and matches the complete iOS/helper
+plus desktop/direct assignment block before accepting the final
+`bypassStartupPause` condition. Controlled negative mutations with the expected
+names only in comments are both rejected. Follow-up read-only review returned
+APPROVE with no P0/P1/P2.
+
+The uncached full gate was repeated after the checker change. It passed every
+policy/UI/shader/link contract and rebuilt zero engine units; app/dSYM UUID
+remains `DEBA5EDC-F455-32A9-A767-A04848A20614` with 513,394,539 debug-info
+bytes. No phone or external state was accessed.
+
+## 2026-08-04 — first-device XCUITest authorization and three Options runs
+
+The iPhone 15 Pro Max on iOS 26.6 was available for a bounded ten-minute test
+window. No game installation, container, save, certificate or profile change
+was made. The first explicit `run.sh --test` completed Xcode's device
+authorization and passed its launch/foreground assertion (`1/1`, no warnings).
+Its teardown terminated OpenXRay, confirmed by an empty process query.
+
+The runner was then extended to retain before/after XCUIScreen attachments and
+perform three independent launches. XCUITest exports the landscape-right
+OpenGL app as a portrait-native screenshot, so the first two calibration runs
+hit Credits rather than Options; those runs were inspected and deliberately
+not counted as acceptance evidence. Moving the calibrated tap one main-menu row
+up produced the intended result.
+
+The final test completed in 47.922 seconds with `1/1` test methods passed and
+six attachments. Visual inspection of all three `attempt-N-after` images proved
+the Video Options panel, `Optimal` profile and read-only `1864×860` value on
+every launch. The result bundle is
+`/tmp/OpenXRayUIAutomation-options-3x-confirm.xcresult`. This closes the three
+consecutive Main Menu to Options branch of IOS-P1-009; the repeatable
+whole-device Metal System Trace requirement had already passed on this host.
+
+Teardown terminated the game after the third attempt and the final process
+query again found no OpenXRay process. After the user ended the phone window,
+only exported local PNGs and documentation were read. No further device command
+was issued. Nothing was committed or pushed.
+
+## 2026-08-04 — bounded device tooling and lifecycle-oracle preparation
+
+### Phone-free implementation and proof
+
+Cable input now has a per-request UUID and atomic ACK. Key ACK follows dispatch;
+tap ACK follows its complete move/press/release sequence. Diagnostic autoinput is
+separate from framebuffer readback, so repeatable routes can run with
+`ios_diagnostics 0` and `ios_autoinput 1`. Pending triggers are removed at both
+lifecycle boundaries and tombstoned before launch. An active synthetic hold
+retains its UUID; the old generic receiver marker was replaced by a marker after
+`CLevel` actually dispatches release to the current entity.
+
+`held_input_lifecycle_test.sh` prepares a device oracle that starts a 30-second
+W hold, backgrounds the game, injects a deliberately stale request while the
+game is suspended, foregrounds it and accepts only a continuous log proving
+entity release, UUID-correlated cancellation, drawable recovery and no replay.
+Positive and replay-negative host fixtures pass. This behavior is not yet
+device-proven.
+
+The Activity Monitor parser now rejects non-finite timestamps/PIDs/footprints,
+too few post-warmup samples and excessive adjacent sample gaps. A synthetic
+two-sample, 1,800-second trace correctly fails. The 30-minute baseline therefore
+requires at least 1,500 samples and a maximum five-second gap in addition to its
+duration, PID, footprint and growth limits. `traverse.sh` now reports only
+accepted commands; without actor position/sector evidence it does not claim a
+completed traversal.
+
+All repository device tools now acquire the shared iPhone lease immediately
+before their first device command, reuse an outer lease only through its exact
+token and release only ownership they acquired. External device commands run
+under process-group wall-clock timeouts. Isolated free/busy, exact-token,
+wrong-owner, timeout, SIGTERM cleanup and busy-before-device checks pass.
+Worst-case polling remains inside each requested lease. A follow-up read-only
+review returned no P0/P1. The signed generic-device XCUITest build also passes.
+
+The final uncached Release gate passed graphics/lifecycle/texture/UI policies,
+279/279 shader stages, 2/2 low-settings, 6/6 SSAO plus value-macro, 137/137 links
+and rebuilt three translation units. App and full dSYM share UUID
+`D8A842FD-A5ED-3AA6-B1AA-FFFCE67FCA9B`; dSYM `__debug_info` is 513,394,826 bytes.
+
+### Bounded phone attempt and evidence boundary
+
+A five-minute OpenXRay lease was acquired only immediately before installing
+FastDevice UUID `9982376B-3039-3B76-A681-611A2FDE28E0`. Signing and in-place
+installation under the stable bundle identifier succeeded, preserving the
+retail data container. The following `devicectl` read of `user.ltx` did not
+return, so the command was interrupted before launch and the exact-token lease
+was released immediately. No runtime, lifecycle, input, visual or save result
+is claimed from that attempt. Timeout enforcement was added and locally proved
+before any retry. The coordinator later reported an active OpenGothic lease, so
+no further phone command was issued. Nothing was committed or pushed.
+
+## 2026-08-08 — held-input evidence correction and reliable lifecycle/audio harness
+
+### Corrected device evidence from the bounded 2026-08-04 run
+
+The later held-input retry did reach the device and supersedes the earlier
+"not yet device-proven" status in this Journal. One continuous engine log
+accepted UUID `a4b36864-2482-47d6-83ce-cd268f697a6c` as a 30,000 ms W hold
+(scancode 26), dispatched keyboard release to the current entity, cancelled the
+same UUID/scancode at lifecycle transition, restored the 1864x860 drawable and
+discarded the suspended trigger. No second press/hold for that request appeared
+after cancellation. This proves diagnostic-key cancellation and stale-trigger
+non-replay; it does not prove held touch or lock-screen behavior.
+
+The subsequent combined XCUITest produced five Home-state assertions and one
+Siri-state assertion because neither API displaced OpenXRay as the harness
+assumed. Only one new deactivate/activate/drawable triplet and no ordered audio
+interruption pair appeared. That run is rejected as lifecycle/audio evidence;
+the failure belonged to the harness, not to a demonstrated engine regression.
+
+### Phone-free correction and validation
+
+The lifecycle scenario now performs five fail-fast switches through Safari,
+requiring Safari foreground, OpenXRay background/suspended without termination,
+then OpenXRay foreground and a recovery screenshot. The audio scenario uses a
+non-mixable `Playback` AVAudioSession plus looping nonzero PCM in the XCTest
+runner while OpenXRay remains foreground. Engine begin-interruption diagnostics
+now include `wasSuspended=0/1` without changing behavior.
+
+The shell oracle is factored into a reusable source and has twelve durable
+positive/negative fixtures. It ignores complete suspension-origin pairs,
+requires the target foreground-audio pair after five lifecycle groups in the
+combined mode, rejects deactivation between target begin/end and cannot pass on
+suspended-only evidence. The UI checker now strips C++ and Lua comments, scopes
+checks to active functions/branches, treats the iOS product macro as true and
+rejects nested `#if 0` or outer `#else` markers. Its twelve mutation fixtures
+pass.
+
+Local validation passed `prepare_scheme` 2/2, UI fixtures 12/12, log-oracle
+fixtures 12/12, real UI contract, Bash/ShellCheck, signed generic-device
+XCUITest build and AVFAudio linkage. FastDevice passed all policy/UI gates,
+279/279 shaders, 2/2 low settings, 6/6 SSAO plus value-macro and 137/137 links;
+UUID is `A13C4DCA-971F-3BA8-B8DB-7290E2B12C44`. The final uncached Release gate
+passed the same contracts with app/dSYM UUID
+`9ECD525A-FC14-3D68-ADFD-7BBB086A2C5A` and 513,394,876 bytes of `__debug_info`.
+Independent final review returned `APPROVE — brak P0/P1/P2`.
+
+No phone, installation, container, certificate, commit or push action occurred
+in this correction. Five real Safari cycles, one foreground audio interruption,
+lock/unlock and held touch remain device-pending.
+
+## 2026-08-08 — Activity Monitor parser regression contract
+
+The phone-free 30-minute-soak parser now rejects non-finite or negative
+timestamps/footprints, non-positive or fractional PIDs, duplicate schema
+columns/IDs, malformed rows and invalid, dangling or cyclic shared XML
+references. Optional CPU sentinel and non-finite values remain ignorable rather
+than invalidating otherwise usable memory samples. Valid rows are sorted before
+warmup and gap/growth analysis; the CLI retains exit 0 for PASS, 1 for unmet
+budgets/no usable samples and 2 for malformed input or output I/O failure.
+
+Twenty subprocess fixtures cover shared refs, stable JSON, unordered input,
+partial/all warmup, no matching process, schema/ref failures, multi-PID
+continuity, sample/duration/gap limits and alias, footprint/growth limits,
+numeric validation, CPU omission and JSON write failure. The suite is part of
+`build_check.sh` and both parser and tests are gate-hash inputs.
+
+FastDevice and the final uncached Release gate passed the parser alongside all
+existing policies, twelve UI fixtures, twelve lifecycle/audio-oracle fixtures,
+279/279 shaders, 2/2 low settings, 6/6 SSAO plus value-macro and 137/137 links.
+No engine unit rebuilt; FastDevice UUID remains
+`A13C4DCA-971F-3BA8-B8DB-7290E2B12C44`, while Release app/dSYM remains
+`9ECD525A-FC14-3D68-ADFD-7BBB086A2C5A` with 513,394,876 bytes of `__debug_info`.
+Final review returned `APPROVE — brak P0/P1/P2`.
+
+No phone, trace, install, commit or push occurred. This closes parser
+trustworthiness only; the real 1,700-second/1,500-sample device budget remains
+open.
+
+## 2026-08-08 — graphics-profile policy eligibility contract
+
+The deterministic Optimal-profile policy suite now covers strict boundaries at
+24, 31 and 40 ms, complete Quality-to-Performance-to-Quality traversal,
+neutral-window reset, cooldown boundaries, invalid timing, suspend/warmup,
+30/60/120 Hz, uneven cadence and the bounded 512-sample window. Strict compiler
+warnings and ASan/UBSan pass.
+
+The suite exposed a real policy defect: fast windows accumulated while
+`allowUpgrade` was false, so lifting a thermal or power constraint could reuse
+blocked headroom. The first correction cleared completed blocked windows, but
+independent review found that one mixed false-to-true window could still count.
+The final policy marks a complete window ineligible if any admitted sample was
+blocked, clears prior fast hysteresis while blocked and still permits slow
+windows to downgrade. Reset and Suspend restore eligibility. Mixed-window
+positive and downgrade-negative fixtures prove the corrected boundary.
+
+FastDevice passed with UUID `259BB7C3-9EDB-327F-BCD3-17958E19B648`. The final
+uncached Release gate passed all local policy/UI/parser contracts, 279/279
+shader stages, 2/2 low settings, 6/6 SSAO plus value-macro and 137/137 links.
+App and full dSYM share UUID `249506E5-1364-3725-987B-9B5B53D17319`;
+`__debug_info` is 513,394,901 bytes. Independent corrected-state review returned
+`APPROVE — brak P0/P1/P2`.
+
+No phone, install, runtime capture, container, certificate, commit or push
+action occurred. Actual pacing, thermals and measured transitions remain
+device-pending.
+
+## 2026-08-08 — numeric shader-macro regression ledger
+
+The offline shader checker now treats `SUN_QUALITY`, `SSR_QUALITY`,
+`SSAO_QUALITY`, `SSAO_OPT_DATA` and `MSAA_SAMPLES` as an exact numeric-feature
+manifest. It requires five complete `COMMON_H`-guarded zero fallbacks, applies
+backslash-newline splicing before comment removal and rejects new presence uses.
+The legacy ledger freezes eight presence tests across SSR/HBAO/HDAO sources and
+one existing `#undef SSAO_QUALITY` in `combine_1.ps`; additions, removals,
+changes or relocation fail until explicitly reviewed.
+
+Thirty subprocess mutations cover active SSAO/SSR/MSAA/sun uses, missing,
+wrong, duplicate, nested and inactive fallbacks, comments and multiline
+directives, intentional presence macros and both debt ledgers. The contract is
+executed before the shader cache and belongs to compile/link and artifact hash
+inputs. Several independent reviews found and closed broad `common.h` guard,
+inactive-parent, `#undef`-scope and comment-splicing false passes. Final review
+returned `APPROVE — brak P0/P1/P2`.
+
+No shader, emitter or runtime behavior changed. HBAO, HDAO, alternate SSR and
+MSAA remain disabled/deferred; this is a static regression boundary, not device
+rendering evidence.
+
+## 2026-08-08 — deterministic startup-sector fallback policy
+
+The existing iOS nearest-floor fallback was extracted without changing its CDB
+callback or search behavior. The pure policy preserves exact-query bypass,
+seven radii, eight independently asserted directions, the 0.70710678 diagonal,
+unchanged `y`, first valid hit and no-hit invalid metadata. A separate pure
+commit policy owns notification and `last_sector_id`: invalid results cannot
+notify or replace the previous sector, unchanged valid results do not notify,
+and changed results notify before assignment.
+
+Strict warning and ASan/UBSan host tests pass. The review rejected a fragile
+source-text guard assertion, so it was removed rather than expanded into a C++
+preprocessor parser. The final direct policy tests and iOS caller received
+`APPROVE — brak P0/P1/P2`. CDB, portal detection, full prefetch and non-iOS
+behavior were not changed.
+
+FastDevice passed all current contracts and rebuilt one translation unit; UUID
+is `FF0304BE-A014-3DE5-AE81-36C825248495`. The full uncached Release gate passed
+the sector/profile/lifecycle/texture policies, twelve UI fixtures, twelve
+lifecycle/audio log fixtures, twenty Activity Monitor fixtures, thirty macro
+mutations, 279/279 shader stages, 2/2 low settings, 6/6 SSAO plus value-macro and
+137/137 links. App and full dSYM share UUID
+`3EBCCFF7-45FC-3B4C-9438-EF190721CF73`; `__debug_info` is 513,395,574 bytes.
+
+No phone, install, launch, container, certificate, commit or push action
+occurred. Additional outdoor/indoor/portal saves, reload and level transition
+remain device-pending.
+
+## 2026-08-08 — stable inventory focus geometry and exact nested clipping
+
+The phone-free audit of IOS-P1-006 first rejected the existing extraction. Its
+top-first `floor`/bottom `ceil` delta could alternate by one pixel for a
+fractional cell near viewport height and necessarily oscillated for a cell
+taller than the viewport, causing repeated `OnScrollV` and cursor warps. The
+focus overlay also reconstructed a `CUIScrollView` from its full absolute rect,
+while the real draw scissor removes `m_upIndent` and `m_downIndent`; retail XML
+contains nonzero top indents.
+
+`RequestedVerticalScroll` now recovers invariant content-space item edges and
+computes the complete feasible integer-scroll interval. It retains an already
+valid position, selects the nearest bound when the interval is feasible and
+uses deterministic top alignment when no integer can expose the whole cell.
+Non-finite geometry retains the current scroll and out-of-range finite geometry
+saturates before conversion. Multi-update tests apply the returned scroll to
+the item rect and prove a fixed point after normal and externally clamped
+scrollbar movement.
+
+`CUIScrollView::GetDrawClipRect` now owns the exact absolute rect plus vertical
+indent contraction. Both `CUIScrollView::Draw` and the iOS focus overlay consume
+that helper; drag-drop parents retain `GetClientArea` and list parents retain
+their absolute rect. Nested clipping still matches `Frect::intersection`,
+including legal zero-extent edge contact.
+
+Strict warning and ASan/UBSan policy runs pass. The UI checker now requires
+exact viewport/item and clip-field mappings, the assigned `AddClip` result,
+immediate invisible return, shared ScrollView clip consumption, scissor draw
+order and active iOS code. Thirty-two positive/negative fixtures cover comments,
+inactive preprocessor branches, runtime `if(false)`/`if(0)`, detached results,
+swapped fields, scroll/warp order, lost indents and divergent scissor input.
+
+FastDevice passed every current policy/parser/UI contract, 279/279 shader
+stages, low-settings 2/2, SSAO 6/6 plus value/numeric macro contracts and
+137/137 links; 1,068 translation units rebuilt and UUID is
+`493EFBB7-A613-3DD7-B906-065EDCB04BE8`. The full uncached Release gate rebuilt
+1,068 units and passed the same contracts. App and full dSYM share UUID
+`72D6778E-D1AB-370B-B83A-67B823B94B83`; `__debug_info` is 513,399,145 bytes.
+Final independent review returned `APPROVE — brak P0/P1/P2`.
+
+No phone, Simulator, install, launch, container, signing, commit or push action
+occurred. This closes the local geometry mechanism only; visual auto-scroll and
+focus clipping in a dense overfilled inventory remain device-pending.
+
+## 2026-08-08 — isolated retail iOS 26.5 Simulator checkpoint
+
+The phone-free workflow now creates a unique external work root, copies the
+current dirty source tree and Simulator dependency prefix without `.git`,
+`.Codex`, `build*` or `bin`, relocates copied pkg-config metadata and builds only
+inside that snapshot. It requires an exact arm64 `IOSSIMULATOR` Mach-O with
+minOS 16.4, the iOS 26.5 runtime and a dedicated iPhone 15 Pro Max Simulator.
+It validates the external backup manifest before use, rejects links and unsafe
+paths, stages only resources, levels, localization, patches and opt-in saves,
+then compares every staged file after runtime. Repository state, retail backup,
+device/FastDevice build trees, bundles, dependency prefix and five gate stamps
+are fully manifested before the run and must remain unchanged.
+
+The first complete run reached the textured main menu but exposed an evidence
+defect: `simctl launch --console` forwards signals to the application, so the
+harness's own `process.terminate()` appended a post-screenshot `FATAL` with
+exit code 3. The corrected launcher uses `--stdout`/`--stderr`, accepts only the
+documented single `bundle: PID` result and observes that exact PID immediately,
+before and after the screenshot and throughout a bounded stability interval.
+It never signals the game from Python; shell cleanup owns only the dedicated
+Simulator. Thirty-one deterministic positive/negative tests cover isolation,
+manifests, malformed launch output, immediate and deferred process death,
+screenshot failure, runtime archive mutation and cleanup failure.
+
+The corrected real run at
+`/Users/patryk/openxray-handoff/simulator-work-20260808-200113-29007` passed. It
+verified the 789-file, 4,761,053,330-byte retail backup and all seven required
+`resources.db0-4`/`levels.db0-1` hashes, mounted 12 archives, loaded
+`gamedata/configs/system.ltx`, emitted a later `Starting engine...`, retained a
+live process through the screenshot and rendered the full main menu. The engine
+reported a 1864x860 drawable and decoded both menu videos. Corrected logs contain
+no `FATAL`, termination exit or stack trace. The dedicated Simulator UUID
+`3A9BD583-C18F-4F6A-B8A8-C74CA6716901` was deleted and no `OpenXRay Retail`
+device remains.
+
+FastDevice and the final full uncached Release gate passed the 31 Simulator
+fixtures, all existing policy/parser/UI contracts, 279/279 shader stages, 2/2
+low settings, 6/6 SSAO branches plus numeric macros and 137/137 links. No engine
+translation unit rebuilt. FastDevice UUID remains
+`493EFBB7-A613-3DD7-B906-065EDCB04BE8`; Release/dSYM UUID remains
+`72D6778E-D1AB-370B-B83A-67B823B94B83` with 513,399,145 bytes of `__debug_info`.
+Sol xhigh returned `APPROVE — brak P0/P1/P2`.
+
+No phone, device lease, `devicectl`, signing, install, commit or push action
+occurred in this runtime slice. The screenshot proves only the iOS 26.5 Apple
+Software Renderer retail/menu boundary; physical-device rendering, gameplay,
+HUD, dense inventory and PDA acceptance remain unchanged.
+
+## 2026-08-08 — Simulator saved-game autoload and Locator path-length correction
+
+The first 300-second exact-save Simulator run disproved archive corruption but
+did not complete the runtime oracle: it mounted 12 archives and cached 39,270
+files, loaded `mobile user - beginning of the game`, accepted the client and
+loaded Zaton HOM. It timed out before `End of synchronization`/`after_load`;
+the process was still live and working. Cleanup and the backup-integrity checks
+passed. This was partial progress, not a runtime checkpoint.
+
+The missing motion-file failure had a concrete shared Apple cause. In
+`CLocatorAPI::Register`, `string256` could not represent a Simulator path of
+exactly 256 bytes without its NUL. `xr_strcpy_s` returned `ERANGE` and cleared
+the destination, allowing long archive entries to collapse to an empty lookup
+key. The physical-app root is shorter and did not trigger the boundary. The
+correction uses `string_path`, rejects an empty source name and checks the copy
+result with fail-fast reporting. It deliberately has no Simulator-only branch.
+The prior broken cache had 24,075 entries; after the correction it has 39,270.
+
+`test_locator_registration_contract.py` provides eight mutation-backed host
+checks. The retail workflow suite has 41 checks after naming the runtime
+boundary `saved_game_sync_complete`; FastDevice passed with UUID
+`470F9977-D7B8-355C-837B-63569A7F49B1`. The new Locator contract is included in
+artifact inputs, so the matching final `build_check.sh --full` was intentionally
+left open rather than inherited from an earlier gate.
+
+The extended real run in
+`/Users/patryk/openxray-handoff/simulator-work-20260808-220209-88863` passed the
+saved-game oracle: 39,270 files/12 archives, the exact selected save, client
+acceptance, Zaton HOM, `End of synchronization A[1] R[1]`, and
+`iOS memory after_load phys_current=3575125 K phys_peak=3588309 K`. The selected
+save remained 631,235 bytes with SHA-256
+`7ff0b12ee5d0a39b7a9595d7cc491cd63a32dfc2ce276e5302f74a4cdf7214cc`; protected
+inputs were unchanged and the dedicated Simulator was deleted. The 45-entry
+difference from the 39,315-entry physical cache is expected: fresh allowlisted
+staging includes only the selected `_appdata_` save and intentionally excludes
+device-generated cache, configuration and diagnostics. It is not a retail
+archive deficit.
+
+The retained screenshot shows a loading screen, not a presented world. This
+proves exact saved-game load through synchronization and `after_load` under the
+Apple Software Renderer only. It does not prove rendered pixels, UI
+correctness, a presented 3D world, physical-device rendering or iPhone
+performance. No phone, device lease, `devicectl`, signing, install, commit or
+push action occurred.
+
+The subsequent final uncached gate passed all host contracts, 279/279 shader
+stages, 2/2 low-settings variants, 6/6 SSAO branches plus value macros and
+137/137 links. One translation unit rebuilt. Release and full dSYM share UUID
+`21A8EC49-8ED7-3494-B47A-6E8588DF6913`; `__debug_info` is 513,400,299 bytes.
+Independent final review remains open at this evidence point.
+
+## 2026-08-08 — documentation correction after Locator/autoload review
+
+The subsequent final review did not approve the checkpoint: it reported two P1
+and two P2 findings. This append-only correction fixes the P2 record only; the
+P1 code/test work, a repeated final gate and a new final review remain open.
+
+The current full-gate artifact is not the older `72D6778E-D1AB-370B-B83A-67B823B94B83`
+artifact mentioned in earlier entries. The later pre-P1-follow-up Release/full-dSYM
+stamp is `21A8EC49-8ED7-3494-B47A-6E8588DF6913` with 513,400,299 bytes of
+`__debug_info`.
+
+The extended run's raw `runtime-proof.txt` retains the historical
+`saved_game_world_ready` label because the rename occurred after that run. The
+current workflow code and tests use `saved_game_sync_complete`; the raw evidence
+was not rewritten. Its retained screenshot remains loading-only, hence does not
+prove a presented world, pixels, UI, device rendering or performance.
+
+The exact 45-entry difference between physical 39,315 and staged 39,270 is 34
+`bin` files, seven `_appdata_` files, three diagnostic files and the separate
+`gamedata/shaders/gl/hud_default.s` overlay. This still excludes a deficit in
+the 12 retail archives, but the HUD overlay must not be folded into a generic
+cache/configuration explanation.
+
+## 2026-08-09 — Locator/autoload P1 hardening follow-up
+
+This entry preserves the earlier rejected-review facts. The first final Sol
+xhigh review reported two P1 and two P2 findings; the P2 documentation was then
+corrected. Sol medium pre-review subsequently found a post-finalization gap plus
+mutable-save semantics weakness, followed by a symlink-resolution bypass. Both
+follow-up series were corrected. The latest Sol medium verdict is
+`PRE-REVIEW CLEAR — brak P0/P1/P2`; this is not final approval, and formal Sol
+xhigh re-review remains open.
+
+Both original P1 mechanisms are now hardened. `large-files-sha256.tsv` is a
+mandatory parsed manifest whose paths, sizes and SHA-256 values must agree with
+`files.tsv`; every allowlisted large file is protected at preflight, staging
+and post-runtime. The selected mutable large save is the only exception and
+must remain a nonempty regular file. The log oracle is now two-stage:
+`launch-proof` writes a fresh snapshot manifest but no `runtime-proof.txt`;
+after successful `simctl terminate`, `finalize-log` operates without path
+resolution and verifies `lstat`, `O_NOFOLLOW`, pre/post `fstat` and final
+`lstat`, inode identity, captured-prefix size and SHA-256, rotation, truncation,
+rewrite, symlink substitution, the complete required sequence and failure
+markers. Only then may it write `runtime-proof.txt` and `report.txt`.
+
+The hardened host suite passes 54/54: the main independent run took 67.306
+seconds and the full-gate run 68.359 seconds. The Locator suite remains 8/8.
+FastDevice passed with zero rebuilt translation units and unchanged UUID
+`470F9977-D7B8-355C-837B-63569A7F49B1`.
+
+The new real run at
+`/Users/patryk/openxray-handoff/simulator-work-20260808-230615-67616` reports
+PASS with `runtime_boundary=saved_game_sync_complete`, level `zaton`, 39,270
+cached files and 12 archives, the exact save, client acceptance and HOM load.
+`End of synchronization A[1] R[1]` is at line 641; `after_load` is at line 645
+with `phys_current=3588549 K` and `phys_peak=3593573 K`. The post-stop snapshot
+is version 1, 27,244 bytes, SHA-256
+`b05f714c7efac4bcfa17a877ea19964b0eaf684bc6a8a18bbc790156f22fe937`.
+The selected save remains 631,235 bytes and SHA-256
+`7ff0b12ee5d0a39b7a9595d7cc491cd63a32dfc2ce276e5302f74a4cdf7214cc`.
+Protected inputs remain unchanged; the dedicated Simulator beginning `FA337`
+was deleted and its directory is absent.
+
+The repeated `build_check.sh --full` passed 54/54 plus every host contract,
+279/279 shader stages, 2/2 low-settings stages, 6/6 SSAO branches plus value
+checks, 137/137 links and zero rebuilt translation units. Release and full dSYM
+remain UUID `21A8EC49-8ED7-3494-B47A-6E8588DF6913`; `__debug_info` remains
+513,400,299 bytes and source stamp `4b79402e…` matches the current tree.
+
+The retained screenshot is still loading-only: this does not prove a presented
+world, pixels, UI correctness, physical-device rendering or performance. No
+phone, `devicectl`, device lease, signing, install, commit or push was used.
+
+## 2026-08-09 — Locator/autoload naming and source-stamp correction
+
+The formal Sol xhigh review of the hardened checkpoint found one P2 and no P0,
+P1 or other P2: the `4b79402e…` source stamp recorded in current documentation
+became stale after two naming-only test changes. The identifiers changed from
+`world_proof` to `sync_complete_proof` and from `dynamic_world_markers` to
+`ordered_sync_complete_markers`. The suite remains 54/54 PASS; these changes do
+not alter behavior and require no new real Simulator run.
+
+The current full stamp was independently recomputed and matches:
+
+- `source_sha256=543342523068fd3d2edc02f3ee31e95a3d4537488aa7c305a99f99a6319f414e`;
+- `app_uuid=21A8EC49-8ED7-3494-B47A-6E8588DF6913`;
+- `bundle_sha256=4275267b15bd0689a30145bca3b2dd9974b2211ce8bd4b95a0b461dfe19804b7`;
+- `minos=16.4`, `shader_cache=forced-off`;
+- dSYM `__debug_info=513400299` bytes.
+
+This documentation corrects that sole P2, but the repeated formal verdict is
+still pending and no approval is claimed. The runtime boundary remains
+`saved_game_sync_complete`; the retained evidence remains loading-only and does
+not prove a presented world, pixels, UI correctness, physical-device rendering
+or performance. No build, Simulator, phone, commit or push was used for this
+documentation correction.
+
+## 2026-08-09 — LocatorAPI/autoload final closeout
+
+After the source-stamp documentation correction, the repeated Sol xhigh verdict
+is exactly `APPROVE — brak P0/P1/P2`. This closes the local LocatorAPI/autoload
+checkpoint. The next phone-free UI slice will emit semantic state only after
+`DoRenderDialogs()` and prove `world -> inventory -> world -> pda_tasks ->
+world -> pda_map -> world` in an isolated Simulator. That future result can
+prove navigation and render-path execution, not pixels, physical-device
+rendering or performance. No build, Simulator, phone, commit or push was used
+for this documentation closeout.
+
+## 2026-08-09 — semantic UI navigation / CoP PDA map-hotkey closeout
+
+The final Sol xhigh verdict is exactly `APPROVE — brak P0/P1/P2`. The marker is
+iOS/autoinput-only and is emitted after `DoRenderDialogs()` only on an actual
+semantic transition, with exact PID, sequence, frame and state. This is a
+semantic-ui-navigation checkpoint only; it is not pixel, readability,
+performance or physical-device proof.
+
+The first semantic run showed that the previous five-second per-step timeout
+was too short because inventory parsing exceeded it. The harness was corrected
+to 60 seconds for each of seven steps plus 30 seconds overhead (450 seconds)
+and now refreshes its log on failure. The second run proved the `I, I, P,
+Escape` prefix but `M` reopened `pda_tasks`. That was the retail topology, not a
+marker defect: CoP retail has no standalone `eptMap`; `eptTasks` is the combined
+Tasks/Map surface. This explicitly corrects the older future prediction of a
+separate `pda_map` state. `Show_MapWnd(true)` prefers standalone `eptMap` where
+another topology provides one, otherwise `eptTasks` and synchronizes the active
+dialog/tab; `false` or neither is a no-op.
+
+The final real isolated iOS 26.5 Simulator run in
+`/Users/patryk/openxray-handoff/simulator-work-20260809-013601-65931` is PASS;
+Simulator `410EA3BC-23FC-4F4C-843D-CF4438704652` was deleted. PID `72114`
+records `1/34/world`, `2/92/inventory`, `3/94/world`, `4/96/pda_tasks`,
+`5/98/other`, `6/100/world`, `7/102/pda_tasks`, `8/104/world` for controller
+`I, I, P, E, Escape, M, Escape`. The deliberate `E` proves `M` does not inherit
+previous Tasks state. Sync was 337327 ms; after load physical footprint was
+3559173 K and textures 2206009 K. The save remains 631235 bytes, SHA-256
+`7ff0b12ee5d0a39b7a9595d7cc491cd63a32dfc2ce276e5302f74a4cdf7214cc`; protected
+inputs are unchanged and cleanup deleted the dedicated Simulator. Binding JSON
+records `final_log_sha256=638434c1b8b745d7d7002237eed356144b893e823ddbce28e571b8f34dba9d96`
+and exact scope `semantic-ui-navigation-only`.
+
+Host gates passed: marker 15/15, PDA map-hotkey mutation contract 6/6,
+navigation 28/28, retail isolation 61/61, shaders 279/279, low 2/2, SSAO 6/6,
+numeric macros 30/30 and links 137/137. FastDevice PASS UUID is
+`8C52017C-119B-3800-A9E5-8335EB9E3574`. The final uncached
+`build_check.sh --full` PASS rebuilt two TUs; Release/dSYM UUID
+`B2ACA614-EC54-30A1-9607-9DD84AEB00BC`, dSYM `__debug_info` 513401386 bytes,
+`source_sha256=4319ce67726cf8ecafc9992329d5f8c4ab66cfce811d7f79700f5d70d44b3b82`,
+`bundle_sha256=7828329ff93ec4665bb82c9a4c1874cd2ef998250ff9e3d9ec630d878b8aa6e9`,
+platform `IOS`, minOS 16.4, shader cache forced off. After this run only the
+aggregate scope wording and its host assertion in `report.txt` changed to the
+approved exact scope. The final reviewer decided no real rerun was necessary:
+binding JSON already had that exact scope and the runtime mechanism was
+unchanged. No physical phone, device lease, `devicectl`, signing, install,
+commit or push occurred.
+
+## 2026-08-09 — IOS-P2-002 OpenAL Soft local technical approval
+
+IOS-P2-002 now intentionally selects the project-owned static OpenAL Soft
+1.25.2 archive from the exact device or Simulator dependency prefix. The local
+provider contract requires the exact CMake, archive, header and strong
+AudioToolbox/CoreFoundation/CoreAudio framework relationship. It rejects Apple
+OpenAL, dylibs, `-lopenal`, `-latomic`, alternate or duplicate archives,
+forwarded linker spellings and response files. The runtime record is exactly
+vendor `OpenAL Community`, renderer `OpenAL Soft`, version
+`1.1 ALSOFT 1.25.2`, with extension, pause and resume support `1/1/1`.
+
+The initial whole-checkpoint review found a P1 scene-replacement/ABA resume
+failure and two P2s: linker-form bypasses and omission of the interruption test
+from the gate hash. The fixes replaced global interruption state with a
+per-Core exact-scene registry, hardened the fail-closed linker parser and added
+the policy test to the artifact inputs. The initial `3dd…` stamps were thereby
+invalidated. The corrected code review and final technical-evidence review each
+ended exactly `APPROVE — brak P0/P1/P2`.
+
+Local policy tests cover empty begin, destroyed A followed by B including ABA
+address reuse, surviving and pre-paused scenes, and duplicate begin/end; strict
+warnings and ASan/UBSan pass. FastDevice then passed with 1,485 translation
+units, UUID `C7FDF518-AF64-31C7-92E4-3FA8C3B9C977`, source SHA-256
+`bfc46e7f3c53b62cbf7e6157378fad589790f9cc4fe40b7f9a2b133e38e73345` and bundle
+SHA-256 `5c0a6ebc5f730adaf14e4381e7cb4aff17ff0dd939ec985958a49b0a3d9d9e8b`.
+
+The isolated iOS 26.5 Simulator run in
+`/Users/patryk/openxray-handoff/simulator-work-20260809-113846-78853` passed:
+it reached the menu after `system.ltx`, preserved protected inputs, emitted the
+exact provider line and retained screenshot `a77f17ca…`. Dedicated Simulator
+`67FD36F1-7888-4C9A-8851-3AB745A7A283` was deleted. This proves provider/menu
+only, not a physical interruption.
+
+The final uncached full gate passed with 1,485 translation units, 279/279
+shader stages, low 2/2, SSAO 6/6, numeric macros 30/30, links 137/137 and
+retail isolation 62/62. Release/full-dSYM UUID is
+`54A5DF59-2A42-3676-BC22-94F01F96A724`; `__debug_info` is 513404887 bytes;
+source SHA-256 is
+`bfc46e7f3c53b62cbf7e6157378fad589790f9cc4fe40b7f9a2b133e38e73345`; bundle
+SHA-256 is `53431d3d67f59a0e9a4ae1465db8100ab24c7c39113b4f1a853795dac10a365d`;
+provider SHA-256 is
+`86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914`.
+Platform is IOS, minOS 16.4 and shader cache is forced off. No source edits
+followed that technical evidence.
+
+No phone, lease, `devicectl`, signing, install, commit or push occurred in this
+checkpoint. Physical iPhone audio-interruption recovery remains pending under
+IOS-P1-002 and IOS-P2-002.
+
+## 2026-08-09 — IOS-P1-010 UIKit UIScene local/Simulator closeout
+
+The repository now applies a hash-pinned, fail-closed SDL2 2.32.10 UIKit
+scene-lifecycle backport. The manifest declares one scene with
+`UIApplicationSupportsMultipleScenes=false`; `SDLUIKitSceneDelegate` owns the
+four active/background transitions; `SDL_main` starts once; and iOS 13+ window
+creation uses a connected `UIWindowScene`.
+
+The first iOS 26.5 retail run in
+`/Users/patryk/openxray-handoff/simulator-work-20260809-131233-70026` did not
+establish a product regression. Its oracle sent the Safari and OpenXRay
+foreground commands without a confirmed background handshake, then its Boolean
+parser rejected the valid transitional prefix containing only `deactivate`.
+The harness was corrected to a fail-closed two-phase protocol anchored to the
+pre-cycle `activate`: wait for exactly one later `deactivate`, only then request
+OpenXRay foreground, then require exactly one later `activate` for the same
+PID. The deterministic oracle passed 74/74, including split polling, delayed
+events, wrong PID, duplicate/order and timeout mutations.
+
+The corrected isolated retail runs passed on iOS 26.5 in
+`/Users/patryk/openxray-handoff/simulator-work-20260809-135908-18426` (PID
+25991) and iOS 27.0 in
+`/Users/patryk/openxray-handoff/simulator-work-20260809-140608-26903` (PID
+35981). Each recorded one engine start, one menu frame and ordered lifecycle
+markers `1 activate`, `2 deactivate`, `3 activate`; protected inputs were
+unchanged and cleanup deleted the dedicated Simulator.
+
+The authoritative uncached full gate rebuilt four TUs and passed SDL scene 7/7,
+lifecycle marker 10/10, retail oracle 74/74, shaders 279/279, low 2/2, SSAO
+6/6, numeric macros 30/30 and links 137/137. It records platform IOS, minOS
+16.4, forced-off shader cache, 513405098-byte `__debug_info`,
+`source_sha256=00270cdb45ad8bc0c95b7770151a4d0b9443977c2c4c26d122bb5b4ca688dcd3`,
+app UUID `341855E0-0560-3C8B-9D7E-115F941DCAA6`, bundle SHA-256
+`48fef93d74af38d769de6742ce95bb00ca23532f14d7db2b3b72ae3dc0f064fa` and OpenAL
+SHA-256 `86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914`.
+The final Sol xhigh verdict is exactly `APPROVE — brak P0/P1/P2`.
+
+This closes only the local/Simulator UIScene checkpoint: it proves bootstrap,
+the code-level rendered-menu boundary and one same-PID recovery cycle. It does
+not prove pixels/readability, physical device, performance, audio interruption
+or multi-cycle soak. No phone, lease, `devicectl`, signing, install, commit or
+push occurred.
+
+## 2026-08-09 — IOS-P0-003 startup-sector v1 evidence-oracle local closeout
+
+The new iOS startup-sector v1 evidence state covers both `level_load` and
+`QuickLoad` epochs. Its terminal classifications are exactly `exact`,
+`fallback`, `retained`, `unresolved` and `recovered`. The state is two-phase:
+`Prepare`, fully validate/build the payload, `CommitPrepared`, `Msg`, then
+`FlushLog`. An invalid payload remains pending for retry and does not consume
+state.
+
+For QuickLoad, `retained`/`none` can be emitted only after a post-epoch
+`CCameraManager::ApplyDevice` generation. `retained` means only that the prior
+valid `last_sector_id` was used after an authoritative camera application; it
+does not mean fresh sector detection or prove that the new save/location is
+correct.
+
+The oracle CLI mandatorily requires `--expected-pid`, `--after-epoch` and
+repeated `--expect-trigger`. It enforces exact anchored epoch suffix/count/order
+and rejects a missing final outcome, gaps, returns, extras, wrong trigger,
+malformed near-prefix, impossible fallback geometry and unsafe/symlink I/O. New
+output uses `O_NOFOLLOW|O_EXCL`, mode `0600`, never overwrites or deletes another
+path, and a failed write may leave its own fresh partial output fail-closed.
+JSON `PASS` means only that the expected marker stream is structurally complete.
+`classification=unresolved` is a failed device startup test; even
+`exact`/`fallback`/`retained` markers are sector evidence, not visual or pixel
+proof.
+
+Host evidence passed: parser 17/17; source-mutation contract 9/9; strict C++
+policy PASS; ASan/UBSan PASS. The partial engine gate rebuilt 1,383 TUs; full
+dSYM `__debug_info` is 513539650 and UUID is
+`8D623468-0A50-3055-9516-3EA703818076` (log
+`/Users/patryk/openxray-handoff/local-gates/ios-p0-003-engine-20260809.log`).
+
+Independent Sol xhigh implementation review first rejected the slice with 3 P1
+and 3 P2 findings. Those findings were fixed. A later review rejected 1 P1 and
+2 P2 findings; those corrections were also applied. The final independent code
+re-review returned exactly `APPROVE — brak P0/P1/P2`.
+
+The final full uncached gate passed after the Python corrections. It rebuilt 0
+TUs because the matching C++ engine already existed; retail 74/74, numeric
+macros 30/30, low 2/2, SSAO 6/6, shader contract 279/279 and links 137/137 all
+passed. Platform is `IOS`, minOS 16.4 and shader cache is forced off. The
+authoritative full stamp is:
+
+```text
+source_sha256=b00f2aec6cdfd1ab97a7e403a251cd86982a1df6b650fea58f5b7269f85fb02e
+app_uuid=8D623468-0A50-3055-9516-3EA703818076
+bundle_sha256=c214839a7d3e418533a0fdfeefda19ee4da7f06fbd5589db1ee3adfae1c2bc99
+openal_provider=OpenALSoft-1.25.2-static
+openal_sha256=86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914
+__debug_info=513539650
+log=/Users/patryk/openxray-handoff/local-gates/ios-p0-003-full-20260809.log
+```
+
+The main worker independently recomputed the current gate hash and it exactly
+matched the stamp; scoped `git diff --check` passed. This does not close
+IOS-P0-003: future short phone tests first record their completed baseline epoch
+before each exact expected batch and separately require resolved classification
+plus an objective world frame. Another outdoor save, indoor/portal,
+QuickLoad/transition and device visual proof remain pending. No phone, lease,
+`devicectl`, Simulator, install, signing, commit or push occurred.
+
+## 2026-08-09 — IOS-P2-004 local installer/preflight closeout
+
+The installer now keeps Team `RMJWWPF379` and bundle
+`io.github.tryk016.openxray.RMJWWPF379` fixed while accepting `--device` as
+CLI > environment > default and an all-or-nothing absolute `--app`/`--stamp`
+pair (CLI pair > environment pair). IPA, positional payloads, mixed/incomplete
+pairs and `--fast` plus a custom pair fail closed. Gate stamps and every profile
+candidate are private descriptor-relative snapshots; app directories are checked
+before and after copy for symlinks, then the exact bundle hash is verified.
+
+`--preflight` performs no renewal, lease or device command. It validates the
+existing profile/keychain identity and all stamp, base/final identifier, team
+and entitlement invariants, then signs and verifies a temporary app copy. The
+hermetic contract passed 12/12; ShellCheck for both scripts, `bash -n`, no-write
+compile and scoped diff check passed. After the explicit
+`signed_team_identifier=""` lint correction, delta Sol xhigh review again
+returned exactly `APPROVE — brak P0/P1/P2`.
+
+One wrapper full-gate result was discarded because its zsh wrapper used readonly
+`status`. The later `9edb...` rerun/preflight were superseded by that lint-only
+source change and are not current. The authoritative rerun is
+`/Users/patryk/openxray-handoff/local-gates/ios-p2-004-full-final-20260809.log`
+(SHA-256 `359487733f1942549ccfc8419c3ba79b86827dd0582ef44715c55d385d08d62a`,
+19,725 bytes): 0 TUs; retail 74/74, installer 12/12, numeric 30/30, low 2/2,
+SSAO 6/6, shaders 279/279 and links 137/137; debug-info 513539650 and UUID
+`8D623468-0A50-3055-9516-3EA703818076`. Its current source hash is
+`f7ff08d783ea42772dd9b74184dde8d0cbb8e4075f4900137c5f158db1a71361`.
+
+The final real no-device preflight log is
+`/Users/patryk/openxray-handoff/local-gates/ios-p2-004-preflight-final-20260809.log`
+(SHA-256 `2ef10f170e4cf418b78ebd5a928777f0d63699848eecbca52b9d4f8385a35128`,
+456 bytes). It used an existing real profile/keychain identity; the temporary
+app met the Designated Requirement, the nonexistent lock sentinel stayed absent,
+WORK was cleaned and the source bundle hash remained unchanged. No lease,
+`devicectl`, `xcodebuild`, renewal, install, launch, container action, phone or
+Simulator was used. This closes only local tooling acceptance, not an install or
+any on-device behavior.
+
+## 2026-08-09 — IOS-P2-004 final-review dependency correction
+
+Independent final closeout review found one P1: the artifact stamp covered
+`install_device.sh` but not the production `device_lease.sh` helper or its
+`command_timeout.py` wrapper. It also found two documentation P2s: the active
+task Definition of Done unconditionally required a device even for host-only
+tooling, and canonical open work still described the now-fixed installer as
+configurable/team-aware work.
+
+Both production helper paths are now `IOS_ARTIFACT_INPUTS`. The installer
+contract's thirteenth hermetic test statically requires both inputs and mutates
+each one in an isolated artifact tree; each mutation changes the
+`ios-device-artifact-v2` digest and restoring the bytes restores the baseline.
+The full contract passed 13/13. The Plan now requires device evidence only for
+claims about installation, runtime, rendering or device behavior; host-only
+tooling may close on a real preflight with its device boundary explicit. The
+canonical open-work row now records the actual CI supply-chain debt.
+
+The authoritative rerun is
+`/Users/patryk/openxray-handoff/local-gates/ios-p2-004-full-reviewfix-20260809.log`
+(SHA-256 `1b572e98948ba3b18cd8196801f33cd78b0f5d3daf0fb52eef6c581e1d123e41`,
+19,881 bytes). It exited zero after retail 74/74, installer 13/13, numeric
+macros 30/30, low 2/2, SSAO 6/6, shaders 279/279 and links 137/137; zero C++
+translation units rebuilt, `__debug_info` remains 513,539,650 bytes and UUID
+remains `8D623468-0A50-3055-9516-3EA703818076`. The current source hash and
+full stamp both equal
+`2d1cdfe589623819de98c6c9ac08465ddabc72b6ebabb154ade248a3b3191def`.
+
+The corrected real preflight is
+`/Users/patryk/openxray-handoff/local-gates/ios-p2-004-preflight-reviewfix-20260809.log`
+(SHA-256 `eb23ec1d98d49daed8f0eee57e264b7d43734b1df5d07c3aea209d0c7557fa97`,
+456 bytes). It exited zero, used the existing profile/keychain identity, left
+the nonexistent lock sentinel absent, cleaned its private WORK directory and
+left the source bundle at SHA-256
+`c214839a7d3e418533a0fdfeefda19ee4da7f06fbd5589db1ee3adfae1c2bc99`.
+No lease, `devicectl`, `xcodebuild`, renewal, install, launch, container action,
+phone or Simulator was used. Independent final re-review is still required
+before this correction closes.
+
+## 2026-08-09 — IOS-P2-004 corrected final approval
+
+After the dependency, mutation-test and documentation corrections above, the
+independent Sol xhigh re-reviewed the complete current diff and evidence. Its
+verdict was exactly `APPROVE — brak P0/P1/P2`. This closes the host-only
+IOS-P2-004 tooling checkpoint; physical installation, container preservation
+and runtime behavior were not exercised or claimed.
+
+## 2026-08-09 — IOS-P2-005 local CI provenance closeout
+
+The temporary phone-free IOS-P2-005 slice pinned all 12 external action uses in
+`.github/workflows/ios.yml` to reviewed commits while retaining release comments:
+checkout `11d5960a326750d5838078e36cf38b85af677262` (v4.4.0), upload-artifact
+`ea165f8d65b6e75b540449e92b4886f43607fa02` (v4.6.2), download-artifact
+`d3f86a106a0bac45b974a628896c90dbdf5c8093` (v4.3.0) and cache
+`0057852bfaa89a56745cba8c7296529d2fc39830` (v4.3.0). GitHub reported each
+commit signature as verified. Official Actions documentation established that
+only a full commit SHA is immutable, `cache-hit == 'true'` denotes an exact
+primary-key hit and `hashFiles` needs explicit missing-file protection.
+
+The dependency job now rejects missing or symlinked members of an exact
+seven-file input list, hashes that list and records an ordered runner/Xcode/SDK/
+clang/CMake/Python/Make fingerprint. Its cache key also fixes branch, runner,
+SDK/platform, iOS 16.4, bitcode off, Release and Unix Makefiles. There are no
+restore keys, split restore/save actions, cross-OS mode or `always()` escape.
+The build runs only when the exact primary key misses; the exact seven-library
+arm64 verifier and prefix upload remain unconditional on hit and miss.
+
+`misc/ios/test_ios_ci_contract.py` is stdlib-only. It checks action identities
+and counts, trigger/permission boundaries, cache/source/toolchain contracts,
+critical scripts, step/job fields and compile-only Simulator intent. Four
+adversarial Sol xhigh rounds found YAML alternate spellings, hidden failure
+semantics, forged hashes, cache options, weakened executable payloads, trigger/
+matrix gaps and shell-obfuscated Simulator runtime. The final correction keeps
+those semantic diagnostics and additionally binds the complete reviewed
+workflow using `sha256-v1-exact-utf8-bytes`, including comments and line endings.
+Its authoritative workflow digest is
+`47885fe333f741eb5e1438c3bc5a5de7c1ee552d8c6635bce8317727e01c389b`.
+
+Independent local evidence passed: no-write Python compile; 79/79 positive and
+mutation tests; `actionlint 1.7.12`; full and untracked-file whitespace checks;
+the extracted input script; and the extracted Xcode 27/iPhoneOS 27 toolchain
+fingerprint script. The latter produced
+`74536eb14f0fc6ca11bb6e4e9b24462f4593cdc597c213d6f3ce574e3f7102e5`.
+The final Sol xhigh verdict was exactly `APPROVE — brak P0/P1/P2`.
+
+The workflow and validator are intentionally outside the device-artifact input
+set. Recomputed source hash still exactly matches the existing full stamp:
+`2d1cdfe589623819de98c6c9ac08465ddabc72b6ebabb154ade248a3b3191def`.
+Therefore no redundant app build was run. No phone, lease, `devicectl`,
+Simulator, signing, installation, launch, runtime test, commit or push occurred.
+
+This closes only local provenance/drift acceptance. Full IOS-P2-005 remains in
+the Backlog until one clean remote miss and one exact remote hit reproduce the
+device and Simulator artifacts. The default `ios-port` branch is unprotected,
+so no cache-poisoning-resistance claim is made. IOS-P1-002 returns to the active
+Plan.
+
+## 2026-08-09 — IOS-P2-006 local BC fallback contract closeout
+
+With the active P0/P1 items waiting on physical-device evidence, Sol medium
+ranked the remaining phone-free work and selected the active BC/DXT fallback
+over dormant feature macros and an unproven environment-alias cache risk. Sol
+xhigh approved a behavior-preserving contract slice before implementation.
+
+The former file-local BC1/2/3/4/5 decoder in `glTexture.cpp` is now the pure,
+header-only `ios_bc_texture_codec.h`; `ios_bc_gli_format.h` is the sole mapping
+from supported GLI formats. `BlockBytes(Kind)` is the single block-size source.
+The decoder rejects null, zero, truncated, undersized and overflowed inputs.
+Runtime callers pass the actual `texture.size(level)`; the 3D path validates the
+whole level before advancing per-slice pointers.
+
+`texture_bc_fallback_test.cpp` covers exact BC1 four-color and transparent
+three-color modes, BC2 alpha, both BC3 alpha branches, BC4 `RRR1`, BC5 `RG01`,
+1x1/3x5/5x3/multiblock edges and malformed bounds. It also loads and decodes
+real GLI fixtures for DXT1 UNORM, DXT1 sRGB, DXT5 sRGB, BC4 and BC5. The strict
+and ASan/UBSan variants are fail-closed members of `build_check.sh` and clean
+their temporary binaries through the existing EXIT trap.
+
+The rendered contract is deliberately unchanged: BC1/2/3 sources tagged sRGB
+still allocate `GL_RGBA8`, GLI source swizzles remain ignored, BC4 expands to
+`RRR1` and BC5 to `RG01`. Earlier iPhone evidence already proved DXT channel
+order for representative terrain and sky; this slice does not reopen that
+finding and does not claim that the transfer function is colorimetrically
+correct. Choosing `GL_RGBA8` versus `GL_SRGB8_ALPHA8` and explicit swizzles
+remains IOS-P2-006 device work requiring numeric probes and reference frames.
+
+The first final review rejected three P2s: computed instead of actual source
+sizes, synthetic GLI objects instead of real files, and duplicated block-size
+definitions. Terra xhigh corrected all three. Strict and sanitized focused
+tests then passed. An intermediate full invocation hit an unrelated retail
+harness race and wrote no stamp; after its isolated rerun passed, the fresh full
+gate completed with 279/279 shaders, low 2/2, SSAO 6/6, numeric 30/30, 137/137
+links and one rebuilt translation unit.
+
+The authoritative stamp is dated `2026-08-09T22:21:30+0100`: source
+`e081251226b5358a7b521174564f80073e62f1cbfc44ba31436938074c6d2817`,
+UUID `44D1A9FA-F8AF-3CD5-AC97-386F0D2999D2`, bundle
+`38ab03ef4a7417f16ed93acb653e772d536ba8ddb099e099f784e06eb9547f6e`,
+platform IOS, minOS 16.4 and shader cache forced off. Final Sol xhigh re-review
+returned exactly `APPROVE — brak P0/P1/P2`.
+
+No phone, lease, `devicectl`, Simulator, signing, installation, launch, runtime
+test, commit or push occurred. The local contract is complete; the visual/color
+acceptance remains in the Backlog.
+
+## 2026-08-09 — IOS-P2-006 artifact-hash and evidence correction
+
+The documentation closeout review found two P1s. The new BC contract test was
+executed by `build_check.sh` but absent from `IOS_ARTIFACT_INPUTS`, so changing
+the test alone would not invalidate a prior device-artifact stamp. Canonical
+current facts also still named the superseded IOS-P2-004 stamp.
+
+`misc/ios/texture_bc_fallback_test.cpp` is now an explicit artifact input. The
+existing hermetic installer contract requires it alongside the lease/timeout
+dependencies, mutates each copied file, proves the digest changes, restores the
+original bytes and proves an exact return to the baseline digest. No-write
+Python compilation passed 2/2 and the complete installer contract remains
+13/13.
+
+The fresh full gate passed BC strict/sanitized, retail 74/74, installer 13/13,
+numeric macros 30/30, low 2/2, SSAO 6/6, shaders 279/279 and links 137/137. Its
+stamp is dated `2026-08-09T22:35:29+0100`: source
+`02d9ca8d88910cb4ff485e3fe9a0fb378c1e9baa8eb4a66e0c28cca8a76d64f2`,
+UUID `44D1A9FA-F8AF-3CD5-AC97-386F0D2999D2`, bundle
+`38ab03ef4a7417f16ed93acb653e772d536ba8ddb099e099f784e06eb9547f6e`,
+platform IOS, minOS 16.4 and shader cache forced off. Recomputing the current
+artifact hash returns the stamped source hash exactly. The app UUID and bundle
+remain those produced by the preceding one-TU codec build; current
+`__debug_info` is 513,541,671 bytes with the matching UUID.
+
+Evidence correction: the preceding entry's phrase "unrelated retail harness
+race" was not backed by a retained exact error or log and is withdrawn. The
+only retained facts are that one intermediate invocation wrote no fresh stamp,
+the focused retail contract later passed, and the subsequent complete full gate
+passed. No cause is claimed.
+
+Canonical and Resume stamps now describe this current artifact. Final Sol
+xhigh re-review of the corrected production dependency and documentation is
+still required before closeout.
+
+No phone, lease, `devicectl`, Simulator, signing, installation, launch, runtime
+test, commit or push occurred.
+
+## 2026-08-09 — IOS-P2-006 corrected final approval
+
+After the artifact-input mutation coverage, fresh full stamp, canonical stamp
+update and append-only evidence correction above, the independent Sol xhigh
+reviewed the complete corrected production and documentation state. Its verdict
+was exactly `APPROVE — brak P0/P1/P2`.
+
+This closes the local IOS-P2-006 codec/contract checkpoint only. The choice of
+sRGB storage and explicit source swizzles, numeric texture probes and iPhone
+reference frames remain deferred acceptance work. No phone, Simulator, install,
+signing, runtime, commit or push occurred.
+
+## 2026-08-09 — stamped Release device smoke after IOS-P2-006
+
+The stamped Release payload build 10045 was installed under the preserved Team
+ID `RMJWWPF379` and bundle identifier
+`io.github.tryk016.openxray.RMJWWPF379`, then launched in diagnostics/autoinput
+mode on the shared iPhone 15 Pro Max. The unattended load reached gameplay and
+fresh engine framebuffer captures were produced at the native `1864x860`
+resolution.
+
+The first gameplay frame remained visibly dark across terrain and vegetation.
+A file-driven 12-second forward request was acknowledged by the engine and the
+subsequent frame showed a changed camera position and materially lighter nearby
+terrain, while distant vegetation still read as dark silhouettes. This is a
+runtime reproduction consistent with the previously reported movement-linked
+transition, but this single sequence does not isolate travelled distance from
+game time or weather and therefore does not close the lighting checkpoint.
+
+Pause-menu, inventory and Video-options frames were also captured. The pause
+menu was readable and contained no Multiplayer item; inventory item, equipment,
+portrait, slot and HUD textures were present; Video options displayed quality
+profile `Optimal` and resolution `1864x860`. These are bounded visual smoke
+results, not complete interaction or texture-correctness acceptance. Diagnostics
+readback was enabled, so no performance conclusion is drawn.
+
+The OpenXRay process was terminated after capture. The exact-token device lease
+was released successfully and the shared lock returned `free`. No source,
+signing identity, Team ID or bundle ID was changed. No explicit save/container
+deletion or retail-data mutation command was issued; the normal same-identifier
+app update and diagnostic control-file writes were the only intended device
+mutations. No before/after container manifest was collected.

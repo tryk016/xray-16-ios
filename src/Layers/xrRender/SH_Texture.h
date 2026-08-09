@@ -79,7 +79,7 @@ public:
     [[nodiscard]] ID3DBaseTexture* surface_get() const;
 #elif defined(USE_OGL)
     void surface_set(GLenum target, GLuint surf);
-    [[nodiscard]] GLuint surface_get() const;
+    [[nodiscard]] GLuint surface_get();
 #else
 #   error No graphics API selected or enabled!
 #endif
@@ -154,11 +154,17 @@ private:
 public: //	Public class members (must be encapsulated further)
     struct
     {
-        u32 bLoaded : 1;
-        u32 bUser : 1;
-        u32 seqCycles : 1;
-        u32 MemoryUsage : 28;
+        bool bLoaded{};
+        bool bUser{};
+        bool seqCycles{};
+        u32 MemoryUsage{};
     } flags;
+
+    // Last frame in which the texture was actually bound for drawing. iOS
+    // low-memory eviction uses this to release only stale lazy-reloadable
+    // surfaces instead of unloading the whole level at once.
+    mutable u32 m_last_used_frame{};
+    bool m_low_memory_pinned{};
 
     fastdelegate::FastDelegate2<CBackend&,u32> bind;
 

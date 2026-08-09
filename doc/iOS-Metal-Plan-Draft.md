@@ -1,10 +1,10 @@
 # iOS native Metal renderer — deferred RFC
 
 **Status: DEFERRED RFC.** Originally synthesized 2026-07-17 and synchronized with
-the project contract on 2026-07-24. This is not the active renderer plan.
-Numbering remains provisional (`M0…M7`). The start gate is maintained in
-[iOS-Port-Plan.md](iOS-Port-Plan.md); the canonical current renderer is documented
-in [iOS-Port.md](iOS-Port.md).
+the project contract on 2026-07-24; routing was updated on 2026-07-26. This is
+not the active renderer plan. Numbering remains provisional (`M0…M7`). The
+start gate is maintained in [iOS-Port-Backlog.md](iOS-Port-Backlog.md); the
+canonical current renderer is documented in [iOS-Port.md](iOS-Port.md).
 
 ---
 

@@ -224,6 +224,12 @@ public:
     virtual void stop_emitters() = 0;
     virtual int pause_emitters(bool pauseState) = 0;
 
+    // iOS AVAudioSession interruptions are paired against an exact snapshot of
+    // scenes.  These are deliberately separate from the legacy global pause
+    // API, whose current scene set can change while an interruption is active.
+    virtual void begin_audio_interruption() = 0;
+    virtual void end_audio_interruption() = 0;
+
     virtual void set_master_volume(float f = 1.f) = 0;
 
     virtual void update(const Fvector& P, const Fvector& D, const Fvector& N, const Fvector& R) = 0;

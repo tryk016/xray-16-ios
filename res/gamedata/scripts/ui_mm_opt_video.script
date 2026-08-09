@@ -24,22 +24,23 @@ function opt_video:InitControls(x, y, xml, handler)
 	xml:InitStatic					("tab_video:cap_gamma",				self)
 	xml:InitTrackBar				("tab_video:track_gamma",			self)
 
-	xml:InitStatic					("tab_video:cap_window_mode",		self)
-	xml:InitComboBox				("tab_video:list_window_mode",		self)
+	local cap_window_mode			= xml:InitStatic("tab_video:cap_window_mode", self)
+	local window_mode				= xml:InitComboBox("tab_video:list_window_mode", self)
+	cap_window_mode:Show			(false)
+	window_mode:Show				(false)
 
 	xml:InitStatic					("tab_video:cap_resolution",		self)
-	xml:InitComboBox				("tab_video:list_resolution",		self)
+	local resolution				= xml:InitStatic("tab_video:list_resolution", self)
+	resolution:TextControl():SetText(string.format("%dx%d", device().width, device().height))
 
-	xml:InitStatic					("tab_video:cap_preset",			self)
-	handler.combo_preset			= xml:InitComboBox("tab_video:list_presets",	self)
-	handler:Register				(handler.combo_preset,				"combo_preset")
+	xml:InitStatic					("tab_video:cap_ios_profile",		self)
+	xml:InitComboBox				("tab_video:list_ios_profile",		self)
 
-	xml:InitStatic					("tab_video:cap_renderer",			self)
+	local cap_renderer				= xml:InitStatic("tab_video:cap_renderer", self)
 	handler.combo_renderer			= xml:InitComboBox("tab_video:list_renderer",		self)
 	handler:Register				(handler.combo_renderer, "combo_renderer")
-
-	btn		= xml:Init3tButton		("tab_video:btn_advanced",	self)
-	handler:Register				(btn, "btn_advanced_graphic")
+	cap_renderer:Show				(false)
+	handler.combo_renderer:Show		(false)
 
 	-- Disable `combo_renderer` combobox control if `renderer` command locked
 	local _enable = true

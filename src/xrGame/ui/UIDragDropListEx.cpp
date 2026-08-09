@@ -3,6 +3,9 @@
 #include "xrUICore/ScrollBar/UIScrollBar.h"
 #include "Common/object_broker.h"
 #include "UICellItem.h"
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "ios_ui_focus_geometry_policy.h"
+#endif
 #include "xrUICore/Cursor/UICursor.h"
 //Alundaio
 #include "Inventory.h"
@@ -448,11 +451,12 @@ void CUIDragDropListEx::Update()
             GetClientArea(viewport);
             item->GetAbsoluteRect(item_rect);
 
-            int target = m_vScrollBar->GetScrollPos();
-            if (item_rect.top < viewport.top)
-                target += iFloor(item_rect.top - viewport.top);
-            else if (item_rect.bottom > viewport.bottom)
-                target += iCeil(item_rect.bottom - viewport.bottom);
+            const xray::ui::ios_focus_geometry::Rect policyViewport{
+                viewport.x1, viewport.y1, viewport.x2, viewport.y2};
+            const xray::ui::ios_focus_geometry::Rect policyItem{
+                item_rect.x1, item_rect.y1, item_rect.x2, item_rect.y2};
+            const int target = xray::ui::ios_focus_geometry::RequestedVerticalScroll(
+                m_vScrollBar->GetScrollPos(), policyViewport, policyItem);
 
             const int previous = m_vScrollBar->GetScrollPos();
             m_vScrollBar->SetScrollPos(target);

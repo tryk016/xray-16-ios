@@ -23,10 +23,36 @@
 #include "xrCore/Threading/TaskManager.hpp"
 #include "xrCore/FMesh.hpp"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "ios_sector_fallback_policy.h"
+#endif
+
 namespace xray::render::RENDER_NAMESPACE
 {
 class CRenderTarget;
 class dxRender_Visual;
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+enum class IosSectorStartupMethod
+{
+    Exact,
+    Fallback,
+    Retained,
+    None,
+};
+
+struct IosSectorStartupPendingReport
+{
+    bool active{};
+    ios_sector_fallback::PreparedTransition transition{};
+    IosSectorStartupMethod method{ IosSectorStartupMethod::None };
+    IRender_Sector::sector_id_t sector{ IRender_Sector::INVALID_SECTOR_ID };
+    Fvector camera{};
+    Fvector probe{};
+    float radius{};
+    u32 frame{};
+};
+#endif
 
 // TODO: move it into separate file.
 struct i_render_phase
@@ -299,6 +325,11 @@ public:
     RenderR2Statistics Stats;
     // Sector detection and visibility
     IRender_Sector::sector_id_t last_sector_id{IRender_Sector::INVALID_SECTOR_ID};
+#if defined(XR_PLATFORM_APPLE_IOS)
+    ios_sector_fallback::StartupEvidence ios_sector_startup_evidence;
+    ios_sector_fallback::CameraApplyBarrier ios_quick_load_camera_barrier;
+    IosSectorStartupPendingReport ios_sector_startup_pending_report;
+#endif
     u32 uLastLTRACK;
     xrXRC Sectors_xrc;
     CDB::MODEL* rmPortals;
@@ -420,6 +451,9 @@ public:
 
     void level_Load(IReader*) override;
     void level_Unload() override;
+#if defined(XR_PLATFORM_APPLE_IOS)
+    void ios_begin_quick_load_sector_startup_epoch() override;
+#endif
 
 #if defined(USE_DX11)
     ID3DBaseTexture* texture_load(pcstr fname, u32& msize);
@@ -496,7 +530,7 @@ public:
 
 #ifdef USE_OGL
     RenderContext GetCurrentContext() const override;
-    void MakeContextCurrent(RenderContext context) override;
+    bool MakeContextCurrent(RenderContext context) override;
 #endif
 
     // Render mode

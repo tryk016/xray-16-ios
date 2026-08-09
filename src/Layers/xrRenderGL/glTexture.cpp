@@ -6,163 +6,28 @@
 
 #include <gli/gli.hpp>
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "ios_bc_gli_format.h"
+#include "xrEngine/ios/ios_texture_memory.h"
+#endif
+
 namespace xray::render::RENDER_NAMESPACE
 {
 #if defined(XR_PLATFORM_APPLE_IOS)
-// ---- DXT/S3TC software decode -------------------------------------------------------
-// Apple's GL-on-Metal (OpenGL ES 3.0) exposes no S3TC/DXT texture formats, and virtually
-// every CoP .dds asset is DXT1/3/5 — every upload failed (GL 0x500/0x501) leaving a black
-// screen under a perfectly healthy engine. Decode DXT blocks on the CPU to RGBA8 at load
-// time. Memory cost is 4-8x per texture; correctness first (the long-term plan is an
-// offline ASTC transcode of the gamedata, iOS-Port-Plan 4.9).
-namespace dxt
-{
-struct rgba { u8 r, g, b, a; };
-
-static void decode_color_block(const u8* s, rgba out[16], bool dxt1)
-{
-    const u16 c0 = u16(s[0] | (s[1] << 8));
-    const u16 c1 = u16(s[2] | (s[3] << 8));
-    const auto expand = [](u16 c) -> rgba {
-        return { u8(((c >> 11) & 31) * 255 / 31), u8(((c >> 5) & 63) * 255 / 63),
-                 u8((c & 31) * 255 / 31), 255 };
-    };
-    rgba pal[4];
-    pal[0] = expand(c0);
-    pal[1] = expand(c1);
-    if (!dxt1 || c0 > c1)
-    {
-        pal[2] = { u8((2 * pal[0].r + pal[1].r) / 3), u8((2 * pal[0].g + pal[1].g) / 3),
-                   u8((2 * pal[0].b + pal[1].b) / 3), 255 };
-        pal[3] = { u8((pal[0].r + 2 * pal[1].r) / 3), u8((pal[0].g + 2 * pal[1].g) / 3),
-                   u8((pal[0].b + 2 * pal[1].b) / 3), 255 };
-    }
-    else // 1-bit-alpha DXT1 mode
-    {
-        pal[2] = { u8((pal[0].r + pal[1].r) / 2), u8((pal[0].g + pal[1].g) / 2),
-                   u8((pal[0].b + pal[1].b) / 2), 255 };
-        pal[3] = { 0, 0, 0, 0 };
-    }
-    const u32 bits = u32(s[4]) | (u32(s[5]) << 8) | (u32(s[6]) << 16) | (u32(s[7]) << 24);
-    for (int i = 0; i < 16; ++i)
-        out[i] = pal[(bits >> (2 * i)) & 3];
-}
-
-static void decode_alpha_block(const u8* s, u8 out[16]) // BC3 alpha / BC4-BC5 channel
-{
-    const u8 a0 = s[0], a1 = s[1];
-    u8 pal[8];
-    pal[0] = a0;
-    pal[1] = a1;
-    if (a0 > a1)
-        for (int i = 1; i < 7; ++i)
-            pal[1 + i] = u8(((7 - i) * a0 + i * a1) / 7);
-    else
-    {
-        for (int i = 1; i < 5; ++i)
-            pal[1 + i] = u8(((5 - i) * a0 + i * a1) / 5);
-        pal[6] = 0;
-        pal[7] = 255;
-    }
-    u64 bits = 0;
-    for (int i = 0; i < 6; ++i)
-        bits |= u64(s[2 + i]) << (8 * i);
-    for (int i = 0; i < 16; ++i)
-        out[i] = pal[(bits >> (3 * i)) & 7];
-}
-
-enum class kind { bc1, bc2, bc3, bc4, bc5, none };
-
-static kind classify(gli::format f)
-{
-    switch (f)
-    {
-    case gli::FORMAT_RGB_DXT1_UNORM_BLOCK8:
-    case gli::FORMAT_RGB_DXT1_SRGB_BLOCK8:
-    case gli::FORMAT_RGBA_DXT1_UNORM_BLOCK8:
-    case gli::FORMAT_RGBA_DXT1_SRGB_BLOCK8: return kind::bc1;
-    case gli::FORMAT_RGBA_DXT3_UNORM_BLOCK16:
-    case gli::FORMAT_RGBA_DXT3_SRGB_BLOCK16: return kind::bc2;
-    case gli::FORMAT_RGBA_DXT5_UNORM_BLOCK16:
-    case gli::FORMAT_RGBA_DXT5_SRGB_BLOCK16: return kind::bc3;
-    case gli::FORMAT_R_ATI1N_UNORM_BLOCK8: return kind::bc4;
-    case gli::FORMAT_RG_ATI2N_UNORM_BLOCK16: return kind::bc5;
-    default: return kind::none;
-    }
-}
-
-// Decode one mip level (tightly packed blocks) into w*h RGBA8 pixels.
-static void decode_level(kind k, const u8* src, int w, int h, u8* dst)
-{
-    const int bw = (w + 3) / 4, bh = (h + 3) / 4;
-    const size_t block_size = (k == kind::bc1 || k == kind::bc4) ? 8 : 16;
-    rgba color[16];
-    u8 alpha[16], red[16], green[16];
-
-    for (int by = 0; by < bh; ++by)
-    {
-        for (int bx = 0; bx < bw; ++bx)
-        {
-            const u8* b = src + (size_t(by) * bw + bx) * block_size;
-            switch (k)
-            {
-            case kind::bc1: decode_color_block(b, color, true); break;
-            case kind::bc2:
-                decode_color_block(b + 8, color, false);
-                for (int i = 0; i < 16; ++i) // explicit 4-bit alpha
-                {
-                    const u8 nib = u8((b[i / 2] >> ((i & 1) * 4)) & 0xF);
-                    color[i].a = u8(nib * 17);
-                }
-                break;
-            case kind::bc3:
-                decode_color_block(b + 8, color, false);
-                decode_alpha_block(b, alpha);
-                for (int i = 0; i < 16; ++i)
-                    color[i].a = alpha[i];
-                break;
-            case kind::bc4:
-                decode_alpha_block(b, red);
-                for (int i = 0; i < 16; ++i)
-                    color[i] = { red[i], red[i], red[i], 255 };
-                break;
-            case kind::bc5:
-                decode_alpha_block(b, red);
-                decode_alpha_block(b + 8, green);
-                for (int i = 0; i < 16; ++i)
-                    color[i] = { red[i], green[i], 0, 255 };
-                break;
-            default: return;
-            }
-            for (int py = 0; py < 4; ++py)
-            {
-                const int y = by * 4 + py;
-                if (y >= h)
-                    break;
-                for (int px = 0; px < 4; ++px)
-                {
-                    const int x = bx * 4 + px;
-                    if (x >= w)
-                        break;
-                    const rgba& c = color[py * 4 + px];
-                    u8* d = dst + (size_t(y) * w + x) * 4;
-                    d[0] = c.r; d[1] = c.g; d[2] = c.b; d[3] = c.a;
-                }
-            }
-        }
-    }
-}
-} // namespace dxt
-
 // Upload a DXT-compressed gli texture as decoded RGBA8. Returns 0 when the format/target
 // isn't a DXT 2D/cube texture (caller falls through to the regular path). out_w/out_h
 // report the uploaded base-level size (may be smaller than the file's — see mip-skip).
 static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn,
-                                      GLint& out_w, GLint& out_h)
+                                      GLint& out_w, GLint& out_h, u32& out_bytes)
 {
-    const dxt::kind k = dxt::classify(texture.format());
-    if (k == dxt::kind::none)
+    out_bytes = 0;
+    const ios_bc::FormatInfo formatInfo = ios_bc::FromGliFormat(texture.format());
+    if (formatInfo.kind == ios_bc::Kind::none)
         return 0;
+    const ios_bc::UploadPlan uploadPlan = ios_bc::CurrentUploadPlan(formatInfo);
+    const GLenum storageFormat = uploadPlan.storage == ios_bc::Storage::srgb8Alpha8
+        ? GL_SRGB8_ALPHA8
+        : GL_RGBA8;
 
     // Volume textures (water_sbumpvolume): decode each depth slice of each level.
     // A DXT 3D level stores its slices' 4x4-block data consecutively.
@@ -176,21 +41,63 @@ static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn,
         glBindTexture(GL_TEXTURE_3D, tex);
         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_BASE_LEVEL, 0);
         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAX_LEVEL, static_cast<GLint>(texture.levels() - 1));
-        glTexStorage3D(GL_TEXTURE_3D, static_cast<GLint>(texture.levels()), GL_RGBA8, e0.x, e0.y, e0.z);
+        glTexStorage3D(GL_TEXTURE_3D, static_cast<GLint>(texture.levels()), storageFormat, e0.x, e0.y, e0.z);
         GLenum err3 = glGetError();
         if (err3 != GL_NO_ERROR)
             Msg("! OpenGL: 0x%x: iOS DXT->RGBA8 3D storage (%dx%dx%d) failed: '%s'",
                 err3, e0.x, e0.y, e0.z, fn);
-        xr_vector<u8> slice(size_t(e0.x) * e0.y * 4);
-        const size_t block_bytes = (k == dxt::kind::bc1 || k == dxt::kind::bc4) ? 8 : 16;
+        if (e0.x <= 0 || e0.y <= 0 || e0.z <= 0)
+        {
+            glDeleteTextures(1, &tex);
+            return 0;
+        }
+        const size_t sliceCapacity = ios_bc::DecodedLevelBytes(
+            static_cast<size_t>(e0.x), static_cast<size_t>(e0.y));
+        if (sliceCapacity == 0)
+        {
+            glDeleteTextures(1, &tex);
+            return 0;
+        }
+        xr_vector<u8> slice(sliceCapacity);
         for (size_t level = 0; level < texture.levels(); ++level)
         {
             const glm::tvec3<GLsizei> e(texture.extent(level));
-            const size_t slice_bytes = size_t((e.x + 3) / 4) * ((e.y + 3) / 4) * block_bytes;
+            if (e.x <= 0 || e.y <= 0 || e.z <= 0)
+            {
+                glDeleteTextures(1, &tex);
+                return 0;
+            }
+            const size_t sliceBytes = ios_bc::EncodedLevelBytes(formatInfo.kind,
+                static_cast<size_t>(e.x), static_cast<size_t>(e.y));
+            const size_t decodedSliceBytes = ios_bc::DecodedLevelBytes(
+                static_cast<size_t>(e.x), static_cast<size_t>(e.y));
+            const size_t actualLevelBytes = texture.size(level);
+            if (sliceBytes == 0 || decodedSliceBytes == 0
+                || static_cast<size_t>(e.z) > std::numeric_limits<size_t>::max() / sliceBytes)
+            {
+                glDeleteTextures(1, &tex);
+                return 0;
+            }
+            const size_t requiredLevelBytes = sliceBytes * static_cast<size_t>(e.z);
+            if (actualLevelBytes < requiredLevelBytes)
+            {
+                Msg("! iOS DXT decode: truncated 3D level %zu (%zu < %zu bytes): '%s'",
+                    level, actualLevelBytes, requiredLevelBytes, fn);
+                glDeleteTextures(1, &tex);
+                return 0;
+            }
             const u8* src = static_cast<const u8*>(texture.data(0, 0, level));
             for (GLsizei z = 0; z < e.z; ++z)
             {
-                dxt::decode_level(k, src + slice_bytes * z, e.x, e.y, slice.data());
+                const size_t sourceOffset = sliceBytes * static_cast<size_t>(z);
+                const size_t remainingLevelBytes = actualLevelBytes - sourceOffset;
+                if (!ios_bc::DecodeLevel(formatInfo.kind, src + sourceOffset, remainingLevelBytes,
+                        static_cast<size_t>(e.x), static_cast<size_t>(e.y), slice.data(), decodedSliceBytes))
+                {
+                    Msg("! iOS DXT decode: malformed 3D level %zu slice %d: '%s'", level, z, fn);
+                    glDeleteTextures(1, &tex);
+                    return 0;
+                }
                 glTexSubImage3D(GL_TEXTURE_3D, static_cast<GLint>(level), 0, 0, z,
                                 e.x, e.y, 1, GL_RGBA, GL_UNSIGNED_BYTE, slice.data());
                 err3 = glGetError();
@@ -201,6 +108,11 @@ static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn,
         }
         out_w = e0.x;
         out_h = e0.y;
+        out_bytes = static_cast<u32>(std::min<std::uint64_t>(
+            ios_texture_memory::Rgba8MipChainBytes(e0.x, e0.y, e0.z,
+                static_cast<u32>(texture.levels()), static_cast<u32>(texture.faces()),
+                static_cast<u32>(texture.layers())),
+            std::numeric_limits<u32>::max()));
         return tex;
     }
 
@@ -246,20 +158,46 @@ static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn,
     glBindTexture(target, tex);
     glTexParameteri(target, GL_TEXTURE_BASE_LEVEL, 0);
     glTexParameteri(target, GL_TEXTURE_MAX_LEVEL, static_cast<GLint>(gl_levels - 1));
-    glTexStorage2D(target, static_cast<GLint>(gl_levels), GL_RGBA8, ext0.x, ext0.y);
+    glTexStorage2D(target, static_cast<GLint>(gl_levels), storageFormat, ext0.x, ext0.y);
     GLenum err = glGetError();
     if (err != GL_NO_ERROR)
         Msg("! OpenGL: 0x%x: iOS DXT->RGBA8 storage (%dx%d, %zu levels) failed: '%s'",
             err, ext0.x, ext0.y, gl_levels, fn);
 
-    xr_vector<u8> buf(size_t(ext0.x) * ext0.y * 4);
+    if (ext0.x <= 0 || ext0.y <= 0)
+    {
+        glDeleteTextures(1, &tex);
+        return 0;
+    }
+    const size_t bufferCapacity = ios_bc::DecodedLevelBytes(
+        static_cast<size_t>(ext0.x), static_cast<size_t>(ext0.y));
+    if (bufferCapacity == 0)
+    {
+        glDeleteTextures(1, &tex);
+        return 0;
+    }
+    xr_vector<u8> buf(bufferCapacity);
     for (size_t face = 0; face < texture.faces(); ++face)
     {
         for (size_t level = skip; level < texture.levels(); ++level)
         {
             const glm::tvec3<GLsizei> ext(texture.extent(level));
-            dxt::decode_level(k, static_cast<const u8*>(texture.data(0, face, level)),
-                              ext.x, ext.y, buf.data());
+            if (ext.x <= 0 || ext.y <= 0)
+            {
+                glDeleteTextures(1, &tex);
+                return 0;
+            }
+            const size_t decodedLevelBytes = ios_bc::DecodedLevelBytes(
+                static_cast<size_t>(ext.x), static_cast<size_t>(ext.y));
+            const size_t actualLevelBytes = texture.size(level);
+            if (!ios_bc::DecodeLevel(formatInfo.kind,
+                    static_cast<const u8*>(texture.data(0, face, level)), actualLevelBytes,
+                    static_cast<size_t>(ext.x), static_cast<size_t>(ext.y), buf.data(), decodedLevelBytes))
+            {
+                Msg("! iOS DXT decode: malformed face %zu level %zu: '%s'", face, level, fn);
+                glDeleteTextures(1, &tex);
+                return 0;
+            }
             const GLenum sub_target = texture.target() == gli::TARGET_CUBE
                 ? static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face)
                 : target;
@@ -273,6 +211,11 @@ static GLuint ios_upload_dxt_as_rgba8(const gli::texture& texture, cpcstr fn,
     }
     out_w = ext0.x;
     out_h = ext0.y;
+    out_bytes = static_cast<u32>(std::min<std::uint64_t>(
+        ios_texture_memory::Rgba8MipChainBytes(ext0.x, ext0.y, ext0.z,
+            static_cast<u32>(gl_levels), static_cast<u32>(texture.faces()),
+            static_cast<u32>(texture.layers())),
+        std::numeric_limits<u32>::max()));
     return tex;
 }
 #endif // XR_PLATFORM_APPLE_IOS
@@ -388,15 +331,15 @@ GLuint CRender::texture_load(LPCSTR fRName, u32& ret_msize, GLenum& ret_desc, GL
 
 #if defined(XR_PLATFORM_APPLE_IOS)
     // DXT assets can't be uploaded on ES — decode to RGBA8 (see ios_upload_dxt_as_rgba8).
-    if (const GLuint decoded = ios_upload_dxt_as_rgba8(texture, fn, ret_width, ret_height))
+    u32 decodedBytes = 0;
+    if (const GLuint decoded = ios_upload_dxt_as_rgba8(texture, fn, ret_width, ret_height, decodedBytes))
     {
         FS.r_close(S);
         xr_strlwr(fn);
         ret_desc = texture.target() == gli::TARGET_CUBE ? GL_TEXTURE_CUBE_MAP
             : texture.target() == gli::TARGET_3D ? GL_TEXTURE_3D
                                                  : GL_TEXTURE_2D;
-        const int lod = is_target_cube(texture.target()) ? 0 : get_texture_load_lod(fn);
-        ret_msize = calc_texture_size(lod, static_cast<u32>(texture.levels()), img_size);
+        ret_msize = decodedBytes;
         return decoded;
     }
     // Non-DXT path: translate with the ES profile so external formats/types are ES-legal
@@ -623,8 +566,12 @@ GLuint CRender::texture_load(LPCSTR fRName, u32& ret_msize, GLenum& ret_desc, GL
     ret_desc = target;
     ret_width = tex_extent.x;
     ret_height = tex_extent.y;
+#if defined(XR_PLATFORM_APPLE_IOS)
+    ret_msize = static_cast<u32>(std::min<std::size_t>(texture.size(), std::numeric_limits<u32>::max()));
+#else
     int img_loaded_lod = is_target_cube(texture.target()) ? 0 : get_texture_load_lod(fn);
     ret_msize = calc_texture_size(img_loaded_lod, mip_cnt, img_size);
+#endif
     return pTexture;
 }
 } // namespace xray::render::RENDER_NAMESPACE

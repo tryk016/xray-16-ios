@@ -10,6 +10,7 @@
 
 #if defined(XR_PLATFORM_APPLE_IOS)
 #include "ui/UIDragDropListEx.h"
+#include "ui/ios_ui_focus_geometry_policy.h"
 #include "xrUICore/ListWnd/UIListWnd.h"
 #include "xrUICore/ScrollView/UIScrollView.h"
 #endif
@@ -228,8 +229,7 @@ void ios_draw_focus_frame()
     // Dialog-local scissor stacks have already been popped by the time this
     // overlay is drawn. Reconstruct the clipping region of known scroll/list
     // ancestors so focus never leaks outside inventory, PDA or options views.
-    bool use_scissor = false;
-    Frect clip{};
+    xray::ui::ios_focus_geometry::ClipState clipState{};
     for (CUIWindow* parent = focused->GetParent(); parent; parent = parent->GetParent())
     {
         Frect parent_clip{};
@@ -239,7 +239,12 @@ void ios_draw_focus_frame()
             inventory->GetClientArea(parent_clip);
             clips_children = true;
         }
-        else if (smart_cast<CUIScrollView*>(parent) || smart_cast<CUIListWnd*>(parent))
+        else if (auto* scrollView = smart_cast<CUIScrollView*>(parent))
+        {
+            parent_clip = scrollView->GetDrawClipRect();
+            clips_children = true;
+        }
+        else if (smart_cast<CUIListWnd*>(parent))
         {
             parent->GetAbsoluteRect(parent_clip);
             clips_children = true;
@@ -248,21 +253,16 @@ void ios_draw_focus_frame()
         if (!clips_children)
             continue;
 
-        if (!use_scissor)
-        {
-            clip = parent_clip;
-            use_scissor = true;
-        }
-        else
-        {
-            Frect intersection;
-            if (!intersection.intersection(clip, parent_clip))
-                return;
-            clip = intersection;
-        }
+        const xray::ui::ios_focus_geometry::Rect policyParentClip{
+            parent_clip.x1, parent_clip.y1, parent_clip.x2, parent_clip.y2};
+        clipState = xray::ui::ios_focus_geometry::AddClip(clipState, policyParentClip);
+        if (!clipState.visible)
+            return;
     }
 
-    if (use_scissor)
+    Frect clip{};
+    clip.set(clipState.clip.left, clipState.clip.top, clipState.clip.right, clipState.clip.bottom);
+    if (clipState.hasClip)
         UI().PushScissor(clip);
     GEnv.UIRender->StartPrimitive(24, IUIRender::ptTriList, IUIRender::pttTL);
     ios_push_quad(x0, y0, x1, y0 + ty, clr); // top
@@ -271,7 +271,7 @@ void ios_draw_focus_frame()
     ios_push_quad(x1 - tx, y0, x1, y1, clr); // right
     GEnv.UIRender->SetShader(**g_ios_focus_shader);
     GEnv.UIRender->FlushPrimitive();
-    if (use_scissor)
+    if (clipState.hasClip)
         UI().PopScissor();
 }
 } // namespace

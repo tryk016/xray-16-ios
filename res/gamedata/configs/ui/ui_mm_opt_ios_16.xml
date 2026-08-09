@@ -78,27 +78,22 @@
                 <d r="120" g="120" b="120" />
             </text_color>
         </list_renderer>
-        <cap_preset x="15" y="41" width="135" height="30">
+        <cap_ios_profile x="15" y="4" width="135" height="30">
             <text r="225" g="225" b="225" font="letterica18" align="r" vert_align="c">ui_mm_quality_presets</text>
-        </cap_preset>
-        <list_presets x="175" y="44" width="235" height="25" list_length="5" always_show_scroll="0" apply_list_font_to_text="1">
-            <options_item entry="_preset" group="mm_opt_video_preset" depend="restart" />
+        </cap_ios_profile>
+        <list_ios_profile x="175" y="6" width="235" height="25" list_length="3" always_show_scroll="0" apply_list_font_to_text="1">
+            <options_item entry="ios_graphics_profile" group="mm_opt_ios_graphics" depend="runtime" />
             <list_font r="225" g="225" b="225" font="letterica18" />
             <text_color>
                 <e r="225" g="225" b="225" />
                 <d r="120" g="120" b="120" />
             </text_color>
-        </list_presets>
-        <cap_resolution x="15" y="79" width="135" height="30">
+        </list_ios_profile>
+        <cap_resolution x="15" y="41" width="135" height="30">
             <text r="225" g="225" b="225" font="letterica18" align="r" vert_align="c">ui_mm_resolution</text>
         </cap_resolution>
-        <list_resolution x="175" y="81" width="235" height="25" list_length="7" always_show_scroll="1" apply_list_font_to_text="1">
-            <options_item entry="vid_mode" group="mm_opt_video" depend="vid" />
-            <list_font r="225" g="225" b="225" font="letterica18" />
-            <text_color>
-                <e r="225" g="225" b="225" />
-                <d r="120" g="120" b="120" />
-            </text_color>
+        <list_resolution x="175" y="43" width="235" height="25">
+            <text r="225" g="225" b="225" font="letterica18" align="c" vert_align="c" />
         </list_resolution>
         <cap_window_mode x="15" y="116" width="135" height="30">
             <text r="225" g="225" b="225" font="letterica18" align="r" vert_align="c">ui_mm_window_mode</text>
@@ -111,31 +106,24 @@
                 <d r="120" g="120" b="120" />
             </text_color>
         </list_window_mode>
-        <cap_gamma x="15" y="154" width="135" height="30">
+        <cap_gamma x="15" y="79" width="135" height="30">
             <text r="225" g="225" b="225" font="letterica18" align="r" vert_align="c">ui_mm_gamma</text>
         </cap_gamma>
-        <track_gamma x="175" y="159" width="235" height="20">
+        <track_gamma x="175" y="84" width="235" height="20">
             <options_item entry="rs_c_gamma" group="mm_opt_video" depend="runtime" />
         </track_gamma>
-        <cap_contrast x="15" y="191" width="135" height="30">
+        <cap_contrast x="15" y="116" width="135" height="30">
             <text r="225" g="225" b="225" font="letterica18" align="r" vert_align="c">ui_mm_contrast</text>
         </cap_contrast>
-        <track_contrast x="175" y="196" width="235" height="20">
+        <track_contrast x="175" y="121" width="235" height="20">
             <options_item entry="rs_c_contrast" group="mm_opt_video" depend="runtime" />
         </track_contrast>
-        <cap_brightness x="15" y="229" width="135" height="30">
+        <cap_brightness x="15" y="154" width="135" height="30">
             <text r="225" g="225" b="225" font="letterica18" align="r" vert_align="c">ui_mm_brightness</text>
         </cap_brightness>
-        <track_brightness x="175" y="234" width="235" height="20">
+        <track_brightness x="175" y="159" width="235" height="20">
             <options_item entry="rs_c_brightness" group="mm_opt_video" depend="runtime" />
         </track_brightness>
-        <btn_advanced x="338" y="403" width="108" height="30" stretch="1" accel="ui_action_1">
-            <text r="225" g="225" b="225" align="c" font="letterica18">ui_mm_advanced</text>
-            <texture>ui_inGame2_button</texture>
-            <text_color>
-                <e r="245" g="245" b="245" />
-            </text_color>
-        </btn_advanced>
     </tab_video>
     <video_adv>
         <scroll_v x="-6" y="0" width="450" height="400" right_ident="0" left_ident="0" top_indent="0" bottom_indent="0" vert_interval="0" always_show_scroll="0" />
@@ -303,7 +291,6 @@
         </cap_always_active>
         <check_always_active x="166" y="0" width="44" stretch="1" height="36">
             <texture>ui_inGame2_checkbox</texture>
-            <options_item entry="rs_always_active" group="mm_opt_video_adv" is_integer="1" />
         </check_always_active>
         <cap_fps_limit x="20" y="4" width="135" height="30">
             <text r="225" g="225" b="225" font="letterica18" align="r" vert_align="c">ui_mm_fps_limit</text>

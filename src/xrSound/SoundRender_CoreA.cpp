@@ -72,7 +72,25 @@ void CSoundRender_CoreA::_initialize()
     alcGetError(pDevice);
 
     // Set active context
-    AC_CHK(alcMakeContextCurrent(pContext));
+    ALCboolean context_current = ALC_FALSE;
+    AC_CHK(context_current = alcMakeContextCurrent(pContext));
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+    if (context_current == ALC_TRUE)
+    {
+        const ALchar* const vendor = alGetString(AL_VENDOR);
+        const ALchar* const renderer = alGetString(AL_RENDERER);
+        const ALchar* const version = alGetString(AL_VERSION);
+        const int pause_device_extension =
+            alcIsExtensionPresent(pDevice, "ALC_SOFT_pause_device") == ALC_TRUE ? 1 : 0;
+        const int pause_proc = alcGetProcAddress(pDevice, "alcDevicePauseSOFT") ? 1 : 0;
+        const int resume_proc = alcGetProcAddress(pDevice, "alcDeviceResumeSOFT") ? 1 : 0;
+        Msg("iOS OpenAL provider v1 vendor=\"%s\" renderer=\"%s\" version=\"%s\" "
+            "extension=%d pause_proc=%d resume_proc=%d",
+            vendor ? vendor : "(null)", renderer ? renderer : "(null)", version ? version : "(null)",
+            pause_device_extension, pause_proc, resume_proc);
+    }
+#endif
 
     // initialize listener
     A_CHK(alListener3f(AL_POSITION, 0.f, 0.f, 0.f));

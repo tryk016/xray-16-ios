@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "source": {
+    "version": "2.32.10",
+    "url": "https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-2.32.10.tar.gz",
+    "sha256": "5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165"
+  },
+  "upstream": {
+    "sdl3_commit": "b46e26e65aac8f7d5b5c83d43ea99a507c093930",
+    "description": "Semantic SDL2 backport of the official UIKit UIScene lifecycle mechanism."
+  },
+  "patch_sha256": "06a51c1453d7713342b2338681d841c7f6b5db31866ec77480a64132dc94cc13",
+  "files": {
+    "CMakeLists.txt": {
+      "preimage": "3a57962621fa8f491be25b0ec5dfd7f1b89acfab59f0bca0dd7c8e051c6f51d4",
+      "postimage": "3a57962621fa8f491be25b0ec5dfd7f1b89acfab59f0bca0dd7c8e051c6f51d4"
+    },
+    "src/video/uikit/SDL_uikitappdelegate.h": {
+      "preimage": "5fa4f5b590d94fe4558b3fe0675e124c901470ae6236084a573e7b575569cc0b",
+      "postimage": "16a1b14921d1d3a2bfe933255a4a6e721c6291747f3d158d061b7c3c6973b3c3"
+    },
+    "src/video/uikit/SDL_uikitappdelegate.m": {
+      "preimage": "97b59c6205da0cb8c3f0be852db183eb96f4e8e4bc022be0491b36f07403c59b",
+      "postimage": "6c9ffbbb055fc057f09801801f3722e41d8c521703d1275d27cc7b9ce39cf546"
+    },
+    "src/video/uikit/SDL_uikitevents.m": {
+      "preimage": "3c3e6224606af9724deabf375cab04cbb55f3b90f796bfddaa2263530732c50f",
+      "postimage": "9e9c664a59254e3dbfbf6739e574bdafe37c1894ba7ea2484d28d772152fdea3"
+    },
+    "src/video/uikit/SDL_uikitwindow.h": {
+      "preimage": "8bdadf0e4d98402c6b49f9a4071c6d78bc5be8e1a197d7c35cfa0e593e13823b",
+      "postimage": "8bdadf0e4d98402c6b49f9a4071c6d78bc5be8e1a197d7c35cfa0e593e13823b"
+    },
+    "src/video/uikit/SDL_uikitwindow.m": {
+      "preimage": "1e1b9ddba8c69f7f5289c8bec8a60113e9b5e27304116405ce430dcb709a62d5",
+      "postimage": "0750cede4eb8d90cafe0b93e6946cd8e3f2f9b1f4fc77befba5a6837cfc866a1"
+    }
+  }
+}

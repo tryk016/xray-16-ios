@@ -42,6 +42,7 @@ public:
     virtual void DeferredLoad(bool E) override;
     virtual void ResourcesDeferredUpload() override;
     virtual void ResourcesDeferredUnload() override;
+    virtual void ResourcesLowMemoryEvict(u32& count, u64& bytes) override;
     virtual void ResourcesGetMemoryUsage(u32& m_base, u32& c_base, u32& m_lmaps, u32& c_lmaps) override;
     virtual void ResourcesDestroyNecessaryTextures() override;
     virtual void ResourcesStoreNecessaryTextures() override;
@@ -62,8 +63,8 @@ public:
 
     xrImTextureData GetImGuiTextureId(pcstr texture_name) override;
 
-    RenderContext GetCurrentContext() const override { return IRender::PrimaryContext; }
-    void MakeContextCurrent(RenderContext /*context*/) override {}
+    RenderContext GetCurrentContext() const override;
+    bool MakeContextCurrent(RenderContext context) override;
 
     CBackend& get_imm_command_list()
     {

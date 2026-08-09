@@ -142,7 +142,11 @@ endif()
 
 if (NOT WIN32)
     find_package(SDL2 2.0.18 REQUIRED)
-    find_package(OpenAL REQUIRED)
+    if (XRAY_PLATFORM_IOS)
+        include(XRay.OpenAL)
+    else()
+        find_package(OpenAL REQUIRED)
+    endif()
     if (NOT XRAY_PLATFORM_IOS)
         # Skip on iOS: with FIND_ROOT_PATH_MODE=BOTH this matches a host homebrew
         # libjpeg.dylib (macOS arch) and breaks the link. JPEG is optional; JPEG_FOUND

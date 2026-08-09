@@ -34,6 +34,10 @@
 #include "AnselManager.h"
 #include "xrCore/Threading/TaskManager.hpp"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "xrEngine/ios/ios_lifecycle_state.h"
+#endif
+
 #include "xrPhysics/IPHWorld.h"
 
 #ifndef MASTER_GOLD
@@ -705,6 +709,10 @@ void CGamePersistent::OnEvent(EVENT E, u64 P1, u64 P2)
         game_sv_Single* game = smart_cast<game_sv_Single*>(Level().Server->GetGameState());
         R_ASSERT(game);
         game->restart_simulator(saved_name);
+#if defined(XR_PLATFORM_APPLE_IOS)
+        if (GEnv.Render)
+            GEnv.Render->ios_begin_quick_load_sector_startup_epoch();
+#endif
         xr_free(saved_name);
         return;
     }
@@ -743,8 +751,13 @@ static BOOL bEntryFlag = TRUE;
 
 void CGamePersistent::OnAppActivate()
 {
+#if defined(XR_PLATFORM_APPLE_IOS)
+    if (ios_lifecycle::ShouldBypassPauseForAlwaysActive(psDeviceFlags.test(rsAlwaysActive)))
+        return;
+#else
     if (psDeviceFlags.test(rsAlwaysActive))
         return;
+#endif
 
     bool bIsMP = (g_pGameLevel && Level().game && GameID() != eGameIDSingle);
     bIsMP &= !Device.Paused();
@@ -759,8 +772,15 @@ void CGamePersistent::OnAppActivate()
 
 void CGamePersistent::OnAppDeactivate()
 {
-    if (!bEntryFlag || psDeviceFlags.test(rsAlwaysActive))
+    if (!bEntryFlag)
         return;
+#if defined(XR_PLATFORM_APPLE_IOS)
+    if (ios_lifecycle::ShouldBypassPauseForAlwaysActive(psDeviceFlags.test(rsAlwaysActive)))
+        return;
+#else
+    if (psDeviceFlags.test(rsAlwaysActive))
+        return;
+#endif
 
     bool bIsMP = (g_pGameLevel && Level().game && GameID() != eGameIDSingle);
 

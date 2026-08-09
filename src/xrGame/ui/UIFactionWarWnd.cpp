@@ -61,17 +61,17 @@ bool CUIFactionWarWnd::Init()
 
     CUIXmlInit::InitWindow( xml, "main_wnd", 0, this );
 
-    m_background = UIHelper::CreateFrameWindow(xml, "background", this, false);
-    m_center_background = UIHelper::CreateFrameWindow(xml, "center_background", this, false);
+    // Clear Sky's faction-war layout uses a three-slice frame and a single
+    // center texture. Try those authored topologies first; probing a nine-slice
+    // frame first emits seven false "missing texture" warnings before falling
+    // back to the exact same surfaces.
+    m_background2 = UIHelper::CreateFrameLine(xml, "background", this, false);
+    if (!m_background2)
+        m_background = UIHelper::CreateFrameWindow(xml, "background", this, false);
 
-    if (!m_background)
-    {
-        m_background2 = UIHelper::CreateFrameLine(xml, "background", this, false);
-    }
-    if (!m_center_background)
-    {
-        m_center_background2 = UIHelper::CreateStatic(xml, "center_background", this, false);
-    }
+    m_center_background2 = UIHelper::CreateStatic(xml, "center_background", this, false);
+    if (!m_center_background2)
+        m_center_background = UIHelper::CreateFrameWindow(xml, "center_background", this, false);
 
 	m_target_static			= UIHelper::CreateStatic( xml, "target_static", this );
 	m_target_caption		= UIHelper::CreateStatic( xml, "target_caption", this );

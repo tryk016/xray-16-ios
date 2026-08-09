@@ -169,6 +169,17 @@ void CUIMMShniaga::CreateList(xr_vector<CUIStatic*>& lst, CUIXml& xml_doc, LPCST
 
     for (int i = 0; i < nodes_num; ++i)
     {
+        const pcstr button_name = xml_doc.ReadAttrib("btn", i, "name");
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+        // Multiplayer is not part of the iOS product. Filter the source XML at
+        // list construction time because retail data may provide a different
+        // ui_mm_main.xml than the fallback files shipped in this repository.
+        if (xr_strcmp(button_name, "btn_net_game") == 0 ||
+            xr_strcmp(button_name, "btn_multiplayer") == 0)
+            continue;
+#endif
+
         auto* st = xr_new<CUIStatic>("Button");
         st->SetWndPos(Fvector2().set(0, 0));
         st->SetWndSize(Fvector2().set(m_view->GetDesiredChildWidth(), button_height));
@@ -178,7 +189,7 @@ void CUIMMShniaga::CreateList(xr_vector<CUIStatic*>& lst, CUIXml& xml_doc, LPCST
         st->SetTextColor(color);
         st->SetTextAlignment(CGameFont::alCenter);
         st->SetVTextAlignment(valCenter);
-        st->SetWindowName(xml_doc.ReadAttrib("btn", i, "name"));
+        st->SetWindowName(button_name);
         st->SetMessageTarget(this);
 
         lst.push_back(st);

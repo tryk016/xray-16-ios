@@ -75,7 +75,11 @@ ISoundScene* CSoundRender_Core::create_scene()
 
 void CSoundRender_Core::destroy_scene(ISoundScene*& sound_scene)
 {
-    m_scenes.erase(std::remove(m_scenes.begin(), m_scenes.end(), sound_scene), m_scenes.end());
+    auto* const scene = static_cast<CSoundRender_Scene*>(sound_scene);
+    // Forget before delete: a later scene can reuse this allocation address,
+    // but it was not part of the interruption snapshot and must never resume.
+    xr_sound::interruption::Forget(m_audioInterruptionScenes, scene);
+    m_scenes.erase(std::remove(m_scenes.begin(), m_scenes.end(), scene), m_scenes.end());
     xr_delete(sound_scene);
 }
 
@@ -91,6 +95,18 @@ int CSoundRender_Core::pause_emitters(bool pauseState)
     for (const auto& scene : m_scenes)
         cnt += scene->pause_emitters(pauseState);
     return cnt;
+}
+
+void CSoundRender_Core::begin_audio_interruption()
+{
+    xr_sound::interruption::Begin(m_audioInterruptionActive, m_audioInterruptionScenes, m_scenes,
+        [](CSoundRender_Scene* const scene) { scene->pause_emitters(true); });
+}
+
+void CSoundRender_Core::end_audio_interruption()
+{
+    xr_sound::interruption::End(m_audioInterruptionActive, m_audioInterruptionScenes,
+        [](CSoundRender_Scene* const scene) { scene->pause_emitters(false); });
 }
 
 void CSoundRender_Core::_restart()

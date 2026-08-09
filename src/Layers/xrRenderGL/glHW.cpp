@@ -63,6 +63,24 @@ void CHW::OnAppActivate()
     {
 #if defined(XR_PLATFORM_APPLE_IOS)
         Msg("* iOS: app activate");
+        if (MakeContextCurrent(IRender::PrimaryContext) != 0)
+        {
+            Log("! iOS: could not restore the OpenGL context:", SDL_GetError());
+            return;
+        }
+
+        if (!ios_display::set_opengl_drawable_scale(m_window, ios_display::OpenGLDrawableScale))
+            Log("! iOS: could not restore the OpenGL drawable scale");
+
+        int width = 0, height = 0;
+        SDL_GL_GetDrawableSize(m_window, &width, &height);
+        Msg("* iOS: foreground drawable %dx%d (engine %ux%u)", width, height, Device.dwWidth, Device.dwHeight);
+        if (width > 0 && height > 0
+            && (static_cast<u32>(width) != Device.dwWidth || static_cast<u32>(height) != Device.dwHeight))
+        {
+            Msg("* iOS: foreground drawable changed; resetting render targets");
+            Device.Reset(false);
+        }
 #else
         SDL_RestoreWindow(m_window);
 #endif
@@ -80,6 +98,8 @@ void CHW::OnAppDeactivate()
         // the app to background for good; the process then sits suspended (seen in a
         // JetsamEvent snapshot) and the user reads it as a crash. Never minimize here.
         Msg("* iOS: app deactivate");
+        if (MakeContextCurrent(IRender::NoContext) != 0)
+            Log("! iOS: could not detach the OpenGL context while backgrounding:", SDL_GetError());
 #else
         if (psDeviceMode.WindowStyle == rsFullscreen || psDeviceMode.WindowStyle == rsFullscreenBorderless)
             SDL_MinimizeWindow(m_window);

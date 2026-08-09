@@ -365,11 +365,20 @@ void CUIPdaWnd::Show_SecondTaskWnd(bool status)
 
 void CUIPdaWnd::Show_MapWnd(bool status)
 {
+    if (!status)
+        return;
+
+    pcstr section = nullptr;
     if (pUIMapWnd)
-    {
-        if (status)
-            SetActiveSubdialog("eptMap");
-    }
+        section = "eptMap";
+    else if (pUITaskWnd)
+        section = "eptTasks";
+
+    if (!section)
+        return;
+
+    SetActiveSubdialog(section);
+    UITabControl->SetActiveTab(section);
 }
 
 void CUIPdaWnd::Show_ContactsWnd(bool status)

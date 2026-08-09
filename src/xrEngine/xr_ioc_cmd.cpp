@@ -12,6 +12,10 @@
 #include "xr_object.h"
 #include "xr_object_list.h"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "ios/ios_graphics_profile.h"
+#endif
+
 xr_vector<xr_token> VidQualityToken;
 
 extern xr_vector<xr_token> vid_monitor_token;
@@ -229,6 +233,9 @@ void CCC_LoadCFG::Execute(pcstr args)
         }
         FS.r_close(F);
         Msg("[%s] successfully loaded.", cfg_full_name);
+#if defined(XR_PLATFORM_APPLE_IOS)
+        ios_graphics_profile_on_config_loaded();
+#endif
     }
     else
     {
@@ -760,6 +767,8 @@ void CCC_Register()
     CMD4(CCC_Integer, "r__wallmarks_on_skeleton", &ps_r__WallmarksOnSkeleton, 0, 1);
 #if defined(XR_PLATFORM_APPLE_IOS)
     CMD4(CCC_Integer, "ios_diagnostics", &psIOSDiagnostics, 0, 1);
+    CMD4(CCC_Integer, "ios_autoinput", &psIOSAutoInput, 0, 1);
+    CMD3(CCC_Token, "ios_graphics_profile", &psIOSGraphicsProfile, iosGraphicsProfileTokens);
 #endif
 
     CMD1(CCC_Editor, "rs_editor");

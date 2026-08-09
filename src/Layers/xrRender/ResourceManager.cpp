@@ -5,6 +5,10 @@
 #include "stdafx.h"
 #pragma hdrstop
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "xrEngine/ios/ios_texture_eviction_policy.h"
+#endif
+
 #include "xrCore/Threading/ParallelForEach.hpp"
 
 #include "ResourceManager.h"
@@ -461,6 +465,61 @@ void CResourceManager::_DumpMemoryUsage()
 void CResourceManager::Evict()
 {
     // TODO: DX11: check if we really need this method
+}
+
+void CResourceManager::LowMemoryEvict(u32& count, u64& bytes)
+{
+    count = 0;
+    bytes = 0;
+#if defined(XR_PLATFORM_APPLE_IOS) && defined(USE_OGL)
+    struct Candidate
+    {
+        CTexture* texture;
+        u32 age;
+        u32 bytes;
+    };
+
+    // One warning must not turn into a full-level reload spike. Release at
+    // most 256 MiB and only surfaces unused for at least 300 rendered frames
+    // (~5 s at 60 FPS, ~10 s at 30 FPS). Any evicted texture remains
+    // registered and reloads lazily.
+    xr_vector<Candidate> candidates;
+    candidates.reserve(m_textures.size());
+
+    for (const auto& entry : m_textures)
+    {
+        CTexture* texture = entry.second;
+        const u32 age = Device.dwFrame - texture->m_last_used_frame;
+        if (!ios_texture_eviction::IsCandidate(texture->flags.bLoaded, texture->flags.bUser,
+                texture->m_low_memory_pinned, texture->flags.MemoryUsage,
+                Device.dwFrame, texture->m_last_used_frame))
+            continue;
+
+        candidates.push_back({ texture, age, texture->flags.MemoryUsage });
+    }
+
+    std::sort(candidates.begin(), candidates.end(), [](const Candidate& left, const Candidate& right)
+    {
+        if (left.age != right.age)
+            return left.age > right.age;
+        return left.bytes > right.bytes;
+    });
+
+    for (const Candidate& candidate : candidates)
+    {
+        if (!ios_texture_eviction::FitsBudget(bytes, candidate.bytes))
+            continue;
+        candidate.texture->Unload();
+        bytes += candidate.bytes;
+        ++count;
+        if (bytes >= ios_texture_eviction::BudgetBytes)
+            break;
+    }
+
+    Msg("* iOS texture eviction: %u stale surfaces, %llu K released (budget %llu K, %zu candidates)",
+        count, static_cast<unsigned long long>(bytes / 1024),
+        static_cast<unsigned long long>(ios_texture_eviction::BudgetBytes / 1024), candidates.size());
+#endif
 }
 /*
 BOOL	CResourceManager::_GetDetailTexture(LPCSTR Name,LPCSTR& T, R_constant_setup* &CS)
