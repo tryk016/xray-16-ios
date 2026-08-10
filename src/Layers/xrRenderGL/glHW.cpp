@@ -9,12 +9,177 @@
 
 #if defined(XR_PLATFORM_APPLE_IOS)
 #include <SDL_syswm.h>
+#include <cstdlib>
+#include <unistd.h>
+#include "ios_capture_state_v2.h"
+#include "xrEngine/Environment.h"
+#include "xrEngine/IGame_Level.h"
+#include "xrEngine/IGame_Persistent.h"
 #include "xrEngine/ios/ios_display.h"
+#include "xrEngine/ios/ios_diagnostic_input_state.h"
 #endif
 
 namespace xray::render::RENDER_NAMESPACE
 {
 CHW HW;
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+namespace
+{
+const char* IosCaptureSession()
+{
+    static char session[xray::ios_capture_v2::kSessionChars + 1]{};
+    if (session[0])
+        return session;
+
+    // xrGUID is a storage type only; there is no existing engine GUID generator
+    // suitable for a process-local diagnostic session. arc4random_buf is part
+    // of the iOS libc surface and adds no link dependency.
+    unsigned char bytes[16]{};
+    arc4random_buf(bytes, sizeof(bytes));
+    static constexpr char hex[] = "0123456789abcdef";
+    for (std::size_t index = 0; index != sizeof(bytes); ++index)
+    {
+        session[index * 2] = hex[(bytes[index] >> 4) & 0x0f];
+        session[index * 2 + 1] = hex[bytes[index] & 0x0f];
+    }
+    return session;
+}
+
+template <std::size_t Size>
+bool CopyIosCaptureText(char (&destination)[Size], const char* source)
+{
+    if (!source)
+        return false;
+    const std::size_t length = std::strlen(source);
+    if (length == 0 || length >= Size)
+        return false;
+    std::memcpy(destination, source, length + 1);
+    return true;
+}
+
+ios_capture_v2::InputState IosCaptureInputState(const ios_diagnostic_input::State state)
+{
+    switch (state)
+    {
+    case ios_diagnostic_input::State::None: return ios_capture_v2::InputState::None;
+    case ios_diagnostic_input::State::Active: return ios_capture_v2::InputState::Active;
+    case ios_diagnostic_input::State::Released: return ios_capture_v2::InputState::Released;
+    case ios_diagnostic_input::State::Cancelled: return ios_capture_v2::InputState::Cancelled;
+    }
+    return ios_capture_v2::InputState::None;
+}
+
+ios_capture_v2::TimedEvent IosCaptureTimedEvent(const ios_diagnostic_input::Event& event)
+{
+    return { event.present, event.frame, event.continual_ms, event.sdl_ms };
+}
+
+bool FreezeIosCaptureSnapshot(ios_capture_v2::Snapshot& snapshot, const u64 sequence, const GLint width,
+    const GLint height)
+{
+    snapshot = {};
+    if (width <= 0 || height <= 0 || sequence == 0)
+        return false;
+
+    const auto captureWorld = RImplementation.ios_capture_world_state();
+    if (!CopyIosCaptureText(snapshot.capture.session, IosCaptureSession()))
+        return false;
+    snapshot.capture.sequence = sequence;
+    snapshot.capture.pid = static_cast<u32>(getpid());
+    snapshot.capture.frame = Device.dwFrame;
+    snapshot.capture.continual_ms = Device.dwTimeContinual;
+    snapshot.capture.width = static_cast<u32>(width);
+    snapshot.capture.height = static_cast<u32>(height);
+    snapshot.capture.period_ms = ios_capture_v2::kPeriodMs;
+    snapshot.capture.paused = Device.Paused();
+
+    snapshot.view.position = { Device.vCameraPosition.x, Device.vCameraPosition.y, Device.vCameraPosition.z };
+    snapshot.view.direction = { Device.vCameraDirection.x, Device.vCameraDirection.y, Device.vCameraDirection.z };
+    snapshot.view.fov = Device.fFOV;
+
+    const bool gameplayReady = captureWorld.loaded && captureWorld.sector_valid
+        && g_pGameLevel && g_pGameLevel->bReady;
+    // b_loaded identifies the renderer's loading state. A render-level that is
+    // present but lacks a ready level/sector is "loading", never a fake menu.
+    xr_strcpy(snapshot.capture.scene, gameplayReady ? "gameplay" : (captureWorld.loaded || g_pGameLevel ? "loading" : "menu"));
+
+    // An invalid sector is useful for the startup-sector oracle but deliberately
+    // not a world capture-v2 claim. The host A/B verifier rejects null world.
+    if (gameplayReady && CopyIosCaptureText(snapshot.world.level, g_pGameLevel->name().c_str()))
+    {
+        snapshot.world.present = true;
+        snapshot.world.epoch = captureWorld.epoch;
+        snapshot.world.sector = captureWorld.sector;
+    }
+
+    // GetEnvironmentGameTime is the absolute game-time clock in milliseconds.
+    // CEnvironment::GetGameTime is only a floating day-time value, so it must
+    // never be serialized as game_time_ms.
+    if (snapshot.world.present && g_pGamePersistent && g_pGamePersistent->pEnvironment)
+    {
+        CEnvironment& environment = g_pGamePersistent->Environment();
+        if (environment.Current[0] && environment.Current[1]
+            && CopyIosCaptureText(snapshot.environment.cycle, environment.CurrentCycleName.c_str())
+            && CopyIosCaptureText(snapshot.environment.weather, environment.GetWeather().c_str())
+            && CopyIosCaptureText(snapshot.environment.descriptor0, environment.Current[0]->m_identifier.c_str())
+            && CopyIosCaptureText(snapshot.environment.descriptor1, environment.Current[1]->m_identifier.c_str()))
+        {
+            const CEnvDescriptorMixer& current = environment.CurrentEnv;
+            snapshot.environment.present = true;
+            snapshot.environment.game_time_ms = g_pGameLevel->GetEnvironmentGameTime();
+            snapshot.environment.day_time_s = g_pGameLevel->GetEnvironmentGameDayTimeSec();
+            snapshot.environment.time_factor = g_pGameLevel->GetEnvironmentTimeFactor();
+            snapshot.environment.weather_fx = environment.bWFX;
+            snapshot.environment.weight = current.weight;
+            snapshot.environment.ambient = { current.ambient.x, current.ambient.y, current.ambient.z };
+            snapshot.environment.hemi = { current.hemi_color.x, current.hemi_color.y, current.hemi_color.z,
+                current.hemi_color.w };
+            snapshot.environment.sun = { current.sun_color.x, current.sun_color.y, current.sun_color.z };
+            snapshot.environment.sun_direction = { current.sun_dir.x, current.sun_dir.y, current.sun_dir.z };
+        }
+    }
+
+    const ios_diagnostic_input::Snapshot input = ios_diagnostic_input::snapshot();
+    snapshot.input.generation = input.generation;
+    snapshot.input.state = IosCaptureInputState(input.state);
+    snapshot.input.scancode = input.scancode;
+    snapshot.input.duration_ms = input.duration_ms;
+    snapshot.input.accepted = IosCaptureTimedEvent(input.accepted);
+    snapshot.input.released = IosCaptureTimedEvent(input.released);
+    if (snapshot.input.state != ios_capture_v2::InputState::None
+        && (!CopyIosCaptureText(snapshot.input.request_id, input.request_id)
+            || !CopyIosCaptureText(snapshot.input.key, input.key)))
+        return false;
+    return true;
+}
+
+bool PrepareIosCaptureReadback(const u64 sequence)
+{
+    // GL exposes its sticky error state only through destructive reads. Drain
+    // and identify errors that predate this opt-in diagnostic path so the
+    // readback check below cannot misattribute them to glReadPixels.
+    GLenum staleError = GL_NO_ERROR;
+    while ((staleError = glGetError()) != GL_NO_ERROR)
+    {
+        Msg("! iOS diag: pre-readback GL error 0x%x ignored for sequence=%llu",
+            static_cast<unsigned>(staleError), static_cast<unsigned long long>(sequence));
+    }
+
+    const GLenum framebufferStatus = glCheckFramebufferStatus(GL_READ_FRAMEBUFFER);
+    const GLenum framebufferError = glGetError();
+    if (framebufferStatus != GL_FRAMEBUFFER_COMPLETE || framebufferError != GL_NO_ERROR)
+    {
+        Msg("! iOS diag: read framebuffer unavailable for sequence=%llu (status=0x%x error=0x%x)",
+            static_cast<unsigned long long>(sequence), static_cast<unsigned>(framebufferStatus),
+            static_cast<unsigned>(framebufferError));
+        return false;
+    }
+
+    return true;
+}
+} // namespace
+#endif
 
 void CALLBACK OnDebugCallback(GLenum /*source*/, GLenum /*type*/, GLuint id, GLenum severity, GLsizei /*length*/,
     const GLchar* message, const void* /*userParam*/)
@@ -365,66 +530,135 @@ void CHW::Present()
     if (psIOSDiagnostics)
     {
         static u32 s_ios_shot_next = 0;
+        static u64 s_ios_shot_sequence = 0;
         // dwTimeGlobal freezes while the game is paused (including Options).
         // Continual time still advances with rendered menu frames.
         if (Device.dwTimeContinual >= s_ios_shot_next)
         {
             s_ios_shot_next = Device.dwTimeContinual + 5000;
 
-            const GLint w = GLint(Device.dwWidth);
-            const GLint h = GLint(Device.dwHeight);
-            if (w > 0 && h > 0)
+            // Allocate a generation before any fallible operation. A failed
+            // readback or sidecar write therefore consumes its token rather
+            // than ever publishing the same token for a later image.
+            if (s_ios_shot_sequence == std::numeric_limits<u64>::max())
             {
-                const size_t rgbaBytes = size_t(w) * size_t(h) * 4;
-                u8* rgba = (u8*)xr_malloc(rgbaBytes);
-                if (rgba)
+                Msg("! iOS diag: capture sequence exhausted; disabling capture publication");
+            }
+            else
+            {
+                const u64 sequence = ++s_ios_shot_sequence;
+
+                const GLint w = GLint(Device.dwWidth);
+                const GLint h = GLint(Device.dwHeight);
+                if (w > 0 && h > 0)
                 {
-                    // reads from GL_READ_FRAMEBUFFER, which is pFB - bound just above
-                    glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+                    ios_capture_v2::Snapshot snapshot;
+                    bool captureReady = FreezeIosCaptureSnapshot(snapshot, sequence, w, h);
+                    if (!captureReady)
+                        Msg("! iOS diag: capture state freeze failed for sequence=%llu",
+                            static_cast<unsigned long long>(sequence));
 
-                    const char* home = getenv("HOME");
-                    string_path tmp, dst, meta_tmp, meta_dst;
-                    xr_sprintf(tmp, "%s/Documents/xr_shot.tmp", home ? home : ".");
-                    xr_sprintf(dst, "%s/Documents/xr_shot.ppm", home ? home : ".");
-                    xr_sprintf(meta_tmp, "%s/Documents/xr_shot_meta.tmp", home ? home : ".");
-                    xr_sprintf(meta_dst, "%s/Documents/xr_shot_meta.txt", home ? home : ".");
-
-                    // Write to a temp name and rename, so a pull over the cable can never
-                    // catch a half-written file.
-                    if (FILE* f = fopen(tmp, "wb"))
+                    std::string sidecar;
+                    std::string serializeError;
+                    if (captureReady && !ios_capture_v2::Serialize(snapshot, sidecar, serializeError))
                     {
-                        fprintf(f, "P6\n%d %d\n255\n", int(w), int(h));
-                        for (GLint y = h - 1; y >= 0; --y)
-                        {
-                            const u8* row = rgba + size_t(y) * size_t(w) * 4;
-                            for (GLint x = 0; x < w; ++x)
-                                fwrite(row + size_t(x) * 4, 1, 3, f);
-                        }
-                        fclose(f);
-                        const int rc = rename(tmp, dst);
+                        Msg("! iOS diag: capture v2 serialization failed for sequence=%llu: %s",
+                            static_cast<unsigned long long>(sequence), serializeError.c_str());
+                        captureReady = false;
+                    }
 
-                        // Publish a generation only after the frame is atomically visible.
-                        // shot.sh waits for this token to change, so it cannot mistake a
-                        // capture left by a previous process for the current frame.
-                        if (rc == 0)
+                    const size_t pixelCount = size_t(w) * size_t(h);
+                    const size_t rgbaBytes = pixelCount * 4;
+                    if (captureReady && rgbaBytes / 4 != pixelCount)
+                    {
+                        Msg("! iOS diag: capture allocation overflow for sequence=%llu",
+                            static_cast<unsigned long long>(sequence));
+                        captureReady = false;
+                    }
+                    u8* rgba = captureReady ? (u8*)xr_malloc(rgbaBytes) : nullptr;
+                    if (rgba)
+                    {
+                        if (PrepareIosCaptureReadback(sequence))
                         {
-                            if (FILE* meta = fopen(meta_tmp, "wb"))
+                            // glReadPixels may leave the destination untouched on an
+                            // error. Never serialize uninitialized bytes, even if a
+                            // future caller accidentally weakens the error gate.
+                            std::memset(rgba, 0, rgbaBytes);
+
+                            // reads from GL_READ_FRAMEBUFFER, which is pFB - bound just above
+                            glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+                            const GLenum readbackError = glGetError();
+                            if (readbackError != GL_NO_ERROR)
                             {
-                                fprintf(meta, "%u %u\n", Device.dwFrame, Device.dwTimeContinual);
-                                fclose(meta);
-                                rename(meta_tmp, meta_dst);
+                                Msg("! iOS diag: glReadPixels failed for sequence=%llu (error=0x%x); capture not published",
+                                    static_cast<unsigned long long>(sequence), static_cast<unsigned>(readbackError));
+                            }
+                            else
+                            {
+                                const char* home = getenv("HOME");
+                                string_path tmp, dst, meta_tmp, meta_dst;
+                                xr_sprintf(tmp, "%s/Documents/xr_shot.tmp", home ? home : ".");
+                                xr_sprintf(dst, "%s/Documents/xr_shot.ppm", home ? home : ".");
+                                xr_sprintf(meta_tmp, "%s/Documents/xr_shot_meta.tmp", home ? home : ".");
+                                xr_sprintf(meta_dst, "%s/Documents/xr_shot_meta.txt", home ? home : ".");
+
+                                // First publish a complete PPM, then a complete sidecar. A
+                                // host must read metadata-before / PPM / metadata-after and
+                                // require the same PPM-header token, so it rejects the only
+                                // remaining publication window (new PPM plus old metadata).
+                                if (FILE* f = fopen(tmp, "wb"))
+                                {
+                                    const std::string header = ios_capture_v2::PpmHeader(snapshot);
+                                    bool frameWritten = fwrite(header.data(), 1, header.size(), f) == header.size();
+                                    for (GLint y = h - 1; frameWritten && y >= 0; --y)
+                                    {
+                                        const u8* row = rgba + size_t(y) * size_t(w) * 4;
+                                        for (GLint x = 0; x < w; ++x)
+                                        {
+                                            if (fwrite(row + size_t(x) * 4, 1, 3, f) != 3)
+                                            {
+                                                frameWritten = false;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    const int closeRc = fclose(f);
+                                    const int rc = frameWritten && closeRc == 0 ? rename(tmp, dst) : -1;
+                                    if (rc != 0)
+                                        remove(tmp);
+
+                                    // Publish v2 metadata only after the complete frame is visible.
+                                    // A metadata failure leaves a safe, unpaired PPM; the host rejects
+                                    // it instead of attributing it to an older sidecar.
+                                    if (rc == 0)
+                                    {
+                                        if (FILE* meta = fopen(meta_tmp, "wb"))
+                                        {
+                                            const bool wroteSidecar = fwrite(sidecar.data(), 1, sidecar.size(), meta) == sidecar.size();
+                                            const int metaCloseRc = fclose(meta);
+                                            if (wroteSidecar && metaCloseRc == 0)
+                                            {
+                                                if (rename(meta_tmp, meta_dst) != 0)
+                                                    remove(meta_tmp);
+                                            }
+                                            else
+                                                remove(meta_tmp);
+                                        }
+                                    }
+
+                                    u32 mx = 0;
+                                    for (size_t i = 0; i < rgbaBytes; ++i)
+                                        if (rgba[i] > mx)
+                                            mx = rgba[i];
+                                    Msg("* iOS diag: shot %dx%d token=%s:%llu maxByte=%u rename=%d", int(w), int(h),
+                                        snapshot.capture.session, static_cast<unsigned long long>(snapshot.capture.sequence), mx, rc);
+                                }
+                                else
+                                    Msg("* iOS diag: shot fopen FAILED (%s)", tmp);
                             }
                         }
-
-                        u32 mx = 0;
-                        for (size_t i = 0; i < rgbaBytes; ++i)
-                            if (rgba[i] > mx)
-                                mx = rgba[i];
-                        Msg("* iOS diag: shot %dx%d maxByte=%u rename=%d", int(w), int(h), mx, rc);
+                        xr_free(rgba);
                     }
-                    else
-                        Msg("* iOS diag: shot fopen FAILED (%s)", tmp);
-                    xr_free(rgba);
                 }
             }
         }

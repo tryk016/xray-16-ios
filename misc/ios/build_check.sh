@@ -91,6 +91,10 @@ sector_fallback_test=""
 sector_fallback_sanitized_test=""
 ui_focus_geometry_test=""
 ui_focus_geometry_sanitized_test=""
+capture_state_test=""
+capture_state_sanitized_test=""
+diagnostic_input_state_test=""
+diagnostic_input_state_sanitized_test=""
 gate_start=$(mktemp "${TMPDIR:-/tmp}/ios-gate-start.XXXXXX") \
     || fail "could not create gate start marker"
 cleanup() {
@@ -105,6 +109,10 @@ cleanup() {
     [ -z "$sector_fallback_sanitized_test" ] || rm -f "$sector_fallback_sanitized_test"
     [ -z "$ui_focus_geometry_test" ] || rm -f "$ui_focus_geometry_test"
     [ -z "$ui_focus_geometry_sanitized_test" ] || rm -f "$ui_focus_geometry_sanitized_test"
+    [ -z "$capture_state_test" ] || rm -f "$capture_state_test"
+    [ -z "$capture_state_sanitized_test" ] || rm -f "$capture_state_sanitized_test"
+    [ -z "$diagnostic_input_state_test" ] || rm -f "$diagnostic_input_state_test"
+    [ -z "$diagnostic_input_state_sanitized_test" ] || rm -f "$diagnostic_input_state_sanitized_test"
 }
 trap cleanup EXIT
 
@@ -119,6 +127,18 @@ python3 misc/ios/test_sdl2_scene_contract.py \
 echo "== iOS install preflight contract gate =="
 python3 misc/ios/test_install_device_contract.py \
     || fail "iOS install preflight contract regression tests failed"
+
+echo "== iOS capture-v2 host tooling gate =="
+bash -n misc/ios/device_lease.sh misc/ios/input.sh misc/ios/shot.sh misc/ios/lighting_ab_capture.sh \
+    || fail "capture-v2 shell syntax check failed"
+shellcheck -x misc/ios/device_lease.sh misc/ios/input.sh misc/ios/shot.sh misc/ios/lighting_ab_capture.sh \
+    || fail "capture-v2 ShellCheck failed"
+python3 misc/ios/test_lighting_ab_evidence.py \
+    || fail "capture-v2 parser/evidence regression tests failed"
+python3 misc/ios/test_capture_v2_host_tools.py \
+    || fail "capture-v2 mock host-tool regression tests failed"
+python3 misc/ios/test_capture_state_source_contract.py \
+    || fail "capture-v2 source contract regression tests failed"
 
 # Hash paths and their contents in one Python process. The salt carries tool
 # versions and gate expectations that are not repository files. Hashing names
@@ -236,6 +256,57 @@ else
         || fail "C++ compiler not found for graphics policy test"
     policy_compile=("$policy_cxx")
 fi
+
+if [ "$(uname -s)" = "Darwin" ]; then
+    capture_v2_asan_options=detect_leaks=0
+else
+    capture_v2_asan_options=detect_leaks=1
+fi
+
+echo "== iOS capture-v2 serializer/input-state strict gate =="
+capture_state_test=$(mktemp "${TMPDIR:-/tmp}/ios-capture-state.XXXXXX") \
+    || fail "could not create capture-v2 serializer test binary"
+"${policy_compile[@]}" -std=c++17 -I "$REPO_ROOT" \
+    -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Werror \
+    misc/ios/ios_capture_state_v2_test.cpp -o "$capture_state_test" \
+    || fail "capture-v2 serializer test did not compile"
+"$capture_state_test" || fail "capture-v2 serializer test failed"
+rm -f "$capture_state_test"
+capture_state_test=""
+
+capture_state_sanitized_test=$(mktemp "${TMPDIR:-/tmp}/ios-capture-state-sanitized.XXXXXX") \
+    || fail "could not create sanitized capture-v2 serializer test binary"
+"${policy_compile[@]}" -std=c++17 -I "$REPO_ROOT" -O1 -g \
+    -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Werror \
+    -fsanitize=address,undefined -fno-omit-frame-pointer \
+    misc/ios/ios_capture_state_v2_test.cpp -o "$capture_state_sanitized_test" \
+    || fail "sanitized capture-v2 serializer test did not compile"
+ASAN_OPTIONS="$capture_v2_asan_options" UBSAN_OPTIONS=halt_on_error=1 "$capture_state_sanitized_test" \
+    || fail "sanitized capture-v2 serializer test failed"
+rm -f "$capture_state_sanitized_test"
+capture_state_sanitized_test=""
+
+diagnostic_input_state_test=$(mktemp "${TMPDIR:-/tmp}/ios-diagnostic-input-state.XXXXXX") \
+    || fail "could not create diagnostic input-state test binary"
+"${policy_compile[@]}" -std=c++17 -I "$REPO_ROOT" \
+    -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Werror \
+    misc/ios/ios_diagnostic_input_state_test.cpp -o "$diagnostic_input_state_test" \
+    || fail "diagnostic input-state test did not compile"
+"$diagnostic_input_state_test" || fail "diagnostic input-state test failed"
+rm -f "$diagnostic_input_state_test"
+diagnostic_input_state_test=""
+
+diagnostic_input_state_sanitized_test=$(mktemp "${TMPDIR:-/tmp}/ios-diagnostic-input-state-sanitized.XXXXXX") \
+    || fail "could not create sanitized diagnostic input-state test binary"
+"${policy_compile[@]}" -std=c++17 -I "$REPO_ROOT" -O1 -g \
+    -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Werror \
+    -fsanitize=address,undefined -fno-omit-frame-pointer \
+    misc/ios/ios_diagnostic_input_state_test.cpp -o "$diagnostic_input_state_sanitized_test" \
+    || fail "sanitized diagnostic input-state test did not compile"
+ASAN_OPTIONS="$capture_v2_asan_options" UBSAN_OPTIONS=halt_on_error=1 "$diagnostic_input_state_sanitized_test" \
+    || fail "sanitized diagnostic input-state test failed"
+rm -f "$diagnostic_input_state_sanitized_test"
+diagnostic_input_state_sanitized_test=""
 
 echo "== iOS startup-sector evidence oracle gate =="
 python3 misc/ios/test_sector_startup_oracle.py \

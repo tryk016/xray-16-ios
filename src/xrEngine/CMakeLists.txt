@@ -264,6 +264,7 @@ target_sources_grouped(
     FILES
     IInputReceiver.cpp
     IInputReceiver.h
+    ios/ios_diagnostic_input_state.h
     xr_input.cpp
     xr_input.h
 )

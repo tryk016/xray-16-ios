@@ -52,6 +52,17 @@ struct IosSectorStartupPendingReport
     float radius{};
     u32 frame{};
 };
+
+// This is deliberately renderer-local rather than another IRender virtual.
+// CHW and CRender are linked into xrRender_GL, so a capture can snapshot the
+// sector evidence without leaking an iOS diagnostic protocol into all renderers.
+struct IosCaptureWorldState
+{
+    bool loaded{};
+    bool sector_valid{};
+    u64 epoch{};
+    u64 sector{};
+};
 #endif
 
 // TODO: move it into separate file.
@@ -544,6 +555,16 @@ public:
 
     void addShaderOption(pcstr name, pcstr value);
     void clearAllShaderOptions() { m_ShaderOptions.clear(); }
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+    [[nodiscard]] IosCaptureWorldState ios_capture_world_state() const
+    {
+        static_assert(sizeof(IRender_Sector::sector_id_t) <= sizeof(u64),
+            "capture-v2 must not narrow a sector identifier");
+        return { b_loaded, last_sector_id != IRender_Sector::INVALID_SECTOR_ID,
+            ios_sector_startup_evidence.epoch(), static_cast<u64>(last_sector_id) };
+    }
+#endif
 
 private:
 #if defined(USE_DX11)

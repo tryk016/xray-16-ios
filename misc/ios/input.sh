@@ -4,6 +4,7 @@
 # the device.
 #
 #   ./misc/ios/input.sh w 1500      # walk forward for 1.5 s
+#   ./misc/ios/input.sh --request-id 12345678-1234-4abc-8def-1234567890ab w 12000
 #   ./misc/ios/input.sh i 100       # tap inventory
 #   ./misc/ios/input.sh escape 100  # open/close pause menu
 #   ./misc/ios/input.sh tap 650 142 # tap logical UI coordinate (932x430 space)
@@ -30,7 +31,16 @@ source "$SCRIPT_DIR/device_lease.sh"
 DEVICE_UDID="00008130-000564403E12001C"
 BUNDLE_ID="io.github.tryk016.openxray.RMJWWPF379"
 
-[ "$#" -le 3 ] || { echo "usage: $0 <letter|digit|escape|tab|enter|space|arrow|menu> [duration_ms] | tap <x> <y>" >&2; exit 2; }
+REQUEST_ID=""
+if [ "${1:-}" = --request-id ]; then
+    [ "$#" -ge 3 ] || { echo "usage: $0 [--request-id <lowercase-uuid>] <key> [duration_ms] | tap <x> <y>" >&2; exit 2; }
+    REQUEST_ID="$2"
+    shift 2
+    [[ "$REQUEST_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] \
+        || { echo "request ID must be a canonical lowercase UUID" >&2; exit 2; }
+fi
+
+[ "$#" -le 3 ] || { echo "usage: $0 [--request-id <lowercase-uuid>] <letter|digit|escape|tab|enter|space|arrow|menu> [duration_ms] | tap <x> <y>" >&2; exit 2; }
 KEY="${1:-w}"
 MS="${2:-1000}"
 
@@ -70,7 +80,9 @@ trap 'exit 143' TERM
 CFG="$WORK/user.ltx"
 TRIGGER="$WORK/autoinput.txt"
 ACK="$WORK/autoinput_ack.txt"
-REQUEST_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+if [ -z "$REQUEST_ID" ]; then
+    REQUEST_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+fi
 
 ios_device_lease_acquire 2 || exit $?
 

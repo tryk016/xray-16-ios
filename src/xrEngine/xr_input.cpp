@@ -9,6 +9,7 @@
 
 #if defined(XR_PLATFORM_APPLE_IOS)
 #include "ios/ios_input_lifecycle_policy.h"
+#include "ios/ios_diagnostic_input_state.h"
 #endif
 
 #include <locale>
@@ -75,6 +76,26 @@ struct IosDiagnosticInputState
 };
 
 IosDiagnosticInputState iosDiagnosticInput;
+ios_diagnostic_input::Snapshot iosDiagnosticInputSnapshot;
+
+bool IsCanonicalIosDiagnosticRequestId(const char* value)
+{
+    if (!value || std::strlen(value) != 36)
+        return false;
+    for (std::size_t index = 0; index != 36; ++index)
+    {
+        if (index == 8 || index == 13 || index == 18 || index == 23)
+        {
+            if (value[index] != '-')
+                return false;
+            continue;
+        }
+        const char c = value[index];
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')))
+            return false;
+    }
+    return true;
+}
 
 void RemoveIosAutoInputTrigger()
 {
@@ -108,6 +129,62 @@ void PublishIosAutoInputAck(const char* requestId, const char* result)
     }
 }
 } // namespace
+
+namespace ios_diagnostic_input
+{
+Snapshot snapshot() { return iosDiagnosticInputSnapshot; }
+
+void reset() { iosDiagnosticInputSnapshot = {}; }
+
+void begin(const char* requestId, const char* key, const int scancode, const std::uint32_t durationMs,
+    const std::uint32_t frame, const std::uint32_t continualMs, const std::uint32_t sdlMs)
+{
+    // Legacy trigger files without a canonical request UUID remain supported
+    // for gameplay, but cannot poison the strict capture-v2 sidecar.
+    if (!IsCanonicalIosDiagnosticRequestId(requestId) || !key || !key[0])
+        return;
+
+    ++iosDiagnosticInputSnapshot.generation;
+    if (iosDiagnosticInputSnapshot.generation == 0)
+        ++iosDiagnosticInputSnapshot.generation;
+    iosDiagnosticInputSnapshot.state = State::Active;
+    xr_strcpy(iosDiagnosticInputSnapshot.request_id, requestId);
+    xr_strcpy(iosDiagnosticInputSnapshot.key, key);
+    iosDiagnosticInputSnapshot.scancode = scancode;
+    iosDiagnosticInputSnapshot.duration_ms = durationMs;
+    iosDiagnosticInputSnapshot.accepted = {};
+    iosDiagnosticInputSnapshot.released = {};
+    (void)frame;
+    (void)continualMs;
+    (void)sdlMs;
+}
+
+void accept(const std::uint32_t frame, const std::uint32_t continualMs, const std::uint32_t sdlMs)
+{
+    if (iosDiagnosticInputSnapshot.state != State::Active)
+        return;
+    iosDiagnosticInputSnapshot.accepted = { true, frame, continualMs, sdlMs };
+}
+
+void release(const std::uint32_t frame, const std::uint32_t continualMs, const std::uint32_t sdlMs)
+{
+    if (iosDiagnosticInputSnapshot.state != State::Active || !iosDiagnosticInputSnapshot.accepted.present)
+        return;
+    iosDiagnosticInputSnapshot.released = { true, frame, continualMs, sdlMs };
+    iosDiagnosticInputSnapshot.state = State::Released;
+}
+
+void cancel(const std::uint32_t frame, const std::uint32_t continualMs, const std::uint32_t sdlMs)
+{
+    if (!transition_to_cancelled(iosDiagnosticInputSnapshot))
+        return;
+    // A cancelled hold or pending tap intentionally has no "released" event:
+    // the receiver was deactivated, not normally released by its timer.
+    (void)frame;
+    (void)continualMs;
+    (void)sdlMs;
+}
+} // namespace ios_diagnostic_input
 #endif
 
 // Max events per frame
@@ -123,6 +200,7 @@ CInput::CInput(const bool exclusive)
 
 #if defined(XR_PLATFORM_APPLE_IOS)
     iosDiagnosticInput.Reset();
+    ios_diagnostic_input::reset();
     // A touchscreen has no exclusive/relative-mouse concept: exclusive mode would keep the
     // UI cursor in delta-accumulation mode (it never moves under a tap). Force the absolute
     // path and own the touch->cursor mapping ourselves (TouchUpdate) instead of relying on
@@ -479,6 +557,7 @@ void CInput::KeyUpdate()
             if (elapsedFrames > 120)
             {
                 PublishIosAutoInputAck(iosDiagnosticInput.tapRequestId, "cancelled");
+                ios_diagnostic_input::cancel(Device.dwFrame, Device.dwTimeContinual, now);
                 iosDiagnosticInput.tapPending = false;
                 Msg("* iOS diag: cancelled stale autoinput tap from frame=%u at frame=%u",
                     iosDiagnosticInput.tapMoveFrame, Device.dwFrame);
@@ -491,6 +570,8 @@ void CInput::KeyUpdate()
                 cbStack.back()->IR_OnMouseMove(0, 0);
                 cbStack.back()->IR_OnMousePress(MOUSE_1);
                 cbStack.back()->IR_OnMouseRelease(MOUSE_1);
+                ios_diagnostic_input::accept(Device.dwFrame, Device.dwTimeContinual, now);
+                ios_diagnostic_input::release(Device.dwFrame, Device.dwTimeContinual, now);
                 PublishIosAutoInputAck(iosDiagnosticInput.tapRequestId, "accepted");
                 Msg("* iOS diag: autoinput tap click (%d, %d) frame=%u", tapX, tapY, Device.dwFrame);
             }
@@ -532,6 +613,8 @@ void CInput::KeyUpdate()
                         iosDiagnosticInput.tapPending = true;
                         xr_strcpy(iosDiagnosticInput.tapRequestId, requestId);
                         iosDiagnosticInput.nextPoll = now + 500;
+                        ios_diagnostic_input::begin(requestId, "tap", -1, 0, Device.dwFrame,
+                            Device.dwTimeContinual, now);
                         Msg("* iOS diag: autoinput tap move (%d, %d) frame=%u", tapX, tapY, Device.dwFrame);
                     }
                     else
@@ -584,6 +667,7 @@ void CInput::KeyUpdate()
                                 {
                                     keyboardState[iosDiagnosticInput.holdKey] = false;
                                     cbStack.back()->IR_OnKeyboardRelease(iosDiagnosticInput.holdKey);
+                                    ios_diagnostic_input::release(Device.dwFrame, Device.dwTimeContinual, now);
                                 }
 
                                 iosDiagnosticInput.holdKey = mapped_key;
@@ -592,6 +676,9 @@ void CInput::KeyUpdate()
                                 SetCurrentInputType(KeyboardMouse);
                                 keyboardState[iosDiagnosticInput.holdKey] = true;
                                 cbStack.back()->IR_OnKeyboardPress(iosDiagnosticInput.holdKey);
+                                ios_diagnostic_input::begin(requestId, key, mapped_key, ms, Device.dwFrame,
+                                    Device.dwTimeContinual, now);
+                                ios_diagnostic_input::accept(Device.dwFrame, Device.dwTimeContinual, now);
                                 PublishIosAutoInputAck(requestId, "accepted");
                                 Msg("* iOS diag: autoinput request %s press/hold '%s' (scancode %d) for %u ms",
                                     iosDiagnosticInput.holdRequestId, key, iosDiagnosticInput.holdKey, ms);
@@ -612,6 +699,7 @@ void CInput::KeyUpdate()
             {
                 keyboardState[iosDiagnosticInput.holdKey] = false;
                 cbStack.back()->IR_OnKeyboardRelease(iosDiagnosticInput.holdKey);
+                ios_diagnostic_input::release(Device.dwFrame, Device.dwTimeContinual, now);
                 Msg("* iOS diag: autoinput request %s released scancode %d",
                     iosDiagnosticInput.holdRequestId, iosDiagnosticInput.holdKey);
                 iosDiagnosticInput.holdKey = -1;
@@ -625,6 +713,7 @@ void CInput::KeyUpdate()
         {
             keyboardState[iosDiagnosticInput.holdKey] = false;
             cbStack.back()->IR_OnKeyboardRelease(iosDiagnosticInput.holdKey);
+            ios_diagnostic_input::cancel(Device.dwFrame, Device.dwTimeContinual, SDL_GetTicks());
         }
         iosDiagnosticInput.Reset();
     }
@@ -1093,6 +1182,7 @@ void CInput::OnAppDeactivate(void)
     if (iosDiagnosticInput.tapPending)
     {
         PublishIosAutoInputAck(iosDiagnosticInput.tapRequestId, "cancelled");
+        ios_diagnostic_input::cancel(Device.dwFrame, Device.dwTimeContinual, SDL_GetTicks());
         Msg("* iOS diag: lifecycle cancelled autoinput tap request %s",
             iosDiagnosticInput.tapRequestId);
     }
@@ -1115,8 +1205,12 @@ void CInput::OnAppDeactivate(void)
     m_ios_finger_active = false;
     m_ios_active_finger = 0;
     if (iosDiagnosticInput.holdKey >= 0)
+    {
         Msg("* iOS diag: lifecycle cancelled autoinput request %s scancode %d",
             iosDiagnosticInput.holdRequestId, iosDiagnosticInput.holdKey);
+        PublishIosAutoInputAck(iosDiagnosticInput.holdRequestId, "cancelled");
+        ios_diagnostic_input::cancel(Device.dwFrame, Device.dwTimeContinual, SDL_GetTicks());
+    }
     iosDiagnosticInput.Reset();
 
     // Do not replay input queued before the app resigned active. Cursor

@@ -1,22 +1,16 @@
 #!/usr/bin/env bash
 #
-# Pull the newest in-game frame off the tethered iPhone and convert it to PNG.
+# Pull one atomically correlated capture-v2 frame from the tethered iPhone.
 #
-#   ./misc/ios/shot.sh              # -> /tmp/xr_shot.png
-#   ./misc/ios/shot.sh out.png      # explicit destination
+#   ./misc/ios/shot.sh out.png
+#   ./misc/ios/shot.sh --metadata-out out.json out.png
 #
-# With `ios_diagnostics 1`, the engine writes a binary PPM to Documents/xr_shot.ppm
-# every 5 s (iOS-guarded block in Layers/xrRenderGL/glHW.cpp, in CHW::Present). So the image
-# this pulls is at most ~5 s old, and is the exact render target that reached the
-# screen - not a mirror, not a re-render.
-#
-# Exit code 0 = a PNG was written. Anything else = nothing usable was produced.
-#
-# PPM -> PNG is done here rather than on device because the conversion is free on a
-# Mac and PPM keeps the engine side dependency-free. Python's stdlib has zlib, which
-# is all a truecolour PNG needs.
+# Capture-v2 is a PPM plus a canonical JSON sidecar. The producer publishes
+# PPM first and JSON second, so this script copies metadata-before, PPM and
+# metadata-after and accepts only byte-identical metadata whose token matches
+# the PPM header. It never turns an unpaired image into evidence.
 
-set -u -o pipefail
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=misc/ios/device_lease.sh
@@ -24,8 +18,39 @@ source "$SCRIPT_DIR/device_lease.sh"
 
 DEVICE_UDID="00008130-000564403E12001C"
 BUNDLE_ID="io.github.tryk016.openxray.RMJWWPF379"
-[ "$#" -le 1 ] || { echo "usage: $0 [output.png]" >&2; exit 2; }
+METADATA_OUT=""
+EXPECT_TOKEN=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --metadata-out)
+            [ -z "$METADATA_OUT" ] && [ "$#" -ge 2 ] \
+                || { echo "usage: $0 [--expect-token session:sequence] [--metadata-out capture.json] [output.png]" >&2; exit 2; }
+            METADATA_OUT="$2"
+            shift 2
+            ;;
+        --expect-token)
+            [ -z "$EXPECT_TOKEN" ] && [ "$#" -ge 2 ] \
+                || { echo "usage: $0 [--expect-token session:sequence] [--metadata-out capture.json] [output.png]" >&2; exit 2; }
+            EXPECT_TOKEN="$2"
+            [[ "$EXPECT_TOKEN" =~ ^[0-9a-f]{32}:[1-9][0-9]*$ ]] \
+                || { echo "expected token must be canonical session:sequence" >&2; exit 2; }
+            shift 2
+            ;;
+        *) break ;;
+    esac
+done
+[ "$#" -le 1 ] || { echo "usage: $0 [--metadata-out capture.json] [output.png]" >&2; exit 2; }
 OUT="${1:-/tmp/xr_shot.png}"
+
+# --metadata-out is evidence mode. Do not silently overwrite any artifact that
+# a later A/B verifier might mistake for this batch.
+if [ -n "$METADATA_OUT" ]; then
+    { [ ! -e "$OUT" ] && [ ! -L "$OUT" ]; } \
+        || { echo "FAIL: evidence PNG already exists: $OUT" >&2; exit 1; }
+    { [ ! -e "$METADATA_OUT" ] && [ ! -L "$METADATA_OUT" ]; } \
+        || { echo "FAIL: evidence metadata already exists: $METADATA_OUT" >&2; exit 1; }
+fi
+
 WORK="$(mktemp -d -t xrshot)"
 cleanup()
 {
@@ -35,124 +60,104 @@ cleanup()
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
 PPM="$WORK/xr_shot.ppm"
 CFG="$WORK/user.ltx"
-META_OLD="$WORK/meta-old.txt"
-META_NEW="$WORK/meta-new.txt"
+META_BASE="$WORK/meta-base.json"
+META_BEFORE="$WORK/meta-before.json"
+META_AFTER="$WORK/meta-after.json"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
+copy_from_container()
+{
+    local source="$1" destination="$2" timeout="$3"
+    rm -f "$destination"
+    ios_run_with_timeout "$timeout" xcrun devicectl device copy from \
+        --device "$DEVICE_UDID" \
+        --domain-type appDataContainer \
+        --domain-identifier "$BUNDLE_ID" \
+        --user mobile \
+        --source "$source" \
+        --destination "$destination" >/dev/null 2>&1
+}
+
 ios_device_lease_acquire 2 || exit $?
 
-ios_run_with_timeout 15 xcrun devicectl device copy from \
-    --device "$DEVICE_UDID" \
-    --domain-type appDataContainer \
-    --domain-identifier "$BUNDLE_ID" \
-    --user mobile \
-    --source Documents/_appdata_/user.ltx \
-    --destination "$CFG" >/dev/null 2>&1 \
+copy_from_container Documents/_appdata_/user.ltx "$CFG" 15 \
     || fail "could not read user.ltx from the device"
-
 grep -Eq '^ios_diagnostics[[:space:]]+1[[:space:]]*$' "$CFG" \
     || fail "diagnostics are disabled; launch with ./misc/ios/install_device.sh --diagnostics"
 
-# Capture the current generation if one exists, then require a different token.
-# The engine publishes this sidecar only after atomically replacing the PPM.
-# If the first cable read fails, treat the first later token only as a baseline;
-# this costs at most one extra capture interval but can never accept a stale file.
+# A missing first read is not a usable baseline. Require two metadata
+# generations in that case so a capture left by another process cannot pass.
 baseline_ready=0
-if ios_run_with_timeout 15 xcrun devicectl device copy from \
-    --device "$DEVICE_UDID" \
-    --domain-type appDataContainer \
-    --domain-identifier "$BUNDLE_ID" \
-    --user mobile \
-    --source Documents/xr_shot_meta.txt \
-    --destination "$META_OLD" >/dev/null 2>&1 \
-    && [ -s "$META_OLD" ]; then
+if copy_from_container Documents/xr_shot_meta.txt "$META_BASE" 15 && [ -s "$META_BASE" ]; then
     baseline_ready=1
 fi
 
 fresh=0
 for _attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
     sleep 1
-    rm -f "$META_NEW"
-    if ios_run_with_timeout 3 xcrun devicectl device copy from \
-            --device "$DEVICE_UDID" \
-            --domain-type appDataContainer \
-            --domain-identifier "$BUNDLE_ID" \
-            --user mobile \
-            --source Documents/xr_shot_meta.txt \
-            --destination "$META_NEW" >/dev/null 2>&1 \
-        && [ -s "$META_NEW" ]; then
-        if [ "$baseline_ready" = 0 ]; then
-            cp "$META_NEW" "$META_OLD"
-            baseline_ready=1
-        elif ! cmp -s "$META_OLD" "$META_NEW"; then
-            fresh=1
-            break
-        fi
+    if ! copy_from_container Documents/xr_shot_meta.txt "$META_BEFORE" 3 || [ ! -s "$META_BEFORE" ]; then
+        continue
     fi
-done
-[ "$fresh" = 1 ] || fail "no fresh frame arrived within 12 seconds - is the diagnostics build running?"
-
-ios_run_with_timeout 15 xcrun devicectl device copy from \
-    --device "$DEVICE_UDID" \
-    --domain-type appDataContainer \
-    --domain-identifier "$BUNDLE_ID" \
-    --user mobile \
-    --source Documents/xr_shot.ppm \
-    --destination "$PPM" >/dev/null 2>&1 \
-    || fail "no Documents/xr_shot.ppm on device - is the diagnostics build running?"
-
-[ -s "$PPM" ] || fail "pulled file is empty"
-
-python3 - "$PPM" "$OUT" <<'PY' || fail "PPM -> PNG conversion failed"
-import sys, zlib, struct
-
-src, dst = sys.argv[1], sys.argv[2]
-with open(src, 'rb') as f:
-    data = f.read()
-
-# P6 header: magic, width height, maxval - each separated by whitespace, and any
-# token may be followed by a comment line. Parse tokens rather than assume layout.
-def tokens(buf):
-    i, out = 0, []
-    while len(out) < 4:
-        while i < len(buf) and buf[i:i+1].isspace():
-            i += 1
-        if buf[i:i+1] == b'#':
-            while i < len(buf) and buf[i:i+1] != b'\n':
-                i += 1
+    if [ -n "$EXPECT_TOKEN" ]; then
+        if ! actual_token=$(python3 "$SCRIPT_DIR/lighting_ab_evidence.py" metadata-token --metadata "$META_BEFORE"); then
+            cp "$META_BEFORE" "$META_BASE"
             continue
-        j = i
-        while j < len(buf) and not buf[j:j+1].isspace():
-            j += 1
-        out.append(buf[i:j])
-        i = j
-    return out, i + 1
+        fi
+        token_order=$(python3 "$SCRIPT_DIR/lighting_ab_evidence.py" token-order \
+            --expected "$EXPECT_TOKEN" --actual "$actual_token") || fail "could not compare capture tokens"
+        case "$token_order" in
+            before) continue ;;
+            equal) ;;
+            after|session-mismatch) fail "expected capture token $EXPECT_TOKEN was missed (saw $actual_token)" ;;
+            *) fail "invalid capture token ordering result: $token_order" ;;
+        esac
+    else
+        if [ "$baseline_ready" = 0 ]; then
+            cp "$META_BEFORE" "$META_BASE"
+            baseline_ready=1
+            continue
+        fi
+        cmp -s "$META_BASE" "$META_BEFORE" && continue
+    fi
 
-(magic, w, h, maxval), off = tokens(data)
-if magic != b'P6':
-    sys.exit("not a P6 PPM")
-w, h = int(w), int(h)
-px = data[off:off + w * h * 3]
-if len(px) < w * h * 3:
-    sys.exit("truncated pixel data")
+    if ! copy_from_container Documents/xr_shot.ppm "$PPM" 15 || [ ! -s "$PPM" ]; then
+        cp "$META_BEFORE" "$META_BASE"
+        continue
+    fi
+    if ! copy_from_container Documents/xr_shot_meta.txt "$META_AFTER" 3 || [ ! -s "$META_AFTER" ]; then
+        cp "$META_BEFORE" "$META_BASE"
+        continue
+    fi
+    if ! cmp -s "$META_BEFORE" "$META_AFTER"; then
+        cp "$META_AFTER" "$META_BASE"
+        continue
+    fi
+    if ! python3 "$SCRIPT_DIR/lighting_ab_evidence.py" validate-capture \
+            --metadata "$META_BEFORE" --ppm "$PPM"; then
+        cp "$META_AFTER" "$META_BASE"
+        continue
+    fi
+    fresh=1
+    break
+done
+[ "$fresh" = 1 ] || fail "no fresh correlated capture arrived within 12 seconds"
 
-raw = b''.join(b'\x00' + px[y*w*3:(y+1)*w*3] for y in range(h))
+convert_args=(convert-ppm --ppm "$PPM" --output "$OUT")
+[ -z "$METADATA_OUT" ] || convert_args+=(--no-clobber)
+python3 "$SCRIPT_DIR/lighting_ab_evidence.py" "${convert_args[@]}" \
+    || fail "PPM -> token-bound PNG conversion failed"
+python3 "$SCRIPT_DIR/lighting_ab_evidence.py" validate-capture \
+    --metadata "$META_BEFORE" --ppm "$PPM" --png "$OUT" \
+    || fail "converted PNG did not retain the capture token"
 
-def chunk(tag, payload):
-    return (struct.pack('>I', len(payload)) + tag + payload
-            + struct.pack('>I', zlib.crc32(tag + payload) & 0xffffffff))
-
-png = (b'\x89PNG\r\n\x1a\n'
-       + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
-       + chunk(b'IDAT', zlib.compress(raw, 6))
-       + chunk(b'IEND', b''))
-
-with open(dst, 'wb') as f:
-    f.write(png)
-print(f"{w}x{h} -> {dst}")
-PY
+if [ -n "$METADATA_OUT" ]; then
+    python3 "$SCRIPT_DIR/lighting_ab_evidence.py" copy-file-exclusive \
+        --source "$META_BEFORE" --destination "$METADATA_OUT" \
+        || fail "could not exclusively publish evidence metadata"
+fi
 
 echo "OK: $OUT"

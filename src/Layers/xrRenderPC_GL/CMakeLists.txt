@@ -342,6 +342,7 @@ target_sources(xrRender_GL PRIVATE
     ../xrRenderGL/glHWCaps.cpp
     ../xrRenderGL/glHW.cpp
     ../xrRenderGL/glHW.h
+    ../xrRenderGL/ios_capture_state_v2.h
     ../xrRenderGL/glR_Backend_Runtime.h
     ../xrRenderGL/glr_constants.cpp
     ../xrRenderGL/glr_constants_cache.h
