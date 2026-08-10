@@ -630,3 +630,18 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   readability, color or performance proof. Final Sol xhigh verdict is
   `APPROVE — brak P0/P1/P2`; no phone, lease, devicectl, signing, install or
   push occurred.
+
+## 2026-08-10 — normal QuickSave/QuickLoad Simulator packet
+
+- Added opt-in F5/F9 evidence with exact input UUID/scancode, save/load log,
+  inode/hash, sector epoch and native 1864x860 capture contracts. Empty iOS
+  usernames fall back to `Player`; nonempty device names remain unchanged.
+- Sol medium P1s closed: private QuickSave copy is post-stop inode/hash-bound;
+  evidence manifest cannot claim PASS and authoritative `report.txt` links last.
+- Final Sol review added exact B0/B1/C semantic revalidation and pending-link
+  cleanup. Tests pass; the existing runtime packet predates these two hardenings.
+- PASS: retail 97/97, QuickLoad oracle 22/22, input 3/3 and clean iOS 27 arm64
+  Simulator workroot `134537-64428`. PID 73664, epochs 1/2, frames 90/94/182,
+  save SHA `f49e87d…`; protected inputs unchanged and Simulator deleted.
+- Apple Software Renderer control-flow evidence only. No phone, lease,
+  devicectl, signing, install or push.

@@ -431,14 +431,18 @@ def require_save_file(documents: Path, name: str) -> Path:
 
 
 def autoload_config(name: str, *, ios_diagnostics: bool = False,
-                    ios_autoinput: bool = False) -> bytes:
+                    ios_autoinput: bool = False, quickload_evidence: bool = False) -> bytes:
     validate_autoload_name(name)
-    return (
+    if quickload_evidence and not (ios_diagnostics and ios_autoinput):
+        fail("QuickLoad evidence config requires diagnostics and automatic input")
+    contents = (
         "keypress_on_start 0\n"
         f"ios_diagnostics {1 if ios_diagnostics else 0}\n"
         f"ios_autoinput {1 if ios_autoinput else 0}\n"
-        f"start server({name}/single/alife/load) client(localhost)\n"
-    ).encode("ascii")
+    )
+    if quickload_evidence:
+        contents += "bind quick_save kF5\nbind quick_load kF9\n"
+    return (contents + f"start server({name}/single/alife/load) client(localhost)\n").encode("ascii")
 
 
 def unlink_owned_regular(path: Path, identity: tuple[int, int]) -> None:
@@ -576,7 +580,7 @@ def publish_report(source: Path, destination: Path,
 
 def write_autoload_config(documents: Path, name: str, evidence: Path, manifest: Path,
                           *, ios_diagnostics: bool = False, ios_autoinput: bool = False,
-                          ui_captures: bool = False) -> None:
+                          ui_captures: bool = False, quickload_evidence: bool = False) -> None:
     """Generate the only non-retail config inside a staged Simulator container."""
 
     require_save_file(documents, name)
@@ -588,12 +592,15 @@ def write_autoload_config(documents: Path, name: str, evidence: Path, manifest: 
         fail("autoload evidence destination must not already exist")
     require_real_directory(evidence.parent)
     require_real_directory(manifest.parent)
-    if ios_diagnostics and ios_autoinput and not ui_captures:
+    if ios_diagnostics and ios_autoinput and not (ui_captures or quickload_evidence):
         fail("autoload config cannot enable diagnostics and automatic input together")
     if ui_captures and not (ios_diagnostics and ios_autoinput):
         fail("native UI captures require both diagnostics and automatic input")
+    if quickload_evidence and not (ios_diagnostics and ios_autoinput):
+        fail("QuickLoad evidence requires both diagnostics and automatic input")
     contents = autoload_config(name, ios_diagnostics=ios_diagnostics,
-                               ios_autoinput=ios_autoinput)
+                               ios_autoinput=ios_autoinput,
+                               quickload_evidence=quickload_evidence)
     write_new_regular(target, contents)
     write_new_regular(evidence, contents)
     if target.read_bytes() != contents or evidence.read_bytes() != contents:
@@ -663,7 +670,8 @@ def first_after(indices: Iterable[int], after: int) -> int | None:
     return next((index for index in indices if index > after), None)
 
 
-def autoload_sync_complete(lines: list[str], name: str) -> tuple[bool, str | None]:
+def autoload_sync_complete(lines: list[str], name: str, *,
+                           allow_canonical_quickload_marker: bool = False) -> tuple[bool, str | None]:
     """Check the normal save-load path through precache completion.
 
     The engine itself lowercases the server option.  The external contract is
@@ -694,6 +702,10 @@ def autoload_sync_complete(lines: list[str], name: str) -> tuple[bool, str | Non
         rf"^\* game {re.escape(name)} is successfully loaded from file "
         rf"'[^']*/_appdata_/savedgames/{re.escape(name)}\.scop'(?: \([^)]*\))?$"
     )
+    quickload_pattern = re.compile(
+        r"^\* game player \- quicksave is successfully loaded from file "
+        r"'[^']*/_appdata_/savedgames/player \- quicksave\.scop'(?: \([^)]*\))?$"
+    )
     any_save_success = [index for index, line in enumerate(lines) if line.startswith("* game ")
                         and " is successfully loaded from file '" in line]
     accepted_indices = [
@@ -715,12 +727,24 @@ def autoload_sync_complete(lines: list[str], name: str) -> tuple[bool, str | Non
         start = first_after(start_indices, user)
         if start is None:
             continue
-        mismatched = [index for index in any_save_success if index > start and not save_pattern.fullmatch(lines[index])]
+        initial_matches = [
+            index for index in any_save_success
+            if index > start and save_pattern.fullmatch(lines[index])
+        ]
+        quickload_matches = [
+            index for index in any_save_success
+            if index > start and quickload_pattern.fullmatch(lines[index])
+        ] if allow_canonical_quickload_marker else []
+        accepted_save_markers = set(initial_matches + quickload_matches)
+        mismatched = [
+            index for index in any_save_success
+            if index > start and index not in accepted_save_markers
+        ]
         if mismatched:
             fail("autoload log contains a mismatched saved-game success marker")
-        save = first_after(
-            [index for index, line in enumerate(lines) if save_pattern.fullmatch(line)], start
-        )
+        if allow_canonical_quickload_marker and (len(initial_matches) != 1 or len(quickload_matches) != 1):
+            fail("QuickLoad marker exception requires exactly one initial and one canonical quickload success marker")
+        save = first_after(initial_matches, start)
         if save is None:
             continue
         accepted = first_after(accepted_indices, save)
@@ -730,6 +754,8 @@ def autoload_sync_complete(lines: list[str], name: str) -> tuple[bool, str | Non
         memory = first_after(memory_indices, sync if sync is not None else accepted)
         if sync is None or memory is None:
             continue
+        if allow_canonical_quickload_marker and quickload_matches[0] <= memory:
+            fail("QuickLoad success marker must follow the initial synchronized load")
         levels: set[str] = set()
         for line in lines[accepted + 1:sync]:
             match = hom_pattern.fullmatch(line)
@@ -1096,7 +1122,8 @@ def parse_runtime_snapshot_manifest(path: Path, copied_log: Path,
 
 
 def finalize_runtime_log(source_log: Path, copied_log: Path, snapshot_manifest: Path,
-                         proof_metadata: Path, autoload_save: str | None) -> None:
+                         proof_metadata: Path, autoload_save: str | None, *,
+                         allow_canonical_quickload_marker: bool = False) -> None:
     identity, previous_data, expected_level, expected_pid = parse_runtime_snapshot_manifest(
         snapshot_manifest, copied_log, autoload_save,
     )
@@ -1105,7 +1132,7 @@ def finalize_runtime_log(source_log: Path, copied_log: Path, snapshot_manifest: 
     )
     final_ready, final_level = runtime_log_state(
         final_snapshot[1].decode("utf-8", errors="replace"), autoload_save,
-        expected_pid,
+        expected_pid, allow_canonical_quickload_marker=allow_canonical_quickload_marker,
     )
     if not final_ready or final_level != expected_level:
         fail("post-stop runtime log no longer proves the required runtime boundary")
@@ -1197,7 +1224,8 @@ def lifecycle_recovery_state(appended: bytes, expected_pid: int, anchor_seq: int
 
 
 def runtime_log_state(text: str, autoload_save: str | None,
-                      expected_pid: int | None = None) -> tuple[bool, str | None]:
+                      expected_pid: int | None = None, *,
+                      allow_canonical_quickload_marker: bool = False) -> tuple[bool, str | None]:
     raw_lines = text.splitlines()
     normalized = re.sub(r"/+", "/", text.lower().replace("\\", "/"))
     lines = normalized.splitlines()
@@ -1228,7 +1256,10 @@ def runtime_log_state(text: str, autoload_save: str | None,
             and menu_frame_state(raw_lines, expected_pid),
             None,
         )
-    ready, level = autoload_sync_complete(lines, autoload_save)
+    ready, level = autoload_sync_complete(
+        lines, autoload_save,
+        allow_canonical_quickload_marker=allow_canonical_quickload_marker,
+    )
     return ready and loaded_system and archive_cache and not missing_system, level
 
 
@@ -1495,7 +1526,8 @@ def prove_launch(timeout: float, poll: float, stdout_path: Path, stderr_path: Pa
                  ui_capture_runtime: str | None = None,
                  ui_capture_renderer: str | None = None,
                  ui_capture_git_revision: str | None = None,
-                 ui_capture_source_tree_sha256: str | None = None) -> None:
+                 ui_capture_source_tree_sha256: str | None = None,
+                 pid_output: Path | None = None) -> None:
     navigation_values = (navigation_script, navigation_documents, navigation_snapshot, navigation_pre_report)
     navigation_requested = any(value is not None for value in navigation_values)
     if navigation_requested and any(value is None for value in navigation_values):
@@ -1548,6 +1580,8 @@ def prove_launch(timeout: float, poll: float, stdout_path: Path, stderr_path: Pa
         fail(f"simctl launch failed with exit code {launch.returncode}")
     pid = parse_simctl_launch_pid(launch.stdout, bundle)
     require_live_app_pid(pid, "immediately after launch")
+    if pid_output is not None:
+        write_new_regular(pid_output, f"{pid}\n".encode("ascii"))
     if initial_pid_path is not None:
         write_new_regular(initial_pid_path, f"{pid}\n".encode("ascii"))
 
@@ -2008,12 +2042,14 @@ def parser() -> argparse.ArgumentParser:
     launch.add_argument("--ui-capture-renderer")
     launch.add_argument("--ui-capture-git-revision")
     launch.add_argument("--ui-capture-source-tree-sha256")
+    launch.add_argument("--pid-output")
     finalize = commands.add_parser("finalize-log")
     finalize.add_argument("--source-log", required=True)
     finalize.add_argument("--copied-log", required=True)
     finalize.add_argument("--snapshot-manifest", required=True)
     finalize.add_argument("--proof-metadata", required=True)
     finalize.add_argument("--autoload-save")
+    finalize.add_argument("--allow-canonical-quickload-marker", action="store_true")
     retail = commands.add_parser("retail-verify")
     retail.add_argument("--backup", required=True)
     retail.add_argument("--manifest", required=True)
@@ -2042,6 +2078,8 @@ def parser() -> argparse.ArgumentParser:
                            help="write ios_diagnostics 1 for the explicit capture-v2 workflow")
     generated.add_argument("--ui-captures", action="store_true",
                            help="explicitly permit diagnostics plus automatic input for native UI captures")
+    generated.add_argument("--quickload-evidence", action="store_true",
+                           help="write the isolated F5/F9 QuickSave/QuickLoad evidence config")
     state = commands.add_parser("selected-save-state")
     state.add_argument("--file", required=True)
     state.add_argument("--output", required=True)
@@ -2134,13 +2172,17 @@ def main() -> int:
                 (absolute_unresolved(args.ui_capture_root) if args.ui_capture_root else None),
                 args.ui_capture_run_uuid, args.ui_capture_runtime, args.ui_capture_renderer,
                 args.ui_capture_git_revision, args.ui_capture_source_tree_sha256,
+                (absolute_unresolved(args.pid_output) if args.pid_output else None),
             )
         elif args.command == "finalize-log":
             autoload_save = validate_autoload_name(args.autoload_save) if args.autoload_save else None
+            if args.allow_canonical_quickload_marker and autoload_save is None:
+                fail("canonical QuickLoad marker exception requires --autoload-save")
             finalize_runtime_log(
                 absolute_unresolved(args.source_log), absolute_unresolved(args.copied_log),
                 absolute_unresolved(args.snapshot_manifest),
                 absolute_unresolved(args.proof_metadata), autoload_save,
+                allow_canonical_quickload_marker=args.allow_canonical_quickload_marker,
             )
         elif args.command == "retail-verify":
             validate_retail(resolved(args.backup), resolved(args.manifest))
@@ -2165,7 +2207,8 @@ def main() -> int:
             write_autoload_config(documents, args.name, evidence, manifest,
                                   ios_diagnostics=args.ios_diagnostics,
                                   ios_autoinput=args.ios_autoinput,
-                                  ui_captures=args.ui_captures)
+                                  ui_captures=args.ui_captures,
+                                  quickload_evidence=args.quickload_evidence)
         elif args.command == "selected-save-state":
             write_selected_save_state(resolved(args.file), Path(args.output).expanduser())
         elif args.command == "selected-save-mutation":

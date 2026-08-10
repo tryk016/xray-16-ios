@@ -19,6 +19,7 @@ autoload_save=""
 ui_navigation=0
 ui_captures=0
 capture_v2=0
+quickload_evidence=0
 runtime_label="26.5"
 launch_timeout=120
 poll_interval="${RETAIL_SIMULATOR_POLL_INTERVAL:-1}"
@@ -26,7 +27,7 @@ poll_interval="${RETAIL_SIMULATOR_POLL_INTERVAL:-1}"
 usage() {
     cat >&2 <<'EOF'
 usage: retail_simulator.sh --backup PATH [--manifest PATH] [--work-base PATH]
-                           [--with-saves] [--autoload-save NAME] [--ui-navigation [--ui-captures]|--capture-v2]
+                           [--with-saves] [--autoload-save NAME] [--ui-navigation [--ui-captures]|--capture-v2|--quickload-evidence]
                            [--runtime 26.5|27.0] [--launch-timeout SECONDS]
 
 Creates a new, external Simulator work root. It never reuses a work root and
@@ -46,6 +47,7 @@ while [ "$#" -gt 0 ]; do
         --ui-navigation) ui_navigation=1; shift ;;
         --ui-captures) ui_captures=1; shift ;;
         --capture-v2) capture_v2=1; shift ;;
+        --quickload-evidence) quickload_evidence=1; shift ;;
         --runtime) [ "$#" -ge 2 ] || fail "--runtime requires 26.5 or 27.0"; runtime_label="$2"; shift 2 ;;
         --launch-timeout) [ "$#" -ge 2 ] || fail "--launch-timeout requires seconds"; launch_timeout="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
@@ -80,6 +82,14 @@ esac
     || fail "--ui-captures requires --runtime 27.0"
 [ "$capture_v2" = 0 ] || [ "$runtime_label" = "27.0" ] \
     || fail "--capture-v2 requires --runtime 27.0"
+[ "$quickload_evidence" = 0 ] || { [ "$runtime_label" = "27.0" ] && [ "$with_saves" = 1 ] && [ -n "$autoload_save" ]; } \
+    || fail "--quickload-evidence requires --runtime 27.0, --with-saves and --autoload-save"
+[ "$quickload_evidence" = 0 ] || [ "$ui_navigation" = 0 ] \
+    || fail "--quickload-evidence conflicts with --ui-navigation"
+[ "$quickload_evidence" = 0 ] || [ "$ui_captures" = 0 ] \
+    || fail "--quickload-evidence conflicts with --ui-captures"
+[ "$quickload_evidence" = 0 ] || [ "$capture_v2" = 0 ] \
+    || fail "--quickload-evidence conflicts with explicit --capture-v2"
 if [ -z "$manifest" ]; then
     manifest="${backup%/}.manifest"
 fi
@@ -298,6 +308,9 @@ if [ -n "$autoload_save" ]; then
     if [ "$ui_captures" = 1 ]; then
         autoload_config_args+=(--ios-diagnostics --ui-captures)
     fi
+    if [ "$quickload_evidence" = 1 ]; then
+        autoload_config_args+=(--ios-diagnostics --ios-autoinput --quickload-evidence)
+    fi
     python3 "$GUARD" "${autoload_config_args[@]}" \
         || fail "could not generate isolated Simulator user.ltx"
     selected_save="$documents/_appdata_/savedgames/$autoload_save.scop"
@@ -321,6 +334,9 @@ if [ -z "$autoload_save" ]; then
         --recovery-screenshot "$work_root/screenshot-after-foreground.png")
 else
     launch_args+=(--autoload-save "$autoload_save")
+fi
+if [ "$quickload_evidence" = 1 ]; then
+    launch_args+=(--pid-output "$work_root/quickload-pid.txt")
 fi
 if [ "$ui_navigation" = 1 ]; then
     launch_args+=(--navigation-script "$source_snapshot/misc/ios/simulator_ui_navigation.py" \
@@ -348,6 +364,18 @@ if [ "$capture_v2" = 1 ]; then
 fi
 python3 "$GUARD" "${launch_args[@]}" \
     || fail "Simulator launch did not prove its required runtime boundary before timeout"
+if [ "$quickload_evidence" = 1 ]; then
+    quickload_root="$work_root/quickload-evidence"
+    mkdir "$quickload_root" || fail "could not create QuickLoad evidence directory"
+    runtime_pid="$(< "$work_root/quickload-pid.txt")" \
+        || fail "could not read QuickLoad launched PID"
+    [[ "$runtime_pid" =~ ^[1-9][0-9]*$ ]] || fail "QuickLoad launched PID is invalid"
+    python3 "$source_snapshot/misc/ios/simulator_quickload_evidence.py" run \
+        --documents "$documents" --log "$documents/xr_boot.log" --expected-pid "$runtime_pid" \
+        --staged-manifest "$work_root/staged-files.tsv" --root "$quickload_root" \
+        --original-save "$selected_save" --timeout "$launch_timeout" --poll "$poll_interval" \
+        || fail "QuickSave/QuickLoad Simulator evidence failed before termination"
+fi
 xcrun simctl terminate "$device_uuid" "$BUNDLE_ID" \
     || fail "could not stop Simulator app before post-runtime integrity checks"
 finalize_args=(finalize-log --source-log "$documents/xr_boot.log" \
@@ -355,6 +383,9 @@ finalize_args=(finalize-log --source-log "$documents/xr_boot.log" \
     --snapshot-manifest "$work_root/runtime-log-snapshot.txt" \
     --proof-metadata "$work_root/runtime-proof.txt")
 [ -z "$autoload_save" ] || finalize_args+=(--autoload-save "$autoload_save")
+# This generic finalizer only permits the one extra canonical load marker.  The
+# dedicated oracle above and below proves the F9 request, PID and quick_load epoch.
+[ "$quickload_evidence" = 0 ] || finalize_args+=(--allow-canonical-quickload-marker)
 python3 "$GUARD" "${finalize_args[@]}" \
     || fail "post-stop Simulator log did not preserve its required runtime boundary"
 openal_runtime_fields=$(python3 "$GUARD" openal-runtime-log --log "$work_root/xr_boot.log") \
@@ -393,12 +424,30 @@ if [ -n "$autoload_save" ]; then
         --after "$work_root/autoload-save-after.tsv" \
         --report "$work_root/autoload-save-mutation.txt" \
         || fail "selected staged save became invalid after Simulator runtime"
-    compare_args+=(--mutable-save "$autoload_save")
+    if [ "$quickload_evidence" = 0 ]; then
+        compare_args+=(--mutable-save "$autoload_save")
+    fi
 fi
 python3 "$GUARD" "${compare_args[@]}" \
     || fail "staged retail data changed during Simulator runtime"
 guard_protected
 guard_snapshots
+
+# This is intentionally after every generic post-stop guard.  It freezes the
+# QuickLoad-specific save/log/capture packet at the last possible point before
+# report preparation; no PASS artifact can survive a later staging mutation.
+if [ "$quickload_evidence" = 1 ]; then
+    python3 "$source_snapshot/misc/ios/simulator_quickload_evidence.py" finalize \
+        --documents "$documents" --log "$documents/xr_boot.log" --expected-pid "$runtime_pid" \
+        --staged-manifest "$work_root/staged-files.tsv" --root "$quickload_root" \
+        --original-save "$selected_save" \
+        || fail "post-stop QuickSave/QuickLoad evidence revalidation failed"
+    quickload_manifest_pending="$quickload_root/manifest.pending.json"
+    quickload_manifest="$quickload_root/manifest.json"
+    quickload_report_fields="$quickload_root/report-fields.txt"
+    [ -f "$quickload_manifest_pending" ] && [ -f "$quickload_report_fields" ] \
+        || fail "QuickLoad evidence finalization did not prepare its pending artifacts"
+fi
 
 [ -s "$work_root/runtime-proof.txt" ] || fail "runtime proof metadata is missing or empty"
 runtime_pid="$(awk -F= '$1 == "pid" {print $2}' "$work_root/runtime-proof.txt")" \
@@ -470,6 +519,12 @@ fi
         printf 'capture_proof=%s\n' "$capture_root/capture-proof.json"
         printf 'capture_scope=iOS-27.0-Simulator-Apple-Software-Renderer-only\n'
     fi
+    if [ "$quickload_evidence" = 1 ]; then
+        printf 'quickload_evidence=PASS\n'
+        printf 'quickload_manifest=%s\n' "$quickload_manifest"
+        cat "$quickload_report_fields"
+        printf 'quickload_scope=iOS-27.0-Simulator-Apple-Software-Renderer-only; normal F5/F9 path; not iPhone/pixel-quality/performance/other-content proof\n'
+    fi
     printf 'host_stdout=%s\n' "$work_root/host-stdout.log"
     printf 'host_stderr=%s\n' "$work_root/host-stderr.log"
     printf 'xr_boot_log=%s\n' "$work_root/xr_boot.log"
@@ -493,6 +548,13 @@ publish_args=(publish-report --source "$report_pending" --destination "$report")
 if [ "$ui_captures" = 1 ]; then
     publish_args+=(--capture-manifest-state "$ui_capture_manifest_state")
 fi
-python3 "$GUARD" "${publish_args[@]}" >/dev/null \
-    || fail "could not atomically publish retail Simulator report"
+if [ "$quickload_evidence" = 1 ]; then
+    python3 "$source_snapshot/misc/ios/simulator_quickload_evidence.py" publish \
+        --pending-manifest "$quickload_manifest_pending" --manifest "$quickload_manifest" \
+        --report-pending "$report_pending" --report "$report" \
+        || fail "could not atomically publish QuickLoad evidence/report"
+else
+    python3 "$GUARD" "${publish_args[@]}" >/dev/null \
+        || fail "could not atomically publish retail Simulator report"
+fi
 echo "PASS — isolated retail Simulator workflow: $work_root"

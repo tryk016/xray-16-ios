@@ -41,8 +41,9 @@ here is deferred and must be promoted explicitly from the Backlog.
 
 **Evidence level:** affected Zaton save proven on three cold launches; v1
 startup-sector evidence oracle is host-complete (parser 17/17, marker 10/10,
-strict/ASan/UBSan PASS and final Sol xhigh approval); other saves, indoor/portal
-starts, QuickLoad, transitions and device visual proof remain untested.
+strict/ASan/UBSan PASS and final Sol xhigh approval); normal F5/F9 QuickLoad is
+proven on iOS 27 Simulator, while other saves, indoor/portal starts, transitions
+and physical-device visual proof remain untested.
 Capture-state v2 and the stationary-vs-forward A/B harness are locally complete
 (evidence parser 16/16, host-tool mocks 8/8, producer mutation contract 2/2,
 strict/sanitized C++ PASS, post-commit full Release and Sol xhigh approval), but
@@ -96,14 +97,30 @@ capture artifacts and report were published only after all guards passed and
 the dedicated Simulator was deleted. Scope remains Apple Software Renderer
 control-flow/publication evidence, not iPhone or pixel proof.
 
+Fresh isolated QuickLoad workroot
+`/Users/patryk/openxray-handoff/simulator-work-20260810-134537-64428` also passed
+on iOS 27 after a clean arm64/minOS 16.4 build. One PID (`73664`) created and
+loaded `player - quicksave.scop` through normal F5/F9 input. Epoch 1 was
+`level_load/exact` at frame 35; epoch 2 was `quick_load/retained` at frame 122.
+Native 1864x860 gameplay captures advanced at frames 90/94/182. The live and
+private QuickSave copies matched at 649947 bytes and SHA-256
+`f49e87d54c1c9c8aee656bce941f8aabdcee76f0e3e77746108cda1a5489dd96`.
+All post-stop guards passed, protected inputs were unchanged, the dedicated
+Simulator was deleted and only then was `report.txt` published. Retail 97/97,
+QuickLoad oracle 22/22 and input mapping 3/3 pass. Scope is normal save/load and
+sector control flow on Apple Software Renderer, not iPhone or pixel proof.
+The runtime packet predates final host hardening that now requires exactly
+B0/B1/C semantic revalidation and removes both pending hardlinks. Those fixes
+pass 22/22 locally; one fresh hardened publication run remains pending.
+
 **Next actions:**
 
 1. Run `lighting_ab_capture.sh` on the next outdoor phone batch into a new
    evidence directory; accept only its A/A+3/A+6 controls and keep manual pixel
    interpretation separate from sector and cause claims.
-2. Continue one additional outdoor save, one indoor/portal start, QuickLoad and
-   one level transition with baseline-plus-exact-batch evidence; record the
-   30-minute controller-run memory footprint separately.
+2. Continue one additional outdoor save, one indoor/portal start, physical-device
+   QuickLoad and one level transition with baseline-plus-exact-batch evidence;
+   record the 30-minute controller-run memory footprint separately.
 3. Correlate any remaining dark-frame transition with the controlled stationary
    and forward capture packet before changing rendering or streaming code.
 4. Complete the 30-minute memory/thermal run only after short correctness
@@ -116,6 +133,9 @@ control-flow/publication evidence, not iPhone or pixel proof.
   T0/T1/T2 set plus report only after Simulator deletion and all guards pass.
   This is Apple Software Renderer control-flow evidence, not iPhone or pixel
   proof.
+- Local QuickLoad runtime acceptance met: normal F5/F9 preserves one PID,
+  creates and reloads the exact QuickSave and advances to one retained
+  `quick_load` epoch. Fresh hardened publication acceptance remains pending.
 - Three cold launches and two save/level combinations record the baseline epoch,
   exact expected batch, resolved classification and objective complete-world
   frame without a movement workaround.

@@ -4528,3 +4528,61 @@ overfilled-inventory, faction-war or other listed UI surface tests under
 IOS-P1-006. No phone, shared lease, `devicectl`, signing, installation, commit
 or push occurred. The final Sol xhigh verdict is exactly
 `APPROVE — brak P0/P1/P2`.
+
+## 2026-08-10 — normal QuickSave/QuickLoad Simulator evidence published
+
+IOS-P0-003 now has one real normal-path QuickLoad packet without phone access.
+The opt-in iOS 27 runner generates an isolated config with F5 QuickSave and F9
+QuickLoad, maps them to SDL scancodes 62/66 and drives the existing file input
+path. Its oracle requires unique UUID/ACK/press/release records, exact logical
+`Player - quicksave` save/load messages, the lowercase physical
+`player - quicksave.scop`, one PID, an anchored terminal `quick_load` epoch and
+three advancing native 1864x860 gameplay captures.
+
+Fail-closed development runs separated four harness defects from game behavior:
+an empty Simulator username produced ` - quicksave.scop`; LocatorAPI lowercased
+the physical filename; synchronous save/load could complete before the
+post-dispatch press log; and the general autoload finalizer rejected the one
+intentional second load. The iOS username now falls back to `Player` only after
+sanitization yields empty, preserving nonempty device names. The general
+finalizer has a narrowly named canonical-marker exception; the dedicated oracle
+still exclusively proves F9, UUID/scancode and epoch semantics. A later run
+timed out at 120 seconds while valid world loading continued, so the final run
+used the existing bounded 600-second runtime budget. No failed run published
+`report.txt`; every owned Simulator was deleted.
+
+Sol medium pre-review then found two publication P1s. Finalization now binds and
+revalidates the private QuickSave copy by inode, size and SHA-256. The manifest
+is evidence-only and cannot claim PASS; `report.txt` is the sole authoritative
+PASS artifact and its hardlink is the final publication commit point. Tests
+cover private-copy content/inode replacement and interruption before the final
+report link. The full retail suite passes 97/97, the dedicated oracle 22/22,
+the static input/username contract 3/3, Python compilation, shell syntax and
+`git diff --check`.
+
+Final workroot
+`/Users/patryk/openxray-handoff/simulator-work-20260810-134537-64428` passed a
+clean arm64 iOS 27 Simulator build with deployment target 16.4. PID 73664 kept
+epoch 1 `level_load/exact` (frame 35) and produced epoch 2
+`quick_load/retained` (frame 122). B0/B1/C captures were unpaused Zaton gameplay
+at 1864x860 on frames 90/94/182. The original save remained 631235 bytes;
+live and private QuickSave copies were each 649947 bytes with SHA-256
+`f49e87d54c1c9c8aee656bce941f8aabdcee76f0e3e77746108cda1a5489dd96`.
+Manifest SHA-256 is
+`858668039a9c1856e93f80ac694309053396a8be7ecc211005f46557fe700778`.
+All post-stop guards passed, protected inputs were unchanged, Simulator
+`3EADFEB4-67E2-4AF4-B2F5-5410FDBBC84A` was deleted, then `report.txt` was
+published. Scope is Apple Software Renderer save/load and sector control flow,
+not iPhone, pixel quality, readability, lighting correctness or performance.
+No phone, lease, `devicectl`, signing, install or push occurred.
+
+Final Sol xhigh review of the complete uncommitted slice found one further P1
+and two P2s. Finalization had trusted the capture-key set, and successful
+publication retained mutable pending hardlinks; the Resume also blurred the
+older UI approval with this slice. The correction requires exactly B0/B1/C,
+re-runs each semantic capture contract against sector/input ordering, removes
+both pending links after publication and scopes the older approval explicitly.
+The dedicated oracle now passes 22/22. Workroot `134537-64428` remains valid
+normal F5/F9 runtime evidence, but predates these final host hardenings; a fresh
+run is required before calling the current publication implementation
+real-Simulator proven.

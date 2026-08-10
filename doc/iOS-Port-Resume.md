@@ -10,19 +10,20 @@ The M3 Pro host runs macOS/Xcode/SDK 27.0 beta and CMake 4.4.0; device and Simul
 The physical-device baseline renders Call of Pripyat through native OpenGL ES 3.0 at a real 1864×860 drawable with 1:1 presentation and Bluetooth controller.
 Sector fallback and SSAO value-macro fixes resolved their proven defects; a
 later dark-frame smoke remains causally unresolved.
-IOS-P0-003 startup-sector v1 has host-complete `level_load`/`QuickLoad` epoch
-evidence and exact/fallback/retained/unresolved/recovered outcomes. `retained`
-only reuses a prior valid sector after authoritative camera application; JSON
-PASS is structural, never world-frame/pixel proof, and unresolved fails startup.
-Capture-state v2 binds canonical JSON to each PPM/PNG token; its device A/A+3/A+6 harness is local/Sol-complete, while iPhone A/B and pixel/cause proof remain open.
-The reviewed iOS 27 capture path is parser 31/31, runner 84/84; its delayed
-lifecycle mock passes 50 serial/200 P8 without changing production guards.
+IOS-P0-003 has a real iOS 27 Simulator F5 QuickSave -> F9 QuickLoad packet:
+`simulator-work-20260810-134537-64428`, PID 73664, epoch 1
+`level_load/exact`, epoch 2 `quick_load/retained`, captures at frames 90/94/182,
+post-stop save/hash revalidation, protected inputs unchanged and cleanup PASS.
+It proves normal save/load and sector control flow; the hardened publication rerun remains phone-free and pending.
+Capture-state v2 binds canonical JSON to PPM/PNG; iPhone A/B and cause proof remain open.
+The reviewed iOS 27 capture path is parser 31/31, runner 84/84; its delayed lifecycle mock passes 50 serial/200 P8 without changing production guards.
 Opt-in `--ui-captures` has two PASS packets: seven states and four native
 1864×860 captures (inventory, area map/tasks, Stats, area map/tasks),
 post-stop revalidated with protected inputs unchanged and Simulator deleted.
-Focused contracts: capture 15/15, navigation 34/34, retail 92/92. This is
-file-level Apple Software Renderer evidence only, not iPhone/readability/color/
-performance proof; final Sol xhigh verdict is `APPROVE — brak P0/P1/P2`.
+The earlier UI-capture contracts pass capture 15/15, navigation 34/34 and retail
+92/92. Their file-level Apple Software Renderer checkpoint, not the newer
+QuickLoad slice, has final Sol xhigh verdict `APPROVE — brak P0/P1/P2`.
+Current QuickLoad contracts pass oracle 22/22, input mapping 3/3 and retail 97/97; iPhone/pixel proof remains open.
 The exposed equal-camera branch has a one-shot `level_load` camera barrier.
 Workroot `simulator-work-20260810-041339-82601` passed: PID 90549 frame35
 `resolved/exact` sector115, T0/T1/T2 54/55/56, frames 89/91/92, unpaused
@@ -37,8 +38,7 @@ The Options crash is fixed and all four tabs plus Video Options 3x are device-pr
 The corrected Safari/AVFAudio harness builds locally but needs a phone rerun.
 iOS selects project-owned static OpenAL Soft 1.25.2 and fail-closes Apple OpenAL, dynamic/alternate/duplicate or forwarded linker forms; its local exact-scene interruption registry is reviewed but not iPhone interruption proof.
 The hash-pinned SDL2 2.32.10 UIScene backport is locally/Simulator-complete: one scene, `SDLUIKitSceneDelegate`, one `SDL_main`, connected iOS 13+ `UIWindowScene` and scene-owned four-transition lifecycle. Isolated retail runs on iOS 26.5 (`simulator-work-20260809-135908-18426`, PID 25991) and iOS 27.0 (`simulator-work-20260809-140608-26903`, PID 35981) each reached one menu marker and one same-PID `activate -> deactivate -> activate` cycle; protected inputs and cleanup passed. This is not pixel/readability, iPhone, performance, audio-interruption or multi-cycle-soak evidence.
-IOS-P2-004 installer hardening (13/13) and IOS-P2-005 local CI provenance (79/79) are Sol-approved; remote CI and device-install/container proof remain open.
-IOS-P2-006 now has one bounds-checked BC1-BC5 codec and GLI mapping, strict/sanitized synthetic tests and five real fixtures. Runtime behavior is unchanged: source-sRGB still uses `GL_RGBA8`, swizzles are ignored, BC4=`RRR1`, BC5=`RG01`; the visual color decision remains phone-pending.
+IOS-P2-004 installer hardening (13/13) and IOS-P2-005 local CI provenance (79/79) are Sol-approved; remote CI and device-install/container proof remain open. IOS-P2-006 has one bounds-checked BC1-BC5 codec and GLI mapping; its visual color decision remains phone-pending.
 ## First commands
 
 ```bash

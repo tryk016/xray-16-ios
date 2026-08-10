@@ -7,6 +7,8 @@
 #   ./misc/ios/input.sh --request-id 12345678-1234-4abc-8def-1234567890ab w 12000
 #   ./misc/ios/input.sh i 100       # tap inventory
 #   ./misc/ios/input.sh escape 100  # open/close pause menu
+#   ./misc/ios/input.sh f5 100      # normal quick-save binding, when enabled
+#   ./misc/ios/input.sh f9 100      # normal quick-load binding, when enabled
 #   ./misc/ios/input.sh tap 650 142 # tap logical UI coordinate (932x430 space)
 #   ./misc/ios/input.sh w           # default 1000 ms
 #
@@ -40,7 +42,7 @@ if [ "${1:-}" = --request-id ]; then
         || { echo "request ID must be a canonical lowercase UUID" >&2; exit 2; }
 fi
 
-[ "$#" -le 3 ] || { echo "usage: $0 [--request-id <lowercase-uuid>] <letter|digit|escape|tab|enter|space|arrow|menu> [duration_ms] | tap <x> <y>" >&2; exit 2; }
+[ "$#" -le 3 ] || { echo "usage: $0 [--request-id <lowercase-uuid>] <letter|digit|escape|tab|enter|space|arrow|f5|f9|menu> [duration_ms] | tap <x> <y>" >&2; exit 2; }
 KEY="${1:-w}"
 MS="${2:-1000}"
 
@@ -57,10 +59,10 @@ if [ "$KEY" = tap ]; then
     [ "$X" -lt 932 ] && [ "$Y" -lt 430 ] \
         || { echo "tap coordinates must fit the 932x430 logical UI space" >&2; exit 2; }
 else
-[ "$#" -le 2 ] || { echo "usage: $0 <letter|digit|escape|tab|enter|space|arrow|menu> [duration_ms]" >&2; exit 2; }
+[ "$#" -le 2 ] || { echo "usage: $0 <letter|digit|escape|tab|enter|space|arrow|f5|f9|menu> [duration_ms]" >&2; exit 2; }
 case "$KEY" in
-    [a-zA-Z0-9]|escape|esc|tab|enter|return|space|up|down|left|right|menu) ;;
-    *) echo "usage: $0 <letter|digit|escape|tab|enter|space|arrow|menu> [duration_ms] | tap <x> <y>" >&2; exit 2 ;;
+    [a-zA-Z0-9]|escape|esc|tab|enter|return|space|up|down|left|right|f5|f9|menu) ;;
+    *) echo "usage: $0 <letter|digit|escape|tab|enter|space|arrow|f5|f9|menu> [duration_ms] | tap <x> <y>" >&2; exit 2 ;;
 esac
 case "$MS" in
     ''|*[!0-9]*) echo "duration must be a whole number of milliseconds" >&2; exit 2 ;;

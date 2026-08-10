@@ -264,6 +264,11 @@ void xrCore::Initialize(pcstr _ApplicationName, pcstr commandLine, bool init_fs,
         SanitizeString(UserName);
         SanitizeString(CompName);
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+        if (UserName[0] == '\0')
+            xr_strcpy(UserName, sizeof(UserName), "Player");
+#endif
+
 #ifdef DEBUG
         Msg("UserName: %s", UserName);
         Msg("ComputerName: %s", CompName);

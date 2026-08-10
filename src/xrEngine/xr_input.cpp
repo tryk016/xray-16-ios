@@ -623,6 +623,10 @@ void CInput::KeyUpdate()
                         unsigned ms = 0;
                         if (sscanf(payload, " %31s %u %c", key, &ms, &extra) == 2 && ms > 0 && ms <= 30000)
                         {
+                            // Function keys are intentionally case-sensitive: the host
+                            // evidence grammar has exactly the canonical tokens f5/f9.
+                            const bool nonCanonicalFunctionKey =
+                                (key[0] == 'F' && (xr_strcmp(key, "F5") == 0 || xr_strcmp(key, "F9") == 0));
                             for (char* p = key; *p; ++p)
                             {
                                 if (*p >= 'A' && *p <= 'Z')
@@ -652,6 +656,14 @@ void CInput::KeyUpdate()
                                 mapped_key = SDL_SCANCODE_LEFT;
                             else if (xr_strcmp(key, "right") == 0)
                                 mapped_key = SDL_SCANCODE_RIGHT;
+                            // The Simulator QuickSave/QuickLoad evidence path deliberately
+                            // exposes only these two function keys.  Do not broaden this into
+                            // a generic F-key console: every accepted spelling is a normal
+                            // SDL scancode and therefore follows IR_OnKeyboardPress below.
+                            else if (!nonCanonicalFunctionKey && xr_strcmp(key, "f5") == 0)
+                                mapped_key = SDL_SCANCODE_F5;
+                            else if (!nonCanonicalFunctionKey && xr_strcmp(key, "f9") == 0)
+                                mapped_key = SDL_SCANCODE_F9;
                             else if (xr_strcmp(key, "menu") == 0)
                             {
                                 SetCurrentInputType(KeyboardMouse);

@@ -581,6 +581,34 @@ PID. Fifty sequential and 200 eight-way parallel workflows pass, while the
 production stable-read, rotation, truncation, rewrite and symlink guards remain
 byte-identical and their adversarial tests still fail closed.
 
+The opt-in iOS 27 `--quickload-evidence` path exercises normal engine input and
+save/load dispatch, not a test-only load shortcut. Its isolated config binds F5
+to QuickSave and F9 to QuickLoad. iOS maps those keys to SDL scancodes 62/66;
+the evidence oracle binds unique request UUIDs, acknowledgements, press/release,
+exact logical `Player - quicksave` messages, LocatorAPI's lowercase physical
+`player - quicksave.scop`, one unchanged PID, an anchored `quick_load` epoch and
+three native 1864x860 gameplay captures. It revalidates the live save, an
+inode-bound private copy, original staged saves, captures, logs and protected
+inputs after process termination. `report.txt` is the sole PASS artifact and
+is hard-linked last after dedicated-Simulator deletion; the evidence manifest
+cannot claim PASS by itself. An empty post-sanitization iOS username now falls
+back to `Player`, while every nonempty device username remains unchanged.
+
+Workroot
+`/Users/patryk/openxray-handoff/simulator-work-20260810-134537-64428` passed on
+iOS 27 with PID 73664. Epoch 1 was `level_load/exact` at frame 35 and epoch 2
+was `quick_load/retained` at frame 122; captures advanced at frames 90, 94 and
+182. The live and private QuickSave copies were each 649947 bytes with SHA-256
+`f49e87d54c1c9c8aee656bce941f8aabdcee76f0e3e77746108cda1a5489dd96`.
+Post-stop revalidation, protected-input checks and Simulator cleanup passed
+before report publication. Retail 97/97, QuickLoad oracle 22/22 and input
+mapping 3/3 pass. This is Apple Software Renderer save/load and sector
+control-flow evidence, not physical-iPhone, pixel-quality or performance proof.
+That workroot predates the final host-only hardening which requires exactly
+B0/B1/C semantic revalidation and unlinks both pending publication aliases.
+Those contracts pass 22/22; a fresh run is still required before claiming the
+current proof-last publication implementation as real-Simulator proven.
+
 The final Sol xhigh verdict for the Locator/autoload and semantic UI navigation
 checkpoint is `APPROVE — brak P0/P1/P2`.
 

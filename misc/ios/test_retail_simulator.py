@@ -134,7 +134,17 @@ class RetailSimulatorTests(unittest.TestCase):
         self._write_mocks()
 
     def tearDown(self) -> None:
-        self.temp.cleanup()
+        # Negative capture-v2 cases deliberately fail while their short-lived
+        # private producer may still be flushing Documents. Wait only for test
+        # fixture cleanup; this does not alter the production runner policy.
+        for attempt in range(5):
+            try:
+                self.temp.cleanup()
+                return
+            except OSError:
+                if attempt == 4:
+                    raise
+                time.sleep(0.05)
 
     def _retail_file(self, relative: str, content: bytes) -> None:
         target = self.backup / relative
@@ -634,6 +644,7 @@ class RetailSimulatorTests(unittest.TestCase):
                    initial_lifecycle_seq: int | None = None,
                    capture_v2_mode: str | None = None,
                    post_capture_mutation: str | None = None,
+                   mutate_selected_save: bool = False,
                    hang_screenshot: bool = False,
                    launch_timeout: str = "0.1") -> subprocess.CompletedProcess[str]:
         environment = self.runner_environment()
@@ -698,6 +709,11 @@ class RetailSimulatorTests(unittest.TestCase):
             environment["MOCK_CAPTURE_V2_MODE"] = capture_v2_mode
         if post_capture_mutation is not None:
             environment["MOCK_POST_CAPTURE_MUTATION"] = post_capture_mutation
+        if mutate_selected_save:
+            environment["MOCK_STAGED_FILE"] = str(
+                self.sim_data / "Documents/_appdata_/savedgames/save.scop"
+            )
+            environment["MOCK_STAGED_ACTION"] = "mutate"
         if hang_screenshot:
             environment["MOCK_HANG_SCREENSHOT"] = "1"
         return subprocess.run(("bash", str(self.repo / "misc/ios/retail_simulator.sh"), "--backup", str(self.backup),
@@ -785,7 +801,8 @@ class RetailSimulatorTests(unittest.TestCase):
             environment=environment,
         )
 
-    def run_finalize_log(self, *, autoload_save: str | None = None) -> subprocess.CompletedProcess[str]:
+    def run_finalize_log(self, *, autoload_save: str | None = None,
+                         allow_canonical_quickload_marker: bool = False) -> subprocess.CompletedProcess[str]:
         return self.run_guard(
             "finalize-log",
             "--source-log", str(self.sim_data / "Documents/xr_boot.log"),
@@ -793,6 +810,8 @@ class RetailSimulatorTests(unittest.TestCase):
             "--snapshot-manifest", str(self.last_evidence / "runtime-log-snapshot.txt"),
             "--proof-metadata", str(self.last_evidence / "runtime-proof.txt"),
             *( ("--autoload-save", autoload_save) if autoload_save else () ),
+            *( ("--allow-canonical-quickload-marker",)
+               if allow_canonical_quickload_marker else () ),
         )
 
     def stage_runtime_fixture(self, *, with_saves: bool = False) -> tuple[Path, Path]:
@@ -1206,6 +1225,16 @@ class RetailSimulatorTests(unittest.TestCase):
         self.assertNotIn("_appdata_/user.ltx", staged)
         self.assertEqual((self.backup / "_appdata_/user.ltx").read_bytes(), b"must-not-copy")
 
+    def test_ordinary_autoload_still_allows_only_the_selected_save_to_change(self) -> None:
+        result = self.run_runner(
+            "--with-saves", "--autoload-save", "save", "--launch-timeout", "0.5",
+            autoload_mode="normal", mutate_selected_save=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        work = next(self.work_base.glob("simulator-work-*"))
+        self.assertIn("status=modified", (work / "autoload-save-mutation.txt").read_text())
+        self.assertTrue((work / "report.txt").is_file())
+
     def test_capture_v2_requires_autoload_conflicts_with_navigation_and_uses_exact_config(self) -> None:
         for arguments in (("--capture-v2",), ("--with-saves", "--capture-v2")):
             with self.subTest(arguments=arguments):
@@ -1233,6 +1262,38 @@ class RetailSimulatorTests(unittest.TestCase):
             "ios_autoinput 0\n"
             "start server(save/single/alife/load) client(localhost)\n"
         ).encode())
+
+    def test_quickload_evidence_cli_is_opt_in_conflicted_and_generates_exact_config(self) -> None:
+        cases = (
+            (("--quickload-evidence",), "requires --runtime 27.0"),
+            (("--runtime", "27.0", "--quickload-evidence"), "requires --runtime 27.0"),
+            (("--runtime", "27.0", "--with-saves", "--autoload-save", "save", "--quickload-evidence", "--capture-v2"), "conflicts"),
+            (("--runtime", "27.0", "--with-saves", "--autoload-save", "save", "--quickload-evidence", "--ui-navigation"), "conflicts"),
+        )
+        for arguments, expected in cases:
+            with self.subTest(arguments=arguments):
+                result = self.run_runner(*arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected, result.stderr)
+
+        # The private mock has no capture producer. It must fail closed after
+        # staging, while still proving the exact isolated binding file.
+        result = self.run_runner(
+            "--runtime", "27.0", "--with-saves", "--autoload-save", "save",
+            "--quickload-evidence", autoload_mode="normal", launch_timeout="0.5",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("QuickSave/QuickLoad Simulator evidence failed", result.stderr)
+        work = next(self.work_base.glob("simulator-work-*"))
+        self.assertEqual((work / "generated-user.ltx").read_bytes(), (
+            "keypress_on_start 0\n"
+            "ios_diagnostics 1\n"
+            "ios_autoinput 1\n"
+            "bind quick_save kF5\n"
+            "bind quick_load kF9\n"
+            "start server(save/single/alife/load) client(localhost)\n"
+        ).encode("ascii"))
+        self.assertFalse((work / "report.txt").exists())
 
     def test_capture_v2_happy_path_keeps_capture_extras_outside_staged_retail_and_reports_after_cleanup(self) -> None:
         result = self.run_runner(
@@ -2113,7 +2174,14 @@ class RetailSimulatorTests(unittest.TestCase):
     def test_deferred_app_death_during_stability_interval_fails(self) -> None:
         result = self.run_launch_proof(deferred_death=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("not alive during post-screenshot stability interval", result.stderr)
+        # The mock process can disappear immediately after screenshot return or
+        # during the following stability interval; both are the same required
+        # fail-closed liveness boundary.
+        self.assertTrue(
+            "not alive after screenshot" in result.stderr
+            or "not alive during post-screenshot stability interval" in result.stderr,
+            result.stderr,
+        )
 
     def test_final_log_snapshot_rejects_late_fatal_while_pid_remains_alive(self) -> None:
         result = self.run_launch_proof(
@@ -2132,6 +2200,45 @@ class RetailSimulatorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("runtime_boundary=saved_game_sync_complete",
                       (self.last_evidence / "runtime-proof.txt").read_text())
+
+    def test_finalize_marker_exception_accepts_only_one_canonical_second_load(self) -> None:
+        launched = self.run_launch_proof(autoload_save="save")
+        self.assertEqual(launched.returncode, 0, launched.stdout + launched.stderr)
+        source_log = self.sim_data / "Documents/xr_boot.log"
+        source_log.write_text(source_log.read_text() + (
+            "* Game Player - quicksave is successfully loaded from file "
+            "'\\\\private\\\\tmp\\\\Documents\\\\_appdata_\\\\savedgames\\\\player - quicksave.scop' (0.506s)\n"
+        ))
+        result = self.run_finalize_log(
+            autoload_save="save", allow_canonical_quickload_marker=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_finalize_ordinary_autoload_still_rejects_quickload_marker(self) -> None:
+        launched = self.run_launch_proof(autoload_save="save")
+        self.assertEqual(launched.returncode, 0, launched.stdout + launched.stderr)
+        source_log = self.sim_data / "Documents/xr_boot.log"
+        source_log.write_text(source_log.read_text() + (
+            "* Game Player - quicksave is successfully loaded from file "
+            "'\\\\private\\\\tmp\\\\Documents\\\\_appdata_\\\\savedgames\\\\player - quicksave.scop' (0.506s)\n"
+        ))
+        result = self.run_finalize_log(autoload_save="save")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("mismatched saved-game success marker", result.stderr)
+
+    def test_finalize_marker_exception_rejects_wrong_second_load(self) -> None:
+        launched = self.run_launch_proof(autoload_save="save")
+        self.assertEqual(launched.returncode, 0, launched.stdout + launched.stderr)
+        source_log = self.sim_data / "Documents/xr_boot.log"
+        source_log.write_text(source_log.read_text() + (
+            "* Game intruder is successfully loaded from file "
+            "'\\\\private\\\\tmp\\\\Documents\\\\_appdata_\\\\savedgames\\\\intruder.scop' (0.506s)\n"
+        ))
+        result = self.run_finalize_log(
+            autoload_save="save", allow_canonical_quickload_marker=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("mismatched saved-game success marker", result.stderr)
 
     def test_launch_rejects_preexisting_snapshot_output(self) -> None:
         for mode, expected in (("symlink", "exists as a symlink"), ("existing", "exists as a regular file")):
