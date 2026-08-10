@@ -624,7 +624,7 @@ scene 7/7, lifecycle marker 10/10 and retail oracle 74/74 contracts alongside
 the shader gates. It remains valid UIScene-local/Simulator evidence, but its
 older stamp is not the current authoritative full-gate stamp.
 
-### Current authoritative full-gate stamp
+### Last documented code-artifact full-gate stamp
 
 After commit `362bf625d59a5219857382afb8a5f23ccbf54fbe`, the final uncached
 full gate rebuilt 68 translation units and passed the strict/sanitized BC
@@ -642,6 +642,12 @@ openal_provider=OpenALSoft-1.25.2-static
 openal_sha256=86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914
 __debug_info=513888155
 ```
+
+Subsequent documentation-only provenance commits intentionally advance HEAD
+after this recorded artifact. Because these documents participate in the source
+hash, embedding a self-referential "current" hash is impossible. Run a fresh
+full gate and use its on-disk stamp before any install or push; do not treat the
+recorded values above as a matching stamp for a later docs-only HEAD.
 
 The installer has local-only completion. `--device` resolves CLI over
 environment over the fixed default. A custom absolute `.app`/stamp pair resolves

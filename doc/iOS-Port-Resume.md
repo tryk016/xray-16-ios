@@ -78,6 +78,7 @@ Commit `362bf625d` passed the post-commit full gate after rebuilding 68 TUs. UUI
 `0e0ba58332a97b6d04fa458a50fd82006ebd6cecbe1f6f1182f8dabf453b6ff3`; OpenAL
 Soft 1.25.2 static SHA-256 `86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914`.
 Gates: BC strict/sanitized, retail 84/84, installer 13/13, CI 79/79, shaders 279/279, low 2/2, SSAO 6/6, numeric 30/30, links 137/137; IOS/minOS 16.4, shader cache forced off.
+Later docs-only provenance commits advance HEAD because documentation is hashed; rerun the full gate and use its on-disk stamp before install or push.
 A real preflight validated the existing profile/keychain and temporary signed copy without lease, provisioning or device access. The older UIScene stamp is local/Simulator evidence, not current.
 
 ## Proven on device

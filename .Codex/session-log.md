@@ -579,3 +579,12 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   bundle `0e0ba583...`, iOS 16.4, dSYM `__debug_info` 513,888,155 bytes.
 - Host-only gate; no phone/lease/devicectl/sign/install/launch/push. Successful
   T2 publication remains blocked by active IOS-P0-003 stationary-sector work.
+
+## 2026-08-10 — docs-only stamp provenance
+
+- Docs commit `86ed974d6` then passed another full uncached gate: retail 84/84,
+  shader contracts and 68-TU build; source `8c121ae8...`, UUID
+  `3D91E69C-9170-37E0-96B6-1F3269E12C0A`, bundle `d1daad61...`.
+- This docs append advances hashed HEAD again. Treat that stamp as historical
+  evidence for `86ed974d6`; rerun the full gate before install or push.
+- No phone, lease, devicectl, install or push.

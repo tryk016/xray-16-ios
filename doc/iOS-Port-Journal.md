@@ -4385,3 +4385,22 @@ __debug_info=513888155
 The gate was host-only: no phone, lease, `devicectl`, signing, installation or
 launch occurred. It validates the committed tooling and artifact, not a real
 T2 publication; the stationary Simulator sector branch remains IOS-P0-003.
+
+## 2026-08-10 — docs provenance and matching-stamp boundary
+
+Documentation commit `86ed974d6` recorded the preceding code-artifact gate. A
+second full uncached gate on that docs commit also passed, including retail
+84/84, numeric 30/30, low 2/2, SSAO 6/6, shader contract 279/279, links 137/137
+and the 68-TU symbol-complete build. Its generated stamp was:
+
+```text
+source_sha256=8c121ae86840118e90e639d0145b79e7fb7764d5c6b51d3a166b6d2264d05e2b
+app_uuid=3D91E69C-9170-37E0-96B6-1F3269E12C0A
+bundle_sha256=d1daad61ac97523dbb71c1f67d7b6ac810b4237399977ac1a3e7a4d89d400768
+```
+
+This append itself advances the documentation-only HEAD, and documentation is
+part of the source hash. The values above are therefore historical evidence for
+`86ed974d6`, not an install stamp for the later docs-only HEAD. A fresh full
+gate is mandatory before install or push. No phone, lease, install or push
+occurred.
