@@ -17,8 +17,9 @@ evidence and exact/fallback/retained/unresolved/recovered outcomes. `retained`
 only reuses a prior valid sector after authoritative camera application; JSON
 PASS is structural, never world-frame/pixel proof, and unresolved fails startup.
 Capture-state v2 binds canonical JSON to each PPM/PNG token; its device A/A+3/A+6 harness is local/Sol-complete, while iPhone A/B and pixel/cause proof remain open.
-The separate isolated iOS 27 single-capture host path is locally reviewed: static
-PASS, parser 31/31, runner 84/84 and final Sol `APPROVE — brak P0/P1/P2`.
+The isolated iOS 27 capture path is reviewed: parser 31/31, runner 84/84 and
+final Sol approval; its delayed lifecycle mock passes 50 serial/200 P8 stress
+without changing production guards.
 The exposed equal-camera branch is corrected with a dedicated one-shot
 `level_load` camera barrier. Workroot `simulator-work-20260810-041339-82601`
 passed: PID 90549 frame35 `resolved/exact` sector115, T0/T1/T2 tokens 54/55/56,

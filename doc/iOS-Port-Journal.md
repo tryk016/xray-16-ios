@@ -4439,3 +4439,40 @@ physical-iPhone behavior, performance or the cause of the later dark frame.
 IOS-P0-003 remains open for another outdoor save, indoor/portal, QuickLoad,
 transition and controlled phone lighting evidence. No phone, shared lease,
 `devicectl`, signing, installation or push occurred.
+
+## 2026-08-10 — delayed lifecycle fixture race removed without weakening guards
+
+The post-commit full gate for `399b7fdbb` first exposed one intermittent failure
+in the positive delayed foreground-cycle fixture: an asynchronous 30 ms writer
+could append a lifecycle marker between the stable reader's metadata samples,
+so the production guard correctly rejected `runtime log identity or size
+changed while being read`. The exact test passed alone, but an independent
+sequential stress reproduced the failure at iteration 7. This was a fixture
+scheduling defect, not grounds to retry or weaken the production read.
+
+The test-only correction changes `misc/ios/test_retail_simulator.py`. Separate
+`deactivate` and `activate` payloads now advance deterministically through
+`pending -> armed -> released`. The delayed-only `ps` mock executes absolute
+`/bin/ps` with the original arguments, forwards its stdout/stderr/status, and
+moves at most one state only after exact argument, positive PID, real stdout and
+payload-PID validation. Marker append is synchronous between guard snapshots.
+The production runner and guard, including inode, size, mtime, rotation,
+truncation, prefix-rewrite and symlink checks, are unchanged.
+
+Evidence passed: Python compile, focused positive test, seven death/late-fatal/
+second-engine/rotation/truncation/symlink adversarial tests, `git diff --check`,
+50/50 sequential workflows, 200/200 eight-way parallel workflows and the full
+retail suite 84/84. FastDevice then passed all established local contracts,
+retail 84/84, numeric macros 30/30, low 2/2, SSAO 6/6 and shader links 137/137;
+68 translation units rebuilt and UUID is
+`B19A8309-D20F-3743-9452-33DC054DF305`.
+
+The following full uncached gate also passed: retail 84/84, numeric 30/30, low
+2/2, SSAO 6/6, shaders 279/279 and links 137/137. The symbol-complete Release
+reused its matching engine objects (0 TUs), retained arm64 iOS 16.4 and produced
+dSYM `__debug_info` 513889052 bytes with UUID
+`A94C72FB-B192-34CA-9B5B-3B563839DDC3`.
+
+This closes only deterministic host-fixture reliability. It adds no Simulator
+runtime, pixel, iPhone, lifecycle, performance or audio evidence. No phone,
+lease, `devicectl`, signing, installation, commit or push occurred.

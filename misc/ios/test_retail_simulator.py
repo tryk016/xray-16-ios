@@ -128,6 +128,8 @@ class RetailSimulatorTests(unittest.TestCase):
         self.commands = self.root / "commands.log"
         self.mocks = self.root / "mocks"
         self.mocks.mkdir()
+        self.lifecycle_mocks = self.root / "lifecycle-mocks"
+        self.lifecycle_mocks.mkdir()
         self._write_navigation_controller()
         self._write_mocks()
 
@@ -156,8 +158,8 @@ class RetailSimulatorTests(unittest.TestCase):
                 path = self.backup / relative
                 output.write(f"{digest(path)}\t{path.stat().st_size}\t{relative}\n")
 
-    def _mock(self, name: str, content: str) -> None:
-        path = self.mocks / name
+    def _mock(self, name: str, content: str, directory: Path | None = None) -> None:
+        path = (self.mocks if directory is None else directory) / name
         path.write_text("#!/usr/bin/env python3\n" + content, encoding="utf-8")
         path.chmod(0o755)
 
@@ -229,8 +231,13 @@ class RetailSimulatorTests(unittest.TestCase):
                 cache=build/'CMakeCache.txt'; cache.write_text(cache.read_text()+''.join(f'{key}:STRING={value}{chr(10)}' for key,value in openal_cache.items()))
         """))
         self._mock("xcrun", textwrap.dedent("""
-            import os, pathlib, subprocess, sys, time
+            import json, os, pathlib, subprocess, sys, time
             log=os.environ['MOCK_LOG']; args=sys.argv[1:]; open(log,'a').write('xcrun '+ ' '.join(args)+'\\n')
+            def schedule_delayed_lifecycle(phase, pid, root, marker):
+                event_dir=pathlib.Path(os.environ['MOCK_LIFECYCLE_EVENT_DIR'])
+                event_dir.mkdir(parents=True, exist_ok=True)
+                payload={'pid':pid, 'log':str(root/'xr_boot.log'), 'marker':marker}
+                (event_dir/(phase+'.pending.json')).write_text(json.dumps(payload, sort_keys=True))
             if args[:2] == ['vtool','-show-build']:
                 mode=os.environ.get('MOCK_VTOOL_MODE','normal')
                 if mode == 'mixed': print('cmd LC_BUILD_VERSION\\nplatform IOSSIMULATOR\\nminos 16.4\\ncmd LC_BUILD_VERSION\\nplatform IOS\\nminos 16.4')
@@ -264,9 +271,7 @@ class RetailSimulatorTests(unittest.TestCase):
                     elif mode == 'noscene': suffix=f'NoSceneLifecycleAdoption\\n* iOS lifecycle v1 pid={initial_pid} seq={deactivate_seq} event=deactivate\\n'
                     else: suffix=f'* iOS lifecycle v1 pid={initial_pid} seq={deactivate_seq} event=deactivate\\n'
                     if mode == 'delayed':
-                        subprocess.Popen([sys.executable, '-c',
-                            'import pathlib,sys,time; time.sleep(0.03); pathlib.Path(sys.argv[1]).open("a").write(sys.argv[2])',
-                            str(root/'xr_boot.log'), suffix], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        schedule_delayed_lifecycle('deactivate', initial_pid, root, suffix)
                     else:
                         (root/'xr_boot.log').open('a').write(suffix)
                     print('com.apple.mobilesafari: 4242')
@@ -299,9 +304,7 @@ class RetailSimulatorTests(unittest.TestCase):
                         suffix=''
                     else: suffix=f'* iOS lifecycle v1 pid={initial_pid} seq={activate_seq} event=activate\\n'
                     if mode == 'delayed':
-                        subprocess.Popen([sys.executable, '-c',
-                            'import pathlib,sys,time; time.sleep(0.03); pathlib.Path(sys.argv[1]).open("a").write(sys.argv[2])',
-                            str(root/'xr_boot.log'), suffix], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        schedule_delayed_lifecycle('activate', initial_pid, root, suffix)
                     else:
                         (root/'xr_boot.log').open('a').write(suffix)
                     print(f'{args[-1]}: {initial_pid}')
@@ -450,6 +453,51 @@ class RetailSimulatorTests(unittest.TestCase):
             elif args[1] == 'delete' and os.environ.get('MOCK_DELETE_FAILURE'): sys.exit(1)
             sys.exit(0)
         """))
+        self._mock("ps", textwrap.dedent("""
+            import json, os, pathlib, subprocess, sys
+
+            args=sys.argv[1:]
+            probe=subprocess.run(('/bin/ps', *args), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                 text=True, check=False)
+            sys.stdout.write(probe.stdout)
+            sys.stderr.write(probe.stderr)
+
+            event_dir=os.environ.get('MOCK_LIFECYCLE_EVENT_DIR')
+            if (probe.returncode == 0 and event_dir is not None and len(args) == 4
+                    and args[0] == '-p' and args[1].isdigit() and args[2:] == ['-o', 'pid=']
+                    and probe.stdout.strip() == args[1]):
+                pid=int(args[1])
+                root=pathlib.Path(event_dir)
+                trace=root/'trace.txt'
+                deactivate_pending=root/'deactivate.pending.json'
+                deactivate_armed=root/'deactivate.armed.json'
+                activate_pending=root/'activate.pending.json'
+                activate_armed=root/'activate.armed.json'
+                if deactivate_pending.exists():
+                    phase, source, release='deactivate', deactivate_pending, False
+                elif deactivate_armed.exists():
+                    phase, source, release='deactivate', deactivate_armed, True
+                elif activate_pending.exists():
+                    phase, source, release='activate', activate_pending, False
+                elif activate_armed.exists():
+                    phase, source, release='activate', activate_armed, True
+                else:
+                    source=None
+                if source is not None:
+                    payload=json.loads(source.read_text())
+                    if payload.get('pid') == pid:
+                        target=root/(phase+('.released.json' if release else '.armed.json'))
+                        if release:
+                            pathlib.Path(payload['log']).open('a').write(payload['marker'])
+                            source.replace(target)
+                            line=phase+' released\\n'
+                        else:
+                            source.replace(target)
+                            line=phase+' armed\\n'
+                        with trace.open('a') as output:
+                            output.write(line)
+            sys.exit(probe.returncode)
+        """), self.lifecycle_mocks)
         self._mock("lipo", textwrap.dedent("""
             import os, sys
             open(os.environ['MOCK_LOG'], 'a').write('lipo '+ ' '.join(sys.argv[1:])+'\\n')
@@ -552,6 +600,12 @@ class RetailSimulatorTests(unittest.TestCase):
                    hang_screenshot: bool = False,
                    launch_timeout: str = "0.1") -> subprocess.CompletedProcess[str]:
         environment = self.runner_environment()
+        event_index = getattr(self, "_lifecycle_event_run", 0) + 1
+        self._lifecycle_event_run = event_index
+        self.last_lifecycle_event_dir = self.root / f"lifecycle-events-{event_index}"
+        shutil.rmtree(self.last_lifecycle_event_dir, ignore_errors=True)
+        self.last_lifecycle_event_dir.mkdir()
+        environment["MOCK_LIFECYCLE_EVENT_DIR"] = str(self.last_lifecycle_event_dir)
         Path(environment["MOCK_APP_PID_STATE"]).unlink(missing_ok=True)
         shutil.rmtree(self.sim_data / "Documents", ignore_errors=True)
         if mutate_protected:
@@ -584,6 +638,8 @@ class RetailSimulatorTests(unittest.TestCase):
             environment["MOCK_OPENAL_LOG_MUTATION"] = openal_log_mutation
         if foreground_log_mode is not None:
             environment["MOCK_FOREGROUND_LOG_MODE"] = foreground_log_mode
+        if foreground_log_mode == "delayed":
+            environment["PATH"] = f"{self.lifecycle_mocks}:{environment['PATH']}"
         if pid_replacement:
             environment["MOCK_PID_REPLACEMENT"] = "1"
         if menu_marker_mode is not None:
@@ -941,6 +997,14 @@ class RetailSimulatorTests(unittest.TestCase):
         self.assertIn(f"* iOS lifecycle v1 pid={pid} seq=41 event=activate\n", boot_log)
         self.assertIn(f"* iOS lifecycle v1 pid={pid} seq=42 event=deactivate\n", boot_log)
         self.assertIn(f"* iOS lifecycle v1 pid={pid} seq=43 event=activate\n", boot_log)
+        events = self.last_lifecycle_event_dir
+        self.assertEqual(events.joinpath("trace.txt").read_text().splitlines(), [
+            "deactivate armed", "deactivate released", "activate armed", "activate released",
+        ])
+        self.assertFalse(list(events.glob("*.pending.json")))
+        self.assertFalse(list(events.glob("*.armed.json")))
+        self.assertTrue((events / "deactivate.released.json").is_file())
+        self.assertTrue((events / "activate.released.json").is_file())
 
     def test_foreground_cycle_accepts_one_shot_menu_marker_without_repeating_it(self) -> None:
         result = self.run_runner()

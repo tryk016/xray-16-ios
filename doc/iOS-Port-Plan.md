@@ -49,9 +49,11 @@ strict/sanitized C++ PASS, post-commit full Release and Sol xhigh approval), but
 have not yet produced a physical-device A/B packet. The separate isolated iOS
 27 single-capture host extension is also locally reviewed (final static PASS,
 parser 31/31, runner 84/84 and final Sol xhigh
-`APPROVE — brak P0/P1/P2`). Commit `362bf625d` passed the post-commit full
-Release gate. A later stationary-branch correction now has a real successful
-T2 publication and awaits its own final review/full-gate commit.
+`APPROVE — brak P0/P1/P2`). Commit `399b7fdbb` records the stationary-branch
+correction, its real successful T2 publication and its post-commit full Release
+PASS. The later fixture-only reliability correction has fresh FastDevice
+and full Release PASS evidence; use its current on-disk stamp before any push or
+install.
 
 Real workroot `simulator-work-20260810-015703-14748` exposed and corrected an
 over-strict live-readiness classification: a valid post-T1 `loading` candidate
@@ -229,7 +231,10 @@ readable and internally consistent on the supported iPhone baseline.
 
 **Evidence level:** the hash-pinned SDL2 2.32.10 UIScene backport,
 deterministic oracle, iOS 26.5/27.0 Simulator runs and final Sol xhigh approval
-are complete. Physical-device acceptance remains untested.
+are complete. The delayed lifecycle fixture now uses a PID-validated
+`pending -> armed -> released` handshake; 50 sequential, 200 eight-way parallel
+and the full 84-test retail suite pass without changing production guards.
+Physical-device acceptance remains untested.
 
 The app declares one scene, uses `SDLUIKitSceneDelegate`, starts `SDL_main`
 once, binds iOS 13+ windows to a connected `UIWindowScene`, and preserves one

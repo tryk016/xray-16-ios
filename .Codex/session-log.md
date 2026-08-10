@@ -600,3 +600,16 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
 - Five capture artifacts and report published after all guards; protected
   inputs unchanged and dedicated Simulator deleted. Apple Software Renderer
   control-flow evidence only; no phone/lease/devicectl/sign/install/push.
+
+## 2026-08-10 — deterministic delayed lifecycle fixture
+
+- Reproduced the existing async-writer race at stress iteration 7; production
+  stable-read failure was correct and remains unchanged.
+- Test-only PID-validated `pending -> armed -> released` handshake replaces both
+  30 ms writers and proves separate deactivate/activate polling.
+- PASS: 50/50 serial, 200/200 P8, adversarial 7/7, retail 84/84, diff check and
+  FastDevice (68 TUs, UUID `B19A8309-D20F-3743-9452-33DC054DF305`).
+- Full uncached gate PASS: retail 84/84, numeric 30/30, shaders 279/279, links
+  137/137, Release 0 TUs, UUID `A94C72FB-B192-34CA-9B5B-3B563839DDC3`.
+- Host-fixture reliability only; no phone/lease/devicectl/Simulator/sign/install/
+  commit/push and no physical lifecycle or pixel claim.

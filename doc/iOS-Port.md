@@ -537,7 +537,7 @@ The physical-app root is shorter, which had hidden the defect. `string_path`,
 an explicit nonempty-name check and checked copy/fail-fast handling now serve
 both Apple targets without a Simulator branch. The mutation-backed Locator
 contract passes 8/8 and the hardened retail-isolation workflow contract passes
-62/62.
+84/84.
 
 The retail guard now mandatorily parses `large-files-sha256.tsv`, checks every
 entry's size and SHA-256 against `files.tsv`, and protects every allowlisted
@@ -550,6 +550,14 @@ fresh snapshot manifest but no runtime proof; only after successful
 size and SHA-256, rotation, truncation, rewrite, symlink substitution, the full
 success sequence and failure markers. Only that final step may write
 `runtime-proof.txt` and `report.txt`.
+
+The positive delayed-lifecycle fixture is scheduler-independent: an isolated
+mock delegates the exact liveness query to `/bin/ps`, then advances separate
+`deactivate` and `activate` payloads through `pending -> armed -> released`
+between guard snapshots. It cannot publish a marker for a dead or mismatched
+PID. Fifty sequential and 200 eight-way parallel workflows pass, while the
+production stable-read, rotation, truncation, rewrite and symlink guards remain
+byte-identical and their adversarial tests still fail closed.
 
 The final Sol xhigh verdict for the Locator/autoload and semantic UI navigation
 checkpoint is `APPROVE — brak P0/P1/P2`.
