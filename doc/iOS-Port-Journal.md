@@ -4404,3 +4404,38 @@ part of the source hash. The values above are therefore historical evidence for
 `86ed974d6`, not an install stamp for the later docs-only HEAD. A fresh full
 gate is mandatory before install or push. No phone, lease, install or push
 occurred.
+
+## 2026-08-10 — stationary LevelLoad branch corrected and Simulator capture published
+
+The stationary startup gap is closed locally. A pure `ShouldDetectSector`
+policy keeps real camera movement unconditional and permits one equal-camera
+`level_load` exact/fallback attempt only while startup evidence is awaiting,
+`last_sector_id` is invalid, no report is pending and a dedicated post-epoch
+camera-generation barrier has passed. LevelLoad rejects retained/none outcomes;
+QuickLoad keeps its independent barrier and no-detection semantics. Barriers
+and pending evidence are reset at level load/unload and QuickLoad boundaries,
+and a stored LevelLoad observation disarms its barrier before report retry.
+
+Focused local evidence passed: startup oracle 17/17, source-marker contract
+10/10, strict C++ policy, ASan/UBSan with macOS-supported leak detection off,
+`git diff --check`, and the complete FastDevice gate after rebuilding 249
+translation units. FastDevice UUID is
+`020185E6-48B6-3A4B-8B1C-CC8ED72EE27B`.
+
+Fresh isolated workroot
+`/Users/patryk/openxray-handoff/simulator-work-20260810-041339-82601` passed on
+iOS 27.0. PID 90549, epoch 1, frame 35 emitted `level_load resolved/exact`,
+sector 115, camera/probe `(256.240,21.468,550.824)`, radius 0, without input or
+movement. The saved-game boundary and stable capture used one session with
+T0/T1/T2 sequences 54/55/56, frames 89/91/92 and advancing continual time;
+T2 was unpaused Zaton gameplay at 1864x860 with no diagnostic input. The five
+capture-v2 artifacts and `report.txt` were published only after all final
+guards passed, protected inputs remained unchanged and dedicated Simulator
+`1AF2F8F5-63A9-417A-9406-6B2DFE0882AC` was deleted.
+
+Scope is `iOS-27.0-Simulator-Apple-Software-Renderer-only`: this proves the
+stationary control-flow and publication contract, not pixels, readability,
+physical-iPhone behavior, performance or the cause of the later dark frame.
+IOS-P0-003 remains open for another outdoor save, indoor/portal, QuickLoad,
+transition and controlled phone lighting evidence. No phone, shared lease,
+`devicectl`, signing, installation or push occurred.

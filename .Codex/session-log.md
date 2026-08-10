@@ -588,3 +588,15 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
 - This docs append advances hashed HEAD again. Treat that stamp as historical
   evidence for `86ed974d6`; rerun the full gate before install or push.
 - No phone, lease, devicectl, install or push.
+
+## 2026-08-10 — stationary LevelLoad local closeout
+
+- Added a dedicated one-shot post-camera `level_load` sector barrier while
+  preserving unconditional movement and separate QuickLoad semantics.
+- PASS: startup oracle 17/17, marker contract 10/10, strict/sanitized C++,
+  diff check and FastDevice (249 TUs, UUID `020185E6-48B6-3A4B-8B1C-CC8ED72EE27B`).
+- iOS 27 workroot `041339-82601` PASS: PID 90549 `resolved/exact` sector 115;
+  T0/T1/T2 54/55/56, frames 89/91/92, gameplay 1864x860, no input.
+- Five capture artifacts and report published after all guards; protected
+  inputs unchanged and dedicated Simulator deleted. Apple Software Renderer
+  control-flow evidence only; no phone/lease/devicectl/sign/install/push.

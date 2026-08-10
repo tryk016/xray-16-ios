@@ -15,12 +15,16 @@ their proven defects; a later dark-frame smoke remains causally unresolved.
 IOS-P0-003 startup-sector v1 has host-complete `level_load`/`QuickLoad` epoch
 evidence and exact/fallback/retained/unresolved/recovered outcomes. `retained`
 only reuses a prior valid sector after authoritative camera application; JSON
-PASS is structural, never world-frame/pixel proof, and unresolved fails device startup.
+PASS is structural, never world-frame/pixel proof, and unresolved fails startup.
 Capture-state v2 binds canonical JSON to each PPM/PNG token; its device A/A+3/A+6 harness is local/Sol-complete, while iPhone A/B and pixel/cause proof remain open.
 The separate isolated iOS 27 single-capture host path is locally reviewed: static
 PASS, parser 31/31, runner 84/84 and final Sol `APPROVE — brak P0/P1/P2`.
-Real workroot `simulator-work-20260810-024814-86404` reached Zaton sync/after_load, T0 loading seq23 and T1 loading seq24, but candidates through seq88 stayed loading until the one 600 s deadline expired.
-Its PID 92531 epoch1/frame35 marker was `level_load unresolved/none`, invalid sector, same camera/probe and radius0: stationary equal saved/current camera enters `CRender::Calculate` no-detection, so exact/fallback is not attempted. IOS-P0-003 stays active; both Simulators were deleted and no T2/report was published.
+The exposed equal-camera branch is corrected with a dedicated one-shot
+`level_load` camera barrier. Workroot `simulator-work-20260810-041339-82601`
+passed: PID 90549 frame35 `resolved/exact` sector115, T0/T1/T2 tokens 54/55/56,
+frames 89/91/92, unpaused 1864x860 gameplay, no input, all guards, five capture
+artifacts, report and deleted Simulator. Scope is Apple Software Renderer
+control flow/publication only; IOS-P0-003 remains active for iPhone/content proof.
 The simplified main/Video menu and Performance/Optimal/Quality controller are
 device-proven. Diagnostic mode no longer suppresses Low Power/thermal limits.
 Repeated diagnostic launches reached `serious thermal` and about 3.25 GB
@@ -112,7 +116,8 @@ A real preflight validated the existing profile/keychain and temporary signed co
 
 - Validate Optimal's measured downgrade/upgrade thresholds and frame pacing on
   a repeatable normal-mode path after the phone cools.
-- Correct and regression-test the stationary IOS-P0-003 sector branch, then rerun isolated iOS 27 capture-v2 to a gameplay T2 and post-delete report; Apple Software Renderer evidence is not pixel/iPhone/performance proof.
+- Device-validate IOS-P0-003 across another outdoor save, indoor/portal,
+  QuickLoad and a transition; the passing Simulator packet is not pixel/iPhone proof.
 - For each later phone batch, record a completed baseline epoch and require the exact resolved batch plus world frame. Run the new-directory lighting A/B packet, another outdoor save, indoor/portal, QuickLoad and a transition.
 - Parser validation is 20/20; complete the budget with one PID, at least 1,700 seconds and 1,500 samples, no gap over five seconds, at most 3,328 MiB footprint and 128 MiB net growth. The 2,560 MiB target awaits a 6 GB device; a 20-second normal trace was stable near 3.20 GB, while repeated diagnostics caused `serious thermal` and compressor pressure.
 - Test dense inventory focus/clipping and the PDA faction-war surface. Retail
@@ -126,11 +131,11 @@ A real preflight validated the existing profile/keychain and temporary signed co
 
 Follow the numbered order in the active Plan:
 
-1. Correct the stationary startup-sector branch, extend its deterministic policy/oracle tests, then rerun isolated iOS 27 capture-v2 to complete T2/report publication.
-2. Run the controlled phone lighting A/B packet, then validate another outdoor and indoor/portal start with baseline, resolved outcome and a frame.
-3. Device-accept IOS-P1-010 and IOS-P1-002: five Safari app-switch cycles,
+1. Run the controlled phone lighting A/B packet, then validate another outdoor
+   and indoor/portal start with baseline, resolved outcome and a frame.
+2. Device-accept IOS-P1-010 and IOS-P1-002: five Safari app-switch cycles,
    then separate lock/held-touch and OpenAL Soft interruption cycles.
-4. Measure the same normal-mode path under all profiles.
+3. Measure the same normal-mode path under all profiles.
 
 ## Safety
 

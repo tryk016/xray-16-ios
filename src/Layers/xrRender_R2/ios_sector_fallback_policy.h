@@ -80,6 +80,15 @@ inline constexpr float ProbeDirections[][2] =
     return trigger == StartupTrigger::LevelLoad ? "level_load" : "quick_load";
 }
 
+[[nodiscard]] constexpr bool ShouldDetectSector(const bool cameraMoved, const bool startupActive,
+    const StartupTrigger trigger, const StartupPhase phase, const bool lastSectorValid,
+    const bool pendingReportActive, const bool levelLoadCameraBarrierPassed)
+{
+    return cameraMoved
+        || (startupActive && trigger == StartupTrigger::LevelLoad && phase == StartupPhase::Awaiting
+            && !lastSectorValid && !pendingReportActive && levelLoadCameraBarrierPassed);
+}
+
 class StartupEvidence
 {
 public:
@@ -125,16 +134,13 @@ public:
 
     [[nodiscard]] PreparedTransition PrepareNoDetection(const bool lastSectorValid) const
     {
-        if (!active_ || phase_ != StartupPhase::Awaiting)
+        // A level load must always obtain its result from sector detection.
+        // Retained and none outcomes are meaningful only for a same-level quick load.
+        if (!active_ || phase_ != StartupPhase::Awaiting || trigger_ != StartupTrigger::QuickLoad)
             return {};
 
         if (lastSectorValid)
         {
-            // Retaining an already valid sector is meaningful only for a
-            // same-level quick load. A level load resets the sector contract.
-            if (trigger_ != StartupTrigger::QuickLoad)
-                return {};
-
             return Prepare(StartupPhase::Resolved, StartupObservation::ReportResolved);
         }
 

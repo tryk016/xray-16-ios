@@ -305,10 +305,191 @@ void testStartupLevelLoadRejectsRetained()
     require(evidence.CommitPrepared(detected), "level-load actual detection must commit");
 
     require(evidence.BeginEpoch(StartupTrigger::LevelLoad), "second level-load epoch must begin");
+    require(!evidence.PrepareNoDetection(false).valid(),
+        "level load without detection must reject none evidence");
+    require(evidence.phase() == StartupPhase::Awaiting,
+        "rejected level-load none evidence must leave the epoch awaiting detection");
+}
+
+void testShouldDetectSectorPolicy()
+{
+    using namespace xray::render::ios_sector_fallback;
+
+    require(ShouldDetectSector(true, false, StartupTrigger::QuickLoad, StartupPhase::Inactive,
+                true, true, false),
+        "camera movement must always detect independently of startup evidence and barriers");
+    require(!ShouldDetectSector(false, false, StartupTrigger::LevelLoad, StartupPhase::Awaiting,
+                false, false, true),
+        "inactive startup evidence must not force stationary detection");
+    require(!ShouldDetectSector(false, true, StartupTrigger::QuickLoad, StartupPhase::Awaiting,
+                false, false, true),
+        "QuickLoad must not force equal-camera detection");
+    require(!ShouldDetectSector(false, true, StartupTrigger::LevelLoad, StartupPhase::Resolved,
+                false, false, true),
+        "resolved LevelLoad must not repeat equal-camera detection");
+    require(!ShouldDetectSector(false, true, StartupTrigger::LevelLoad, StartupPhase::Awaiting,
+                true, false, true),
+        "a retained valid sector must not force stationary LevelLoad detection");
+    require(!ShouldDetectSector(false, true, StartupTrigger::LevelLoad, StartupPhase::Awaiting,
+                false, true, true),
+        "a pending startup report must block a second stationary LevelLoad detection");
+    require(!ShouldDetectSector(false, true, StartupTrigger::LevelLoad, StartupPhase::Awaiting,
+                false, false, false),
+        "stationary LevelLoad must wait for a post-epoch camera application");
+    require(ShouldDetectSector(false, true, StartupTrigger::LevelLoad, StartupPhase::Awaiting,
+                false, false, true),
+        "stationary LevelLoad must detect once after its camera barrier passes");
+}
+
+void testStationaryLevelLoadExactSequence()
+{
+    using namespace xray::render::ios_sector_fallback;
+    StartupEvidence evidence;
+    CameraApplyBarrier barrier;
+    bool pending = false;
+    unsigned lastSector = InvalidSector;
+    unsigned exactQueries = 0u;
+    unsigned fallbackQueries = 0u;
+
+    require(evidence.BeginEpoch(StartupTrigger::LevelLoad), "stationary exact epoch must begin");
+    barrier.Arm(20u);
+    const auto shouldDetect = [&](const bool cameraMoved, const std::uint64_t generation) {
+        return ShouldDetectSector(cameraMoved, evidence.active(), evidence.trigger(), evidence.phase(),
+            lastSector != InvalidSector, pending, barrier.Passed(generation));
+    };
+
+    require(!shouldDetect(false, 20u), "equal-camera LevelLoad must wait for its post-epoch barrier");
+    require(!evidence.PrepareNoDetection(false).valid(),
+        "equal-camera LevelLoad must not prepare none before its barrier");
+    require(shouldDetect(false, 21u), "one post-epoch camera application must release LevelLoad detection");
+
+    ++exactQueries;
+    const auto result = Resolve(Position{ 1.f, 2.f, 3.f }, 91u, InvalidSector,
+        [&fallbackQueries](const Position&) {
+            ++fallbackQueries;
+            return InvalidSector;
+        });
+    const bool committed = CommitValidSector(result.sector, InvalidSector, lastSector, [](const unsigned) {});
+    const PreparedTransition prepared = evidence.PrepareDetected(committed);
+    require(prepared.valid(), "stationary LevelLoad exact result must prepare a report");
+    pending = true; // Mirrors StoreIosSectorStartupPending before the barrier is disarmed.
+    barrier.Disarm();
+    require(!shouldDetect(false, 22u), "pending exact LevelLoad report must prevent a duplicate query");
+    require(evidence.CommitPrepared(prepared), "stationary LevelLoad exact result must commit");
+    pending = false;
+
+    require(exactQueries == 1u, "stationary LevelLoad exact path must issue one exact query");
+    require(fallbackQueries == 0u, "stationary LevelLoad exact path must not probe fallback");
+    require(lastSector == 91u, "stationary LevelLoad exact path must commit the valid sector");
+    require(!shouldDetect(false, 22u), "resolved equal-camera LevelLoad must not repeat detection");
+}
+
+void testStationaryLevelLoadFallbackSequence()
+{
+    using namespace xray::render::ios_sector_fallback;
+    StartupEvidence evidence;
+    CameraApplyBarrier barrier;
+    bool pending = false;
+    unsigned lastSector = InvalidSector;
+    unsigned exactQueries = 0u;
+    unsigned fallbackQueries = 0u;
+
+    require(evidence.BeginEpoch(StartupTrigger::LevelLoad), "stationary fallback epoch must begin");
+    barrier.Arm(30u);
+    const auto shouldDetect = [&](const bool cameraMoved, const std::uint64_t generation) {
+        return ShouldDetectSector(cameraMoved, evidence.active(), evidence.trigger(), evidence.phase(),
+            lastSector != InvalidSector, pending, barrier.Passed(generation));
+    };
+
+    require(shouldDetect(false, 31u), "post-epoch barrier must release stationary fallback detection");
+    ++exactQueries;
+    const auto result = Resolve(Position{ 4.f, 5.f, 6.f }, InvalidSector, InvalidSector,
+        [&fallbackQueries](const Position&) {
+            ++fallbackQueries;
+            return fallbackQueries == 2u ? 57u : InvalidSector;
+        });
+    const bool committed = CommitValidSector(result.sector, InvalidSector, lastSector, [](const unsigned) {});
+    const PreparedTransition prepared = evidence.PrepareDetected(committed);
+    require(prepared.valid(), "stationary fallback hit must prepare a report");
+    pending = true;
+    barrier.Disarm();
+    require(!shouldDetect(false, 32u), "pending fallback report must prevent duplicate fallback probes");
+    require(evidence.CommitPrepared(prepared), "stationary fallback hit must commit");
+    pending = false;
+
+    require(exactQueries == 1u, "stationary fallback path must issue one exact query");
+    require(fallbackQueries == 2u, "stationary fallback must stop at its first successful probe");
+    require(result.fallbackAttempted && result.sector == 57u,
+        "stationary fallback must retain the first valid fallback sector");
+    require(lastSector == 57u, "stationary fallback must commit the valid fallback sector");
+    require(!shouldDetect(false, 32u), "resolved equal-camera fallback path must not repeat detection");
+}
+
+void testStationaryLevelLoadNoHitThenMovementRecovery()
+{
+    using namespace xray::render::ios_sector_fallback;
+    StartupEvidence evidence;
+    CameraApplyBarrier barrier;
+    bool pending = false;
+    unsigned lastSector = InvalidSector;
+    unsigned exactQueries = 0u;
+    unsigned fallbackQueries = 0u;
+
+    require(evidence.BeginEpoch(StartupTrigger::LevelLoad), "stationary no-hit epoch must begin");
+    barrier.Arm(40u);
+    const auto shouldDetect = [&](const bool cameraMoved, const std::uint64_t generation) {
+        return ShouldDetectSector(cameraMoved, evidence.active(), evidence.trigger(), evidence.phase(),
+            lastSector != InvalidSector, pending, barrier.Passed(generation));
+    };
+
+    require(shouldDetect(false, 41u), "post-epoch barrier must release stationary no-hit detection");
+    ++exactQueries;
+    const auto result = Resolve(Position{ 7.f, 8.f, 9.f }, InvalidSector, InvalidSector,
+        [&fallbackQueries](const Position&) {
+            ++fallbackQueries;
+            return InvalidSector;
+        });
+    const bool committed = CommitValidSector(result.sector, InvalidSector, lastSector, [](const unsigned) {});
+    const PreparedTransition unresolved = evidence.PrepareDetected(committed);
+    require(unresolved.valid() && unresolved.observation == StartupObservation::ReportUnresolved,
+        "stationary no-hit fallback must prepare unresolved evidence");
+    pending = true;
+    barrier.Disarm();
+    require(!shouldDetect(false, 42u), "pending no-hit report must prevent duplicate fallback probes");
+    require(evidence.CommitPrepared(unresolved), "stationary no-hit report must commit");
+    pending = false;
+
+    require(exactQueries == 1u, "stationary no-hit path must issue one exact query");
+    require(fallbackQueries == 56u, "stationary no-hit path must exhaust all fallback probes exactly once");
+    require(lastSector == InvalidSector, "stationary no-hit path must not commit an invalid sector");
+    require(!shouldDetect(false, 42u), "unresolved equal-camera LevelLoad must not repeat fallback");
+    require(shouldDetect(true, 42u), "real camera movement must still recover after unresolved LevelLoad");
+    const PreparedTransition recovery = evidence.PrepareDetected(true);
+    require(recovery.valid(), "movement recovery must prepare a resolved result");
+    require(evidence.CommitPrepared(recovery), "movement recovery must commit");
+    require(evidence.phase() == StartupPhase::Resolved, "movement recovery must resolve the startup epoch");
+}
+
+void testEqualCameraQuickLoadKeepsNoDetectionPathBehindBarrier()
+{
+    using namespace xray::render::ios_sector_fallback;
+    StartupEvidence evidence;
+    CameraApplyBarrier barrier;
+
+    require(evidence.BeginEpoch(StartupTrigger::QuickLoad), "equal-camera QuickLoad epoch must begin");
+    barrier.Arm(50u);
+    require(!ShouldDetectSector(false, evidence.active(), evidence.trigger(), evidence.phase(),
+                false, false, barrier.Passed(50u)),
+        "equal-camera QuickLoad must not run exact or fallback before its barrier");
+    require(!barrier.Passed(50u), "QuickLoad barrier must reject its baseline generation");
+    require(barrier.Passed(51u), "QuickLoad barrier must pass only after a new camera generation");
+    require(!ShouldDetectSector(false, evidence.active(), evidence.trigger(), evidence.phase(),
+                false, false, barrier.Passed(51u)),
+        "equal-camera QuickLoad must retain its no-detection path after its barrier");
     const PreparedTransition none = evidence.PrepareNoDetection(false);
-    require(none.observation == StartupObservation::ReportUnresolved,
-        "level load without detection or a valid sector must prepare none");
-    require(evidence.CommitPrepared(none), "level-load none transition must commit");
+    require(none.valid() && none.observation == StartupObservation::ReportUnresolved,
+        "QuickLoad after its barrier must still prepare none when no sector is retained");
+    require(evidence.CommitPrepared(none), "QuickLoad none transition must commit");
 }
 
 void testPreparedTransitionStalenessAndTamperingFailClosed()
@@ -405,6 +586,11 @@ int main()
     testStartupDetectedUnresolvedThenRecovery();
     testStartupQuickLoadRetainedAndNone();
     testStartupLevelLoadRejectsRetained();
+    testShouldDetectSectorPolicy();
+    testStationaryLevelLoadExactSequence();
+    testStationaryLevelLoadFallbackSequence();
+    testStationaryLevelLoadNoHitThenMovementRecovery();
+    testEqualCameraQuickLoadKeepsNoDetectionPathBehindBarrier();
     testPreparedTransitionStalenessAndTamperingFailClosed();
     testCameraApplyBarrierAndGenerationOverflow();
     testStartupEpochOverflowFailsClosed();

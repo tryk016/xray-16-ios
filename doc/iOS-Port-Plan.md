@@ -14,9 +14,9 @@ pinning/cache contract is complete and has returned to the Backlog pending two
 remote runs. IOS-P2-006's behavior-preserving BC codec contract is also locally
 complete and backlogged pending a color-space decision plus iPhone reference
 frames. The UIKit scene-lifecycle migration is locally and Simulator-complete;
-its physical-device acceptance remains IOS-P1-010 and IOS-P1-002. IOS-P0-003
-now starts with the stationary Simulator sector-branch gap exposed by the real
-iOS 27 capture-v2 run; this local correction precedes further phone evidence.
+its physical-device acceptance remains IOS-P1-010 and IOS-P1-002. IOS-P0-003's
+stationary branch is corrected and its real iOS 27 capture-v2 publication
+passes; wider save/level and physical-device evidence is now the active edge.
 
 This file intentionally contains no more than five active tasks. Historical
 evidence belongs in [iOS-Port-Journal.md](iOS-Port-Journal.md). Work not listed
@@ -40,7 +40,7 @@ here is deferred and must be promoted explicitly from the Backlog.
 **Priority:** P0.
 
 **Evidence level:** affected Zaton save proven on three cold launches; v1
-startup-sector evidence oracle is host-complete (parser 17/17, mutation 9/9,
+startup-sector evidence oracle is host-complete (parser 17/17, marker 10/10,
 strict/ASan/UBSan PASS and final Sol xhigh approval); other saves, indoor/portal
 starts, QuickLoad, transitions and device visual proof remain untested.
 Capture-state v2 and the stationary-vs-forward A/B harness are locally complete
@@ -50,7 +50,8 @@ have not yet produced a physical-device A/B packet. The separate isolated iOS
 27 single-capture host extension is also locally reviewed (final static PASS,
 parser 31/31, runner 84/84 and final Sol xhigh
 `APPROVE — brak P0/P1/P2`). Commit `362bf625d` passed the post-commit full
-Release gate, but no real T2 publication has passed.
+Release gate. A later stationary-branch correction now has a real successful
+T2 publication and awaits its own final review/full-gate commit.
 
 Real workroot `simulator-work-20260810-015703-14748` exposed and corrected an
 over-strict live-readiness classification: a valid post-T1 `loading` candidate
@@ -63,11 +64,11 @@ marker was PID 92531, epoch 1, frame 35, `level_load`, `unresolved`/`none`,
 invalid sector `4294967295`, identical camera/probe and radius 0. Both dedicated
 Simulators were deleted and publication failed closed without T2/report output.
 
-The current code invokes exact/fallback detection only when saved and current
-camera positions differ. The unchanged stationary Simulator camera therefore
-takes the no-detection branch and never attempts the device-proven fallback.
-This new coverage gap is active IOS-P0-003 work; it does not invalidate the
-fallback mechanism already proven on iPhone.
+The corrected iOS policy preserves camera movement as an unconditional trigger
+and adds one synthetic stationary `level_load` attempt only while the epoch is
+awaiting, the sector is invalid, no report is pending and a dedicated
+post-epoch camera-generation barrier has passed. LevelLoad can no longer publish
+retained/none; QuickLoad keeps its independent barrier and no-detection path.
 
 The exact vertical query misses the affected spawn floor. The iOS-only
 nearest-floor fallback finds sector 115 at 8 m and renders the complete static
@@ -75,39 +76,44 @@ world without movement. Full prefetch remains prohibited because it previously
 added an approximately 1.6 GB transient spike.
 
 The phone-free regression policy now proves exact-query bypass, the independent
-56-probe order, first-hit selection, unchanged camera height, no-hit metadata
-and invalid-sector commit protection. v1 also validates `level_load`/`QuickLoad`
-epochs, the exact/fallback/retained/unresolved/recovered outcomes and an anchored
-oracle stream; `retained` is prior valid-sector evidence after authoritative
-camera application, not fresh detection. Strict C++ policy, ASan/UBSan, the
-partial 1,383-TU engine gate and the final uncached full gate pass. This protects
-the mechanism only; real CDB results across additional content remain
-device-untested.
+56-probe order, first-hit selection, unchanged camera height, no-hit metadata,
+invalid-sector commit protection, stationary exact/fallback/no-hit one-shot
+behavior and later movement recovery. v1 also validates
+`level_load`/`QuickLoad` epochs, exact/fallback/retained/unresolved/recovered
+outcomes and an anchored oracle stream. Parser 17/17, source-marker 10/10,
+strict C++ and ASan/UBSan pass. The FastDevice gate passed after rebuilding 249
+translation units. This protects the mechanism only; real CDB results across
+additional content remain device-untested.
+
+Fresh isolated workroot
+`/Users/patryk/openxray-handoff/simulator-work-20260810-041339-82601` passed on
+iOS 27. PID 90549 recorded stationary `level_load resolved/exact`, sector 115,
+at frame 35. T0/T1/T2 tokens 54/55/56 were same-session/same-PID gameplay with
+advancing frames 89/91/92 and continual time, no input and 1864x860. The five
+capture artifacts and report were published only after all guards passed and
+the dedicated Simulator was deleted. Scope remains Apple Software Renderer
+control-flow/publication evidence, not iPhone or pixel proof.
 
 **Next actions:**
 
-1. Correct the iOS startup-sector trigger so an active stationary `level_load`
-   epoch with an invalid sector performs exact/fallback detection once after the
-   authoritative camera state, without weakening QuickLoad barriers, valid
-   retained-sector semantics or invalid-sector commit protection.
-2. Add deterministic policy/oracle coverage for equal saved/current camera,
-   one-shot detection, no repeated fallback and the existing movement path.
-3. Rerun isolated iOS 27 `--capture-v2` in a new workroot. Require Zaton sync,
-   T0/T1 ordering, a same-PID/session gameplay T2 with advancing sequence/frame/
-   continual time, and complete post-stop five-artifact/report publication.
-4. Then run `lighting_ab_capture.sh` on the next outdoor phone batch into a new
+1. Run `lighting_ab_capture.sh` on the next outdoor phone batch into a new
    evidence directory; accept only its A/A+3/A+6 controls and keep manual pixel
    interpretation separate from sector and cause claims.
-5. Continue one additional outdoor save, one indoor/portal start, QuickLoad and
+2. Continue one additional outdoor save, one indoor/portal start, QuickLoad and
    one level transition with baseline-plus-exact-batch evidence; record the
    30-minute controller-run memory footprint separately.
+3. Correlate any remaining dark-frame transition with the controlled stationary
+   and forward capture packet before changing rendering or streaming code.
+4. Complete the 30-minute memory/thermal run only after short correctness
+   batches pass and the phone has cooled.
 
 **Acceptance:**
 
-- A stationary isolated iOS 27 Zaton load records a resolved exact/fallback
-  startup outcome without movement and publishes the revalidated T0/T1/T2 set
-  plus report only after Simulator deletion and all guards pass. This is Apple
-  Software Renderer control-flow evidence, not iPhone or pixel proof.
+- Local acceptance met: a stationary isolated iOS 27 Zaton load records a
+  resolved exact outcome without movement and publishes the revalidated
+  T0/T1/T2 set plus report only after Simulator deletion and all guards pass.
+  This is Apple Software Renderer control-flow evidence, not iPhone or pixel
+  proof.
 - Three cold launches and two save/level combinations record the baseline epoch,
   exact expected batch, resolved classification and objective complete-world
   frame without a movement workaround.

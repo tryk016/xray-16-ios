@@ -156,15 +156,16 @@ bool BuildIosSectorStartupPayload(
     return length > 0 && static_cast<size_t>(length) < sizeof(payload.text);
 }
 
-void StoreIosSectorStartupPending(IosSectorStartupPendingReport& pending,
+bool StoreIosSectorStartupPending(IosSectorStartupPendingReport& pending,
     const ios_sector_fallback::PreparedTransition& transition, const IosSectorStartupMethod method,
     const IRender_Sector::sector_id_t sector, const Fvector& camera, const Fvector& probe,
     const float radius, const u32 frame)
 {
     if (pending.active || !transition.valid())
-        return;
+        return false;
 
     pending = { true, transition, method, sector, camera, probe, radius, frame };
+    return true;
 }
 
 void RetryIosSectorStartupPending(ios_sector_fallback::StartupEvidence& evidence,
@@ -284,7 +285,21 @@ void CRender::Calculate()
     auto& dsgraph_main = get_imm_context();
 
     // Detect camera-sector
+#if defined(XR_PLATFORM_APPLE_IOS)
+    const bool cameraMoved = !Device.vCameraPositionSaved.similar(Device.vCameraPosition, EPS_L);
+    const bool levelLoadEpoch = ios_sector_startup_evidence.active()
+        && ios_sector_startup_evidence.trigger() == ios_sector_fallback::StartupTrigger::LevelLoad;
+    const bool levelLoadCameraBarrierPassed = levelLoadEpoch
+        && ios_level_load_camera_barrier.Passed(Device.ios_camera_apply_generation());
+    const bool shouldDetectSector = ios_sector_fallback::ShouldDetectSector(cameraMoved,
+        ios_sector_startup_evidence.active(), ios_sector_startup_evidence.trigger(),
+        ios_sector_startup_evidence.phase(),
+        last_sector_id != IRender_Sector::INVALID_SECTOR_ID,
+        ios_sector_startup_pending_report.active, levelLoadCameraBarrierPassed);
+    if (shouldDetectSector)
+#else
     if (!Device.vCameraPositionSaved.similar(Device.vCameraPosition, EPS_L))
+#endif
     {
         auto sector_id = dsgraph_main.detect_sector(Device.vCameraPosition);
 #if defined(XR_PLATFORM_APPLE_IOS)
@@ -301,14 +316,14 @@ void CRender::Calculate()
         const bool committed = ios_sector_fallback::CommitValidSector(sector_id,
             IRender_Sector::INVALID_SECTOR_ID,
             last_sector_id, [](const auto sector) { g_pGamePersistent->OnSectorChanged(sector); });
-        if (!ios_sector_startup_pending_report.active)
-        {
-            const auto prepared = ios_sector_startup_evidence.PrepareDetected(committed);
-            StoreIosSectorStartupPending(ios_sector_startup_pending_report, prepared,
-                fallback.fallbackAttempted ? IosSectorStartupMethod::Fallback : IosSectorStartupMethod::Exact,
-                sector_id, Device.vCameraPosition, fallback.probePosition, fallback.matchedRadius, Device.dwFrame);
+        const auto prepared = ios_sector_startup_evidence.PrepareDetected(committed);
+        const bool stored = StoreIosSectorStartupPending(ios_sector_startup_pending_report, prepared,
+            fallback.fallbackAttempted ? IosSectorStartupMethod::Fallback : IosSectorStartupMethod::Exact,
+            sector_id, Device.vCameraPosition, fallback.probePosition, fallback.matchedRadius, Device.dwFrame);
+        if (stored && levelLoadEpoch)
+            ios_level_load_camera_barrier.Disarm();
+        if (stored)
             RetryIosSectorStartupPending(ios_sector_startup_evidence, ios_sector_startup_pending_report);
-        }
 
         if (fallback.fallbackAttempted)
         {
@@ -348,20 +363,19 @@ void CRender::Calculate()
     {
         const bool quickLoadEpoch = ios_sector_startup_evidence.active()
             && ios_sector_startup_evidence.trigger() == ios_sector_fallback::StartupTrigger::QuickLoad;
-        const bool cameraBarrierPassed = quickLoadEpoch
+        const bool quickLoadCameraBarrierPassed = quickLoadEpoch
             && ios_quick_load_camera_barrier.Passed(Device.ios_camera_apply_generation());
-        const bool mayPrepareNoDetection = ios_sector_startup_evidence.active()
-            && (!quickLoadEpoch || cameraBarrierPassed);
-        if (!ios_sector_startup_pending_report.active && mayPrepareNoDetection)
+        if (quickLoadEpoch && quickLoadCameraBarrierPassed && !ios_sector_startup_pending_report.active)
         {
             const bool retainedSector = last_sector_id != IRender_Sector::INVALID_SECTOR_ID;
             const auto prepared = ios_sector_startup_evidence.PrepareNoDetection(retainedSector);
-            StoreIosSectorStartupPending(ios_sector_startup_pending_report, prepared,
+            const bool stored = StoreIosSectorStartupPending(ios_sector_startup_pending_report, prepared,
                 retainedSector ? IosSectorStartupMethod::Retained : IosSectorStartupMethod::None,
                 last_sector_id, Device.vCameraPosition, Device.vCameraPosition, 0.f, Device.dwFrame);
-            if (prepared.valid() && quickLoadEpoch)
+            if (stored)
                 ios_quick_load_camera_barrier.Disarm();
-            RetryIosSectorStartupPending(ios_sector_startup_evidence, ios_sector_startup_pending_report);
+            if (stored)
+                RetryIosSectorStartupPending(ios_sector_startup_evidence, ios_sector_startup_pending_report);
         }
     }
 #endif

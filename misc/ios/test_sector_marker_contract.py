@@ -19,7 +19,8 @@ PATHS = {
     "interface": REPO_ROOT / "src/xrEngine/Render.h",
     "game": REPO_ROOT / "src/xrGame/GamePersistent.cpp",
 }
-CAMERA_CONDITION = "if (!Device.vCameraPositionSaved.similar(Device.vCameraPosition, EPS_L))"
+CAMERA_MOVED = "const bool cameraMoved = !Device.vCameraPositionSaved.similar(Device.vCameraPosition, EPS_L);"
+SHOULD_DETECT_CONDITION = "if (shouldDetectSector)"
 MARKER_GRAMMAR = (
     "* iOS sector startup v1 pid=%d epoch=%llu frame=%u level=%s trigger=%s "
     "status=%s method=%s "
@@ -92,7 +93,7 @@ def contract_errors(sources: dict[str, str]) -> list[str]:
     errors: list[str] = []
     try:
         calculate = function_body(sources["calculate"], r"void\s+CRender::Calculate\s*\(\s*\)")
-        camera_branch = balanced_if_body(calculate, CAMERA_CONDITION)
+        camera_branch = balanced_if_body(calculate, SHOULD_DETECT_CONDITION)
         load = function_body(sources["loader"], r"void\s+CRender::level_Load\s*\(")
         unload = function_body(sources["loader"], r"void\s+CRender::level_Unload\s*\(")
         quick_begin = function_body(
@@ -121,8 +122,10 @@ def contract_errors(sources: dict[str, str]) -> list[str]:
     except AssertionError as error:
         return [str(error)]
 
-    if CAMERA_CONDITION not in calculate:
-        errors.append("camera similarity condition must remain byte-identical")
+    if CAMERA_MOVED not in calculate:
+        errors.append("camera movement must remain an explicit, unmodified input to the policy")
+    if "const bool shouldDetectSector = ios_sector_fallback::ShouldDetectSector(cameraMoved," not in calculate:
+        errors.append("Calculate must delegate the iOS sector trigger to the pure policy")
     if camera_branch.count("dsgraph_main.detect_sector(Device.vCameraPosition)") != 1:
         errors.append("camera branch must issue exactly one original exact-sector query")
     if camera_branch.count("dsgraph_main.detect_sector(probePosition)") != 1:
@@ -136,30 +139,47 @@ def contract_errors(sources: dict[str, str]) -> list[str]:
     sector_commit = calculate.find("ios_sector_fallback::CommitValidSector(")
     prepare_detected = calculate.find("ios_sector_startup_evidence.PrepareDetected(committed)")
     store_detected = calculate.find("StoreIosSectorStartupPending(", prepare_detected)
+    level_disarm = calculate.find("ios_level_load_camera_barrier.Disarm();")
     retry_detected = calculate.find("RetryIosSectorStartupPending(", store_detected)
-    barrier = calculate.find("ios_quick_load_camera_barrier.Passed(")
+    quick_barrier = calculate.find("ios_quick_load_camera_barrier.Passed(")
     prepare_none = calculate.find("ios_sector_startup_evidence.PrepareNoDetection(")
     store_none = calculate.find("StoreIosSectorStartupPending(", prepare_none)
+    quick_disarm = calculate.find("ios_quick_load_camera_barrier.Disarm();", store_none)
     retry_none = calculate.find("RetryIosSectorStartupPending(", store_none)
     lights = calculate.find("Lights.Update();")
-    if min(resolve, sector_commit, prepare_detected, store_detected, retry_detected) < 0 or not (
-        resolve < sector_commit < prepare_detected < store_detected < retry_detected
+    if min(resolve, sector_commit, prepare_detected, store_detected, level_disarm, retry_detected) < 0 or not (
+        resolve < sector_commit < prepare_detected < store_detected < level_disarm < retry_detected
     ):
-        errors.append("detected outcome must Resolve, commit sector, Prepare, store, then retry")
-    if min(barrier, prepare_none, store_none, retry_none, lights) < 0 or not (
-        retry_detected < barrier < prepare_none < store_none < retry_none < lights
+        errors.append("detected outcome must Resolve, commit sector, Prepare, store, disarm LevelLoad, then retry")
+    if min(quick_barrier, prepare_none, store_none, quick_disarm, retry_none, lights) < 0 or not (
+        retry_detected < quick_barrier < prepare_none < store_none < quick_disarm < retry_none < lights
     ):
-        errors.append("no-detection outcome must pass the camera barrier before Prepare and report")
-    if "PrepareNoDetection(" not in calculate[calculate.find("else", calculate.find(CAMERA_CONDITION)):]:
-        errors.append("no-detection preparation must stay after the camera-condition else branch")
+        errors.append("QuickLoad no-detection must pass its barrier, store, disarm, then retry")
+    no_detection_else = calculate.find("else\n    {", calculate.find(SHOULD_DETECT_CONDITION))
+    if no_detection_else < 0 or prepare_none < no_detection_else:
+        errors.append("QuickLoad no-detection preparation must stay after the sector-detection branch")
+    if "if (quickLoadEpoch && quickLoadCameraBarrierPassed && !ios_sector_startup_pending_report.active)" not in calculate:
+        errors.append("QuickLoad no-detection must require its barrier and no pending report")
+
+    policy_call_end = calculate.find(SHOULD_DETECT_CONDITION)
+    policy_call = calculate[calculate.find("ShouldDetectSector(cameraMoved,"):policy_call_end]
+    required_policy_call = (
+        "ios_sector_startup_evidence.active()",
+        "ios_sector_startup_evidence.trigger()",
+        "ios_sector_startup_evidence.phase()",
+        "last_sector_id != IRender_Sector::INVALID_SECTOR_ID",
+        "ios_sector_startup_pending_report.active",
+        "levelLoadCameraBarrierPassed",
+    )
+    if any(token not in policy_call for token in required_policy_call):
+        errors.append("stationary LevelLoad policy call must provide active trigger phase sector pending and barrier state")
+    if "ios_level_load_camera_barrier.Passed(Device.ios_camera_apply_generation())" not in calculate:
+        errors.append("stationary LevelLoad detection must pass its dedicated camera barrier")
 
     first_retry = calculate.find("RetryIosSectorStartupPending(")
     context = calculate.find("auto& dsgraph_main = get_imm_context();")
     if first_retry < 0 or context < 0 or first_retry > context:
         errors.append("pending evidence must retry before accepting a new camera observation")
-    if calculate.count("if (!ios_sector_startup_pending_report.active") != 2:
-        errors.append("new detected and no-detection observations must not replace pending evidence")
-
     payload_build = retry_pending.find("BuildIosSectorStartupPayload(")
     evidence_commit = retry_pending.find("evidence.CommitPrepared(")
     success_clear = retry_pending.rfind("pending = {};")
@@ -194,27 +214,35 @@ def contract_errors(sources: dict[str, str]) -> list[str]:
         errors.append("level unload must deactivate evidence before an early return")
     if "BeginEpoch(ios_sector_fallback::StartupTrigger::QuickLoad)" not in quick_begin:
         errors.append("renderer quick-load hook must begin a quick_load epoch")
+    quick_level_disarm = quick_begin.find("ios_level_load_camera_barrier.Disarm();")
+    quick_disarm = quick_begin.find("ios_quick_load_camera_barrier.Disarm();")
+    quick_clear = quick_begin.find("ios_sector_startup_pending_report = {};")
     quick_begin_epoch = quick_begin.find("BeginEpoch(ios_sector_fallback::StartupTrigger::QuickLoad)")
     quick_generation = quick_begin.find("Device.ios_camera_apply_generation()")
     quick_arm = quick_begin.find("ios_quick_load_camera_barrier.Arm(")
-    quick_clear = quick_begin.find("ios_sector_startup_pending_report = {};")
-    if min(quick_begin_epoch, quick_generation, quick_arm, quick_clear) < 0 or not (
-        quick_begin_epoch < quick_generation < quick_arm < quick_clear
+    if min(quick_level_disarm, quick_disarm, quick_clear, quick_begin_epoch, quick_generation, quick_arm) < 0 or not (
+        quick_level_disarm < quick_disarm < quick_clear < quick_begin_epoch < quick_generation < quick_arm
     ):
-        errors.append("QuickLoad must capture and arm the post-restart camera baseline before clearing pending")
+        errors.append("QuickLoad must disarm stale barriers, clear pending, then arm its post-restart baseline")
 
-    load_disarm = load.find("ios_quick_load_camera_barrier.Disarm();")
+    load_level_disarm = load.find("ios_level_load_camera_barrier.Disarm();")
+    load_quick_disarm = load.find("ios_quick_load_camera_barrier.Disarm();")
     load_clear = load.find("ios_sector_startup_pending_report = {};")
-    if min(loaded, load_disarm, load_clear, begin_level) < 0 or not (
-        loaded < load_disarm < load_clear < begin_level
+    load_generation = load.find("Device.ios_camera_apply_generation()")
+    load_arm = load.find("ios_level_load_camera_barrier.Arm(")
+    if min(loaded, load_level_disarm, load_quick_disarm, load_clear, begin_level, load_generation, load_arm) < 0 or not (
+        loaded < load_level_disarm < load_quick_disarm < load_clear < begin_level < load_generation < load_arm
     ):
-        errors.append("level load must disarm QuickLoad and clear pending before beginning its epoch")
-    unload_disarm = unload.find("ios_quick_load_camera_barrier.Disarm();")
+        errors.append("LevelLoad must disarm both barriers, clear pending, then arm a post-epoch baseline")
+    if "if (ios_sector_startup_evidence.BeginEpoch(ios_sector_fallback::StartupTrigger::LevelLoad))" not in load:
+        errors.append("LevelLoad must arm its barrier only after BeginEpoch succeeds")
+    unload_level_disarm = unload.find("ios_level_load_camera_barrier.Disarm();")
+    unload_quick_disarm = unload.find("ios_quick_load_camera_barrier.Disarm();")
     unload_clear = unload.find("ios_sector_startup_pending_report = {};")
-    if min(unload_disarm, unload_clear, deactivate) < 0 or not (
-        unload_disarm < unload_clear < deactivate
+    if min(unload_level_disarm, unload_quick_disarm, unload_clear, deactivate) < 0 or not (
+        unload_level_disarm < unload_quick_disarm < unload_clear < deactivate
     ):
-        errors.append("level unload must disarm QuickLoad and clear pending before deactivation")
+        errors.append("level unload must disarm both barriers and clear pending before deactivation")
 
     restart = event.find("game->restart_simulator(saved_name);")
     hook = event.find("GEnv.Render->ios_begin_quick_load_sector_startup_epoch();")
@@ -230,6 +258,7 @@ def contract_errors(sources: dict[str, str]) -> list[str]:
         errors.append("IRender must provide an iOS-only default QuickLoad hook")
     if not any(
         "ios_sector_fallback::StartupEvidence ios_sector_startup_evidence;" in region
+        and "ios_sector_fallback::CameraApplyBarrier ios_level_load_camera_barrier;" in region
         and "ios_sector_fallback::CameraApplyBarrier ios_quick_load_camera_barrier;" in region
         and "IosSectorStartupPendingReport ios_sector_startup_pending_report;" in region
         for region in header_ios
@@ -237,7 +266,7 @@ def contract_errors(sources: dict[str, str]) -> list[str]:
         "ios_begin_quick_load_sector_startup_epoch() override;" in region
         for region in header_ios
     ):
-        errors.append("one CRender instance must own iOS-only evidence, barrier, pending report and hook")
+        errors.append("one CRender instance must own iOS-only evidence, both barriers, pending report and hook")
     if not any(
         "CRender::ios_begin_quick_load_sector_startup_epoch" in region
         and "StartupTrigger::QuickLoad" in region
@@ -289,6 +318,7 @@ def contract_errors(sources: dict[str, str]) -> list[str]:
         "StartupPhase::Awaiting",
         "StartupPhase::UnresolvedReported",
         "StartupPhase::Resolved",
+        "constexpr bool ShouldDetectSector",
         "trigger_ != StartupTrigger::QuickLoad",
         "std::numeric_limits<std::uint64_t>::max()",
         "PreparedTransition PrepareDetected",
@@ -297,7 +327,23 @@ def contract_errors(sources: dict[str, str]) -> list[str]:
         "transition.expectedPhase != phase_",
     )
     if any(token not in policy for token in required_policy):
-        errors.append("pure evidence policy must retain two-phase transitions, QuickLoad guard and overflow fail-close")
+        errors.append("pure evidence policy must retain trigger policy, two-phase transitions, QuickLoad guard and overflow fail-close")
+    try:
+        should_detect_policy = function_body(
+            policy, r"\[\[nodiscard\]\]\s+constexpr\s+bool\s+ShouldDetectSector\s*\("
+        )
+    except AssertionError:
+        should_detect_policy = ""
+    required_trigger_policy = (
+        "return cameraMoved\n        || (",
+        "trigger == StartupTrigger::LevelLoad",
+        "phase == StartupPhase::Awaiting",
+        "!lastSectorValid",
+        "!pendingReportActive",
+        "levelLoadCameraBarrierPassed",
+    )
+    if any(token not in should_detect_policy for token in required_trigger_policy):
+        errors.append("pure evidence policy must retain trigger policy, two-phase transitions, QuickLoad guard and overflow fail-close")
     if "ObserveDetected" in policy or "ObserveNoDetection" in policy:
         errors.append("evidence policy must not mutate state during observation preparation")
     return errors
@@ -350,7 +396,7 @@ class SectorMarkerContractTests(unittest.TestCase):
         )
         self.assert_fails(sources, "level unload must deactivate evidence before an early return")
 
-    def test_detected_prepare_and_camera_barrier_order_mutations_fail(self) -> None:
+    def test_detected_prepare_store_disarm_and_retry_order_mutations_fail(self) -> None:
         sources = self.mutated(
             "calculate",
             "ios_sector_startup_evidence.PrepareDetected(committed)",
@@ -358,7 +404,28 @@ class SectorMarkerContractTests(unittest.TestCase):
         )
         self.assert_fails(
             sources,
-            "detected outcome must Resolve, commit sector, Prepare, store, then retry",
+            "detected outcome must Resolve, commit sector, Prepare, store, disarm LevelLoad, then retry",
+        )
+        sources = self.mutated(
+            "calculate",
+            "        const bool stored = StoreIosSectorStartupPending(ios_sector_startup_pending_report, prepared,",
+            "        ios_level_load_camera_barrier.Disarm();\n"
+            "        const bool stored = StoreIosSectorStartupPending(ios_sector_startup_pending_report, prepared,",
+        )
+        self.assert_fails(
+            sources,
+            "detected outcome must Resolve, commit sector, Prepare, store, disarm LevelLoad, then retry",
+        )
+
+    def test_dedicated_barrier_and_quickload_guard_mutations_fail(self) -> None:
+        sources = self.mutated(
+            "calculate",
+            "ios_level_load_camera_barrier.Passed(Device.ios_camera_apply_generation())",
+            "true",
+        )
+        self.assert_fails(
+            sources,
+            "stationary LevelLoad detection must pass its dedicated camera barrier",
         )
         sources = self.mutated(
             "calculate",
@@ -367,8 +434,14 @@ class SectorMarkerContractTests(unittest.TestCase):
         )
         self.assert_fails(
             sources,
-            "no-detection outcome must pass the camera barrier before Prepare and report",
+            "QuickLoad no-detection must pass its barrier, store, disarm, then retry",
         )
+        sources = self.mutated(
+            "calculate",
+            "if (quickLoadEpoch && quickLoadCameraBarrierPassed && !ios_sector_startup_pending_report.active)",
+            "if (quickLoadEpoch && quickLoadCameraBarrierPassed)",
+        )
+        self.assert_fails(sources, "QuickLoad no-detection must require its barrier and no pending report")
 
     def test_payload_commit_and_pending_retry_mutations_fail(self) -> None:
         sources = self.mutated(
@@ -391,15 +464,15 @@ class SectorMarkerContractTests(unittest.TestCase):
         )
         sources = self.mutated(
             "calculate",
-            "if (!ios_sector_startup_pending_report.active && mayPrepareNoDetection)",
-            "if (mayPrepareNoDetection)",
+            "ios_sector_startup_pending_report.active, levelLoadCameraBarrierPassed",
+            "false, levelLoadCameraBarrierPassed",
         )
         self.assert_fails(
             sources,
-            "new detected and no-detection observations must not replace pending evidence",
+            "stationary LevelLoad policy call must provide active trigger phase sector pending and barrier state",
         )
 
-    def test_camera_generation_and_quickload_baseline_mutations_fail(self) -> None:
+    def test_camera_generation_and_lifecycle_baseline_mutations_fail(self) -> None:
         sources = self.mutated(
             "camera_manager", "    Device.ios_note_camera_applied();\n", ""
         )
@@ -418,12 +491,28 @@ class SectorMarkerContractTests(unittest.TestCase):
         )
         self.assert_fails(
             sources,
-            "QuickLoad must capture and arm the post-restart camera baseline before clearing pending",
+            "QuickLoad must disarm stale barriers, clear pending, then arm its post-restart baseline",
+        )
+        sources = self.mutated(
+            "loader", "        ios_level_load_camera_barrier.Arm(cameraApplyGeneration);\n", ""
+        )
+        self.assert_fails(
+            sources,
+            "LevelLoad must disarm both barriers, clear pending, then arm a post-epoch baseline",
+        )
+        sources = self.mutated(
+            "render_header", "ios_sector_fallback::CameraApplyBarrier ios_level_load_camera_barrier;\n", ""
+        )
+        self.assert_fails(
+            sources,
+            "one CRender instance must own iOS-only evidence, both barriers, pending report and hook",
         )
 
     def test_camera_behavior_mutations_fail(self) -> None:
-        sources = self.mutated("calculate", CAMERA_CONDITION, "if (true)")
-        self.assert_fails(sources, "condition not found: " + CAMERA_CONDITION)
+        sources = self.mutated("calculate", CAMERA_MOVED, "const bool cameraMoved = false;")
+        self.assert_fails(sources, "camera movement must remain an explicit, unmodified input to the policy")
+        sources = self.mutated("calculate", SHOULD_DETECT_CONDITION, "if (true)")
+        self.assert_fails(sources, "condition not found: " + SHOULD_DETECT_CONDITION)
         sources = self.mutated(
             "calculate",
             "auto sector_id = dsgraph_main.detect_sector(Device.vCameraPosition);",
@@ -452,21 +541,36 @@ class SectorMarkerContractTests(unittest.TestCase):
         sources = self.mutated("calculate", "    FlushLog();\n", "")
         self.assert_fails(sources, "validated payload must precede CommitPrepared, Msg and FlushLog")
 
-    def test_two_phase_policy_mutations_fail(self) -> None:
+    def test_trigger_policy_and_two_phase_policy_mutations_fail(self) -> None:
         sources = self.mutated(
             "policy", "[[nodiscard]] bool CommitPrepared", "[[nodiscard]] bool CommitTransition"
         )
         self.assert_fails(
             sources,
-            "pure evidence policy must retain two-phase transitions, QuickLoad guard and overflow fail-close",
+            "pure evidence policy must retain trigger policy, two-phase transitions, QuickLoad guard and overflow fail-close",
         )
         sources = self.mutated(
             "policy", "transition.expectedPhase != phase_", "false"
         )
         self.assert_fails(
             sources,
-            "pure evidence policy must retain two-phase transitions, QuickLoad guard and overflow fail-close",
+            "pure evidence policy must retain trigger policy, two-phase transitions, QuickLoad guard and overflow fail-close",
         )
+        for old, new in (
+            ("return cameraMoved\n        || (", "return cameraMoved && ("),
+            ("startupActive && trigger == StartupTrigger::LevelLoad", "startupActive && true"),
+            ("phase == StartupPhase::Awaiting", "true"),
+            ("!lastSectorValid", "true"),
+            ("!pendingReportActive", "true"),
+            ("&& levelLoadCameraBarrierPassed);", "&& true);"),
+            ("trigger_ != StartupTrigger::QuickLoad", "false"),
+        ):
+            with self.subTest(old=old):
+                sources = self.mutated("policy", old, new)
+                self.assert_fails(
+                    sources,
+                    "pure evidence policy must retain trigger policy, two-phase transitions, QuickLoad guard and overflow fail-close",
+                )
 
 
 if __name__ == "__main__":

@@ -338,6 +338,7 @@ public:
     IRender_Sector::sector_id_t last_sector_id{IRender_Sector::INVALID_SECTOR_ID};
 #if defined(XR_PLATFORM_APPLE_IOS)
     ios_sector_fallback::StartupEvidence ios_sector_startup_evidence;
+    ios_sector_fallback::CameraApplyBarrier ios_level_load_camera_barrier;
     ios_sector_fallback::CameraApplyBarrier ios_quick_load_camera_barrier;
     IosSectorStartupPendingReport ios_sector_startup_pending_report;
 #endif

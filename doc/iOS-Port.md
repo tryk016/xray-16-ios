@@ -4,9 +4,9 @@ Canonical specification for the OpenXRay iOS project.
 
 **Last synchronized:** 2026-08-10
 
-**Status:** playable development build; affected-iPhone startup-sector and known
-SSAO defects fixed; stationary Simulator sector coverage and the later
-movement-correlated dark-frame observation remain under investigation
+**Status:** playable development build; affected-iPhone startup-sector, known
+SSAO and stationary Simulator startup-sector defects fixed; the later
+movement-correlated dark-frame observation remains under investigation
 
 **Target game:** S.T.A.L.K.E.R.: Call of Pripyat 1.6.02
 
@@ -32,11 +32,11 @@ The port is past initial bring-up. On a physical iPhone it can:
 - install and launch over USB in either a normal zero-readback mode or an
   explicit unattended diagnostic mode with synthetic input and fresh captures.
 
-It is not release-ready. The startup geometry defect and proven SSAO macro
-defect are fixed, but a later dark-frame smoke remains causally unresolved.
-The isolated iOS 27 Simulator capture-v2 tooling is host-complete, but its first
-real publication is blocked by a stationary startup-sector coverage gap tracked
-under IOS-P0-003.
+It is not release-ready. The startup geometry defect, stationary startup-sector
+branch and proven SSAO macro defect are fixed, but a later dark-frame smoke
+remains causally unresolved. The isolated iOS 27 Simulator capture-v2 path has
+published its first real T0/T1/T2 packet after a stationary saved-game load.
+IOS-P0-003 remains open for wider physical-device and content coverage.
 Diagnostic lifecycle recovery, LOWMEMORY handling and
 decoded-texture lazy reload are device-proven; normal lock/audio cycles,
 multi-level validation, memory budgets and a repeatable performance baseline
@@ -210,10 +210,15 @@ in the deferred backlog and must be promoted explicitly before implementation.
 
 The iOS fallback is now a pure host-tested policy. It preserves the exact query
 fast path, the seven radii and eight directions in their original order, the
-diagonal factor, unchanged camera height and first-hit exit. A separate commit
-policy proves that an invalid result cannot notify or replace `last_sector_id`.
-Strict C++ policy and ASan/UBSan pass. This freezes the mechanism but does not
-replace the remaining outdoor, indoor/portal and transition device tests.
+diagonal factor, unchanged camera height and first-hit exit. A dedicated
+`level_load` camera-generation barrier permits one stationary exact/fallback
+attempt only after authoritative camera application, with invalid sector,
+awaiting evidence and no pending report. Real movement remains unconditional;
+QuickLoad retains its separate barrier and no-detection semantics. A separate
+commit policy proves that an invalid result cannot notify or replace
+`last_sector_id`. Strict C++ policy, ASan/UBSan and the source-marker contract
+pass. This freezes the mechanism but does not replace the remaining outdoor,
+indoor/portal and transition device tests.
 
 ### Startup-sector v1 evidence oracle
 
@@ -239,7 +244,7 @@ complete only: `classification=unresolved` is a failed device startup test, and
 even `exact`/`fallback`/`retained` markers are sector evidence rather than
 visual or pixel proof.
 
-Host evidence for this oracle is parser 17/17, source-mutation contract 9/9,
+Host evidence for this oracle is parser 17/17, source-marker contract 10/10,
 strict C++ policy PASS and ASan/UBSan PASS. The independent implementation
 re-review by Sol xhigh returned exactly `APPROVE — brak P0/P1/P2`. The partial
 engine gate rebuilt 1,383 translation units; its full dSYM `__debug_info` is
@@ -359,29 +364,23 @@ exposed an over-strict fatal readiness classification. The correction above
 makes only valid live readiness states retryable while preserving fatal
 invariants and fatal post-stop verification.
 
-The corrected real run,
-`/Users/patryk/openxray-handoff/simulator-work-20260810-024814-86404`, built
-successfully and reached Zaton synchronization plus `after_load`. T0 was
-`loading` sequence 23, T1 was `loading` sequence 24, and every candidate through
-sequence 88 remained `loading` under the single 600-second deadline. Its startup
-marker was PID 92531, epoch 1, frame 35, level `zaton`, trigger `level_load`,
-status `unresolved`, method `none`, sector `4294967295`, with identical camera
-and probe positions and radius 0.
+The second real run,
+`/Users/patryk/openxray-handoff/simulator-work-20260810-024814-86404`, exposed
+the stationary branch: equal saved/current camera positions produced
+`level_load unresolved/none`, invalid sector and no T2 before the 600-second
+deadline. It failed closed and deleted its dedicated Simulator.
 
-`CRender::Calculate` currently invokes exact/fallback detection only when the
-saved and current camera positions differ. A stationary Simulator start with
-equal positions instead takes the no-detection branch, so the proven fallback
-is never attempted. This is a new stationary Simulator coverage gap, not a
-refutation of the device-proven fallback. IOS-P0-003 remains active until that
-branch is corrected and a fresh isolated run publishes the complete T2 set.
-
-The second run timed out fail-closed. Both dedicated Simulators were deleted;
-no T2 `capture.json`, `capture.ppm`, `capture-proof.json`, `report.txt` or
-`.report.pending` was published. The last successful protected-input and
-source-snapshot guards were pre-launch; the timeout prevented the post-runtime
-log, save, staged-data and protected-input guards from running. The evidence scope is exactly
-`iOS-27.0-Simulator-Apple-Software-Renderer-only`: it proves no pixels,
-readability, iPhone behavior, performance or lighting cause.
+After the dedicated one-shot `level_load` camera barrier correction, fresh
+workroot `/Users/patryk/openxray-handoff/simulator-work-20260810-041339-82601`
+passed. PID 90549, epoch 1, frame 35 recorded `level_load resolved/exact`, sector
+115 and radius 0 without movement. T0/T1/T2 tokens 54/55/56 retained one
+session/PID, advanced frame 89/91/92 and continual time, and published unpaused
+Zaton gameplay at 1864x860 with no input. All post-stop guards passed,
+protected inputs were unchanged, the dedicated Simulator was deleted, and the
+five capture artifacts plus final report were published. The evidence scope is
+exactly `iOS-27.0-Simulator-Apple-Software-Renderer-only`: it proves the
+control-flow and publication contract, not pixel correctness, readability,
+physical-iPhone behavior, performance or a lighting cause.
 
 The static shader contract now covers all five numeric zero-default macros:
 `SUN_QUALITY`, `SSR_QUALITY`, `SSAO_QUALITY`, `SSAO_OPT_DATA` and
@@ -849,7 +848,7 @@ device identifier above.
 
 | Priority | Area | Current requirement |
 |---|---|---|
-| P0 | Validation | Correct stationary initial sector detection, pass isolated capture-v2, then verify the fallback across saves/levels and complete a memory-safe soak |
+| P0 | Validation | Verify startup-sector recovery across saves/levels on iPhone, run controlled lighting evidence and complete a memory-safe soak |
 | P1 | Memory | Device-prove current/peak telemetry and bounded LOWMEMORY eviction, then set budgets |
 | P1 | Lifecycle | Device-prove atomic frame gating, context restore, persistence and audio recovery |
 | P1 | CI | Run a deliberate negative shader/varying canary in Actions and monitor the verified dSYM artifact on the first remote run |
