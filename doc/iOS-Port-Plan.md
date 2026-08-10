@@ -53,8 +53,9 @@ parser 31/31, runner 84/84 and final Sol xhigh
 `APPROVE — brak P0/P1/P2`). Commit `399b7fdbb` records the stationary-branch
 correction, its real successful T2 publication and its post-commit full Release
 PASS. The later fixture-only reliability correction has fresh FastDevice
-and full Release PASS evidence; use its current on-disk stamp before any push or
-install.
+and full Release PASS evidence, but subsequent `active_gate.py` artifact-input
+changes made both on-disk install stamps stale. Rerun the full gate before any
+push or install; do not use either existing stamp.
 
 Real workroot `simulator-work-20260810-015703-14748` exposed and corrected an
 over-strict live-readiness classification: a valid post-T1 `loading` candidate
@@ -97,21 +98,25 @@ capture artifacts and report were published only after all guards passed and
 the dedicated Simulator was deleted. Scope remains Apple Software Renderer
 control-flow/publication evidence, not iPhone or pixel proof.
 
-Fresh isolated QuickLoad workroot
-`/Users/patryk/openxray-handoff/simulator-work-20260810-134537-64428` also passed
-on iOS 27 after a clean arm64/minOS 16.4 build. One PID (`73664`) created and
-loaded `player - quicksave.scop` through normal F5/F9 input. Epoch 1 was
-`level_load/exact` at frame 35; epoch 2 was `quick_load/retained` at frame 122.
-Native 1864x860 gameplay captures advanced at frames 90/94/182. The live and
-private QuickSave copies matched at 649947 bytes and SHA-256
-`f49e87d54c1c9c8aee656bce941f8aabdcee76f0e3e77746108cda1a5489dd96`.
-All post-stop guards passed, protected inputs were unchanged, the dedicated
-Simulator was deleted and only then was `report.txt` published. Retail 97/97,
-QuickLoad oracle 22/22 and input mapping 3/3 pass. Scope is normal save/load and
-sector control flow on Apple Software Renderer, not iPhone or pixel proof.
-The runtime packet predates final host hardening that now requires exactly
-B0/B1/C semantic revalidation and removes both pending hardlinks. Those fixes
-pass 22/22 locally; one fresh hardened publication run remains pending.
+Fresh hardened QuickLoad workroot
+`/Users/patryk/openxray-handoff/simulator-work-20260810-164020-71268` passed:
+single arm64 `IOSSIMULATOR`, minOS 16.4, SDK 27.0; PID 77340; epoch 1
+`level_load/exact` frame 35 then epoch 2 `quick_load/retained` method `retained`
+frame 122. Exactly B0/B1/C were 1864x860 gameplay frames 89/94/182 with tokens
+54/58/118; normal F5/F9 used scancodes 62/66. Live/private QuickSave inodes
+22482673/22482715 differ but both are 649473 bytes with SHA-256
+`eb82993bc9eb70ef64ef7830669328470fb556da69a82883a41ffc9dda5c43fe`; the original
+save is unchanged at 631235 bytes and SHA-256
+`7ff0b12ee5d0a39b7a9595d7cc491cd63a32dfc2ce276e5302f74a4cdf7214cc`.
+PASS report SHA-256 is
+`27f89f6793ec2d0f0ee6831add123ae3e54b9d83eaaa37d4326a62d052f35cb9`; manifest
+SHA-256 is `7d45f49bbe15727a1813971b958fe8c19261b32cc3426a7bfd69dffbdd418896`.
+Pending aliases were absent, protected inputs unchanged and Simulator
+`278AD2E8-7116-448F-8474-670945489415` deleted before report publication. Final
+Sol xhigh: `APPROVE — brak P0/P1/P2`. Scope is normal F5/F9 Apple Software
+Renderer control flow only, not iPhone/pixel/readability/lighting/performance or
+other-content proof; IOS-P0-003 stays active for physical and wider content
+acceptance.
 
 **Next actions:**
 
@@ -133,9 +138,10 @@ pass 22/22 locally; one fresh hardened publication run remains pending.
   T0/T1/T2 set plus report only after Simulator deletion and all guards pass.
   This is Apple Software Renderer control-flow evidence, not iPhone or pixel
   proof.
-- Local QuickLoad runtime acceptance met: normal F5/F9 preserves one PID,
-  creates and reloads the exact QuickSave and advances to one retained
-  `quick_load` epoch. Fresh hardened publication acceptance remains pending.
+- Local hardened QuickLoad acceptance met: normal F5/F9 preserves one PID,
+  creates and reloads the exact QuickSave, advances to `quick_load/retained`,
+  revalidates exactly B0/B1/C, removes pending aliases and publishes only after
+  Simulator deletion. It does not close physical-device or wider-content scope.
 - Three cold launches and two save/level combinations record the baseline epoch,
   exact expected batch, resolved classification and objective complete-world
   frame without a movement workaround.
@@ -229,9 +235,10 @@ inputs are unchanged and cleanup passed. Binding JSON has
 and exact scope `semantic-ui-navigation-only`.
 
 Its task-specific host contracts passed and final Sol xhigh verdict is
-`APPROVE — brak P0/P1/P2`. The current authoritative full-gate stamp is kept in
-the canonical contract and Resume; this is semantic navigation only, not pixel,
-readability, performance or physical-device proof.
+`APPROVE — brak P0/P1/P2`. Both existing install stamps are stale after
+`active_gate.py` artifact-input changes, so a new full gate is mandatory before
+install or push. This is semantic navigation only, not pixel, readability,
+performance or physical-device proof.
 
 The opt-in iOS 27 `--ui-captures` path now layers native evidence on top of
 `--ui-navigation`: it requires diagnostics/autoinput and captures steps 1

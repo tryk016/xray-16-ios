@@ -60,6 +60,25 @@ GLSLANG="$REPO_ROOT/tools/glslang/bin/glslangValidator"
 
 fail() { echo ""; echo "FAIL: $*"; echo "DO NOT PUSH."; exit 1; }
 
+archive_gate_detail_log() {
+    local source="$1"
+    local name="$2"
+    local target temporary
+
+    [ -n "${OPENXRAY_GATE_DETAIL_DIR:-}" ] || return 0
+    [ -f "$source" ] || return 1
+    [ -d "$OPENXRAY_GATE_DETAIL_DIR" ] || return 1
+    [ ! -L "$OPENXRAY_GATE_DETAIL_DIR" ] || return 1
+    target="$OPENXRAY_GATE_DETAIL_DIR/$name"
+    temporary="$target.tmp.$$"
+    [ ! -e "$target" ] && [ ! -L "$target" ] && [ ! -e "$temporary" ] \
+        && [ ! -L "$temporary" ] || return 1
+    cp "$source" "$temporary" || return 1
+    chmod 600 "$temporary" || return 1
+    mv "$temporary" "$target" || return 1
+    printf '%s\n' "$target"
+}
+
 openal_fields=""
 OPENAL_PROVIDER=""
 OPENAL_SHA256=""
@@ -115,6 +134,14 @@ cleanup() {
     [ -z "$diagnostic_input_state_sanitized_test" ] || rm -f "$diagnostic_input_state_sanitized_test"
 }
 trap cleanup EXIT
+
+echo "== iOS active-gate capsule and private logging contracts =="
+python3 misc/ios/test_active_gate.py \
+    || fail "active-gate capsule regression tests failed"
+python3 misc/ios/test_run_gate_logged.py \
+    || fail "private gate-log regression tests failed"
+bash -n misc/ios/run_gate_logged.sh \
+    || fail "private gate-log launcher syntax check failed"
 
 echo "== iOS OpenAL provider contract unit gate =="
 python3 misc/ios/test_openal_provider_contract.py \
@@ -176,16 +203,21 @@ configure_symbol_complete() {
 }
 
 stabilize_cmake_config() {
-    local first_log second_log first_digest second_digest
+    local first_log second_log first_digest second_digest archived_log
 
     first_log=$(mktemp "${TMPDIR:-/tmp}/xr-release-configure.XXXXXX") \
         || fail "could not create Release configure log"
     if ! configure_symbol_complete > "$first_log" 2>&1; then
+        archived_log=$(archive_gate_detail_log "$first_log" "release-configure-first.log") \
+            || fail "could not archive failed Release configure log"
         echo "--- configure errors ---"
         grep -E "CMake Error|error:" "$first_log" | head -30
         echo "--- full log: $first_log ---"
+        [ -z "$archived_log" ] || echo "--- archived log: $archived_log ---"
         fail "symbol-complete Release configure failed"
     fi
+    archived_log=$(archive_gate_detail_log "$first_log" "release-configure-first.log") \
+        || fail "could not archive Release configure log"
     rm -f "$first_log"
 
     first_digest=$(cmake_config_digest) \
@@ -195,11 +227,16 @@ stabilize_cmake_config() {
     second_log=$(mktemp "${TMPDIR:-/tmp}/xr-release-configure-stability.XXXXXX") \
         || fail "could not create Release configure stability log"
     if ! configure_symbol_complete > "$second_log" 2>&1; then
+        archived_log=$(archive_gate_detail_log "$second_log" "release-configure-stability.log") \
+            || fail "could not archive failed Release configure stability log"
         echo "--- configure stability errors ---"
         grep -E "CMake Error|error:" "$second_log" | head -30
         echo "--- full log: $second_log ---"
+        [ -z "$archived_log" ] || echo "--- archived log: $archived_log ---"
         fail "symbol-complete Release configure stability check failed"
     fi
+    archived_log=$(archive_gate_detail_log "$second_log" "release-configure-stability.log") \
+        || fail "could not archive Release configure stability log"
     rm -f "$second_log"
 
     second_digest=$(cmake_config_digest) \
@@ -666,6 +703,8 @@ if [ "$run_engine" = 1 ]; then
     esac
     if ! cmake --build "$BUILD_DIR" --config Release --target xr_3da \
             --parallel "$build_jobs" > "$log" 2>&1; then
+        archived_log=$(archive_gate_detail_log "$log" "release-build.log") \
+            || fail "could not archive failed Release build log"
         echo ""
         echo "--- first errors ---"
         # Match only real diagnostics (file:line:col: error:). A bare "error"
@@ -675,9 +714,12 @@ if [ "$run_engine" = 1 ]; then
         grep -E "^(ld|clang|Undefined symbols|  \"_)" "$log" | head -10
         grep -E "CMake Error|BUILD FAILED|The following build commands failed" "$log" | head -20
         echo "--- full log: $log ---"
+        [ -z "$archived_log" ] || echo "--- archived log: $archived_log ---"
         fail "engine build failed"
     fi
     compiled=$(grep -c "CompileC" "$log" || true)
+    archived_log=$(archive_gate_detail_log "$log" "release-build.log") \
+        || fail "could not archive Release build log"
     echo "built OK ($compiled translation unit(s) recompiled)"
     rm -f "$log"
 

@@ -645,3 +645,58 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   save SHA `f49e87d…`; protected inputs unchanged and Simulator deleted.
 - Apple Software Renderer control-flow evidence only. No phone, lease,
   devicectl, signing, install or push.
+
+## 2026-08-10 — context-efficient gate operation
+
+- Added a deterministic checked capsule: 27,322 bytes, estimated 6,831 tokens,
+  mode 0600; focused contracts 7/7.
+- Project MCP default is Context7+iOS Simulator only; memory off for new tasks.
+  CLI `code` prompt excludes the seven requested plugin classes and Memory;
+  Desktop still needs a new-task smoke.
+- Logged full gate PASS: retail 97/97, macros 30/30, shaders 279/279, links
+  137/137, 69 TUs; private main/metadata/three inner logs validated.
+- Final logger contracts 9/9; Sol xhigh: `APPROVE — brak P0/P1/P2`.
+- Host-only; no phone/Simulator/install/commit/push. Credential rotation remains
+  a separate pending security task.
+
+## 2026-08-10 — host-tooling closeout
+
+- Active-gate 9/9: enforced 6,000..9,000 estimate; runtime 0700,
+  capsule/manifest 0600. Logged runner 9/9.
+- FastDevice `gate-1786376080683616000-11527-0`: retail 97/97, macros 30/30,
+  links 137/137, 1,856 TUs, UUID `21A5256F-0EB0-3AA6-90BD-E1D7B719D603`.
+- Full `gate-1786376829438790000-35386-0`: retail 97/97, macros 30/30,
+  shaders 279/279, links 137/137, 14 TUs, arm64/minOS 16.4/SDK 27.0, UUID
+  `EBF46B07-0F07-30E2-B6F0-4EB8B7B3FE6B`; source identical pre/post.
+- Sol xhigh: `APPROVE — brak P0/P1/P2`. This append changes the logged
+  runner's full git-state binding but, as documentation is not an
+  `IOS_ARTIFACT_INPUTS` input, does not itself stale install stamps. The later
+  `misc/ios/active_gate.py` and `misc/ios/test_active_gate.py` changes are
+  artifact inputs and do stale them; run a new full gate before install/push.
+  No phone/Simulator/install/launch/
+  lease/commit/push. Later Codex CLI verification exposed Cloudflare and
+  Context7 credentials only in this task's private tool transcript, not in the
+  repository or gate logs; rotation is required. No values recorded.
+
+## 2026-08-10 — active-gate tail correction
+
+- Sol docs review P1 fixed: `tail_clip` keeps complete newest session-log lines
+  and marks earlier omitted lines. Active-gate 10/10; logged runner 9/9.
+- Pre-doc capsule: 27,279 B / 6,820 tokens; it includes full-gate,
+  stale-stamp and credential-rotation status. Sol xhigh: `APPROVE — brak
+  P0/P1/P2`.
+- No phone/Simulator/install/launch/lease/commit/push. Fast/full evidence is
+  pre-doc/pre-tail source state; require a new full gate before install/push.
+
+## 2026-08-10 — IOS-P0-003 hardened QuickLoad closeout
+
+- Fresh Simulator workroot `164020-71268`: PASS report `27f89f…35cb9`, manifest
+  `7d45f4…8896`, arm64/IOSSIMULATOR/minOS 16.4/SDK 27, PID 77340.
+- Epochs `level_load/exact` frame35 -> `quick_load/retained` frame122; exact
+  B0/B1/C 1864x860 frames 89/94/182, tokens 54/58/118, F5/F9 scancodes 62/66.
+- Live/private QuickSave inodes 22482673/22482715 match at 649473 B SHA
+  `eb8299…c43fe`; original remains 631235 B SHA `7ff0b1…214cc`. Pending aliases
+  absent, inputs unchanged and Simulator deleted before report.
+- Sol xhigh: `APPROVE — brak P0/P1/P2`. Apple Software Renderer control flow
+  only; IOS-P0-003 stays active for physical/wider content. No phone/lease/
+  devicectl/device install/commit/push; device-install stamps remain stale.

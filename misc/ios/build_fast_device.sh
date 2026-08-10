@@ -25,6 +25,25 @@ ARTIFACT_SALT="ios-device-artifact-v2"
 
 fail() { echo ""; echo "FAIL: $*"; exit 1; }
 
+archive_gate_detail_log() {
+    local source="$1"
+    local name="$2"
+    local target temporary
+
+    [ -n "${OPENXRAY_GATE_DETAIL_DIR:-}" ] || return 0
+    [ -f "$source" ] || return 1
+    [ -d "$OPENXRAY_GATE_DETAIL_DIR" ] || return 1
+    [ ! -L "$OPENXRAY_GATE_DETAIL_DIR" ] || return 1
+    target="$OPENXRAY_GATE_DETAIL_DIR/$name"
+    temporary="$target.tmp.$$"
+    [ ! -e "$target" ] && [ ! -L "$target" ] && [ ! -e "$temporary" ] \
+        && [ ! -L "$temporary" ] || return 1
+    cp "$source" "$temporary" || return 1
+    chmod 600 "$temporary" || return 1
+    mv "$temporary" "$target" || return 1
+    printf '%s\n' "$target"
+}
+
 openal_fields=""
 OPENAL_PROVIDER=""
 OPENAL_SHA256=""
@@ -90,16 +109,21 @@ configure_fast_device() {
 }
 
 stabilize_cmake_config() {
-    local first_log second_log first_digest second_digest
+    local first_log second_log first_digest second_digest archived_log
 
     first_log=$(mktemp "${TMPDIR:-/tmp}/xr-fast-configure.XXXXXX") \
         || fail "could not create configure log"
     if ! configure_fast_device > "$first_log" 2>&1; then
+        archived_log=$(archive_gate_detail_log "$first_log" "fast-configure-first.log") \
+            || fail "could not archive failed FastDevice configure log"
         echo "--- configure errors ---"
         grep -E "CMake Error|error:" "$first_log" | head -30
         echo "--- full log: $first_log ---"
+        [ -z "$archived_log" ] || echo "--- archived log: $archived_log ---"
         fail "FastDevice configure failed"
     fi
+    archived_log=$(archive_gate_detail_log "$first_log" "fast-configure-first.log") \
+        || fail "could not archive FastDevice configure log"
     rm -f "$first_log"
 
     first_digest=$(cmake_config_digest) \
@@ -109,11 +133,16 @@ stabilize_cmake_config() {
     second_log=$(mktemp "${TMPDIR:-/tmp}/xr-fast-configure-stability.XXXXXX") \
         || fail "could not create configure stability log"
     if ! configure_fast_device > "$second_log" 2>&1; then
+        archived_log=$(archive_gate_detail_log "$second_log" "fast-configure-stability.log") \
+            || fail "could not archive failed FastDevice configure stability log"
         echo "--- configure stability errors ---"
         grep -E "CMake Error|error:" "$second_log" | head -30
         echo "--- full log: $second_log ---"
+        [ -z "$archived_log" ] || echo "--- archived log: $archived_log ---"
         fail "FastDevice configure stability check failed"
     fi
+    archived_log=$(archive_gate_detail_log "$second_log" "fast-configure-stability.log") \
+        || fail "could not archive FastDevice configure stability log"
     rm -f "$second_log"
 
     second_digest=$(cmake_config_digest) \
@@ -197,13 +226,18 @@ build_log=$(mktemp "${TMPDIR:-/tmp}/xr-fast-build.XXXXXX") \
     || fail "could not create FastDevice build log"
 if ! cmake --build "$BUILD_DIR" --config Release --target xr_3da \
         --parallel "$jobs" > "$build_log" 2>&1; then
+    archived_log=$(archive_gate_detail_log "$build_log" "fast-build.log") \
+        || fail "could not archive failed FastDevice build log"
     echo "--- first errors ---"
     grep -E "^[^[:space:]].*:[0-9]+:[0-9]+: (error|fatal error):" "$build_log" | head -30
     grep -E "CMake Error|BUILD FAILED|The following build commands failed" "$build_log" | head -30
     echo "--- full log: $build_log ---"
+    [ -z "$archived_log" ] || echo "--- archived log: $archived_log ---"
     fail "FastDevice engine build failed"
 fi
 compiled=$(grep -c "CompileC" "$build_log" || true)
+archived_log=$(archive_gate_detail_log "$build_log" "fast-build.log") \
+    || fail "could not archive FastDevice build log"
 rm -f "$build_log"
 echo "built OK ($compiled translation unit(s) recompiled)"
 

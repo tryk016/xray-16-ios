@@ -4586,3 +4586,113 @@ The dedicated oracle now passes 22/22. Workroot `134537-64428` remains valid
 normal F5/F9 runtime evidence, but predates these final host hardenings; a fresh
 run is required before calling the current publication implementation
 real-Simulator proven.
+
+## 2026-08-10 — deterministic active-gate capsule and private gate logs
+
+OpenXRay now boots Codex work from a checked, local capsule rather than loading
+the full iOS documentation set into conversation context. The generated cache
+is ignored, mode 0600, source/dirty/hash bound and fail-closed; the final real
+snapshot is 27,322 bytes with the explicit `ceil(UTF-8 bytes/4)` estimate 6,831.
+Focused contracts pass 7/7, including newest exact task-ID Journal selection,
+symlink rejection, stale tracked/untracked content and pair rollback.
+
+Project config leaves only Context7 and iOS Simulator enabled (7/9 MCP servers
+disabled), with a one-process Cloudflare override proving 6/9 then restoration
+to 7/9. New OpenXRay tasks have memory disabled. The CLI `code` profile excludes
+documents, PDF, spreadsheets, presentations, template, Sites and Visualize;
+its prompt contains none of those skills or Memory. Desktop/profile and memory
+still require a new-task smoke and are not inferred from this already-open task.
+
+The allowlisted logged runner serializes each build tree, preserves exit and
+signal status, hashes through the reserved log descriptor and writes private
+raw/metadata/inner logs. One real full run passed with exit 0: retail 97/97,
+numeric macros 30/30, shader compile 279/279, links 137/137 and 69 rebuilt TUs.
+Its log/metadata hashes and existing stamp snapshot revalidated; all private
+file modes passed. Final post-run hardening passes logger 9/9 and was not used
+to claim a second full build. Final Sol xhigh verdict is exactly
+`APPROVE — brak P0/P1/P2`.
+
+Scope is host tooling/configuration only: no phone, lease, Simulator, signing,
+install, commit or push. Existing user-config credentials were not copied or
+printed; separate rotation/storage migration remains pending.
+
+## 2026-08-10 — host-tooling checkpoint correction and closeout
+
+The active-gate contract is now fully fail-closed: focused tests pass 9/9,
+the generated capsule estimate must be within 6,000..9,000 tokens, the runtime
+directory is mode 0700 and its capsule/manifest artifacts are mode 0600. The
+logged-gate runner contracts also pass 9/9.
+
+FastDevice PASS is recorded by
+`gate-1786376080683616000-11527-0`: retail 97/97, numeric macros 30/30,
+links 137/137, 1,856 translation units and UUID
+`21A5256F-0EB0-3AA6-90BD-E1D7B719D603`. Full PASS is recorded by
+`gate-1786376829438790000-35386-0`: retail 97/97, numeric macros 30/30,
+shader stages 279/279, links 137/137, 14 translation units, arm64, minimum iOS
+16.4, SDK 27.0 and UUID `EBF46B07-0F07-30E2-B6F0-4EB8B7B3FE6B`. Each gate bound
+an identical source state before and after execution. Final Sol xhigh verdict:
+`APPROVE — brak P0/P1/P2`.
+
+This evidence applies strictly to the pre-append hashed source state. This
+append advances that state and therefore stales install stamps; a new full gate
+is required before any install or push. No phone, Simulator, install, launch,
+lease, commit or push occurred. A later Codex CLI verification exposed the
+Cloudflare and Context7 credentials in this task's private tool transcript, but
+not in the repository or gate logs. Rotation is required; no credential values
+are recorded here.
+
+## 2026-08-10 — active-gate tail correction
+
+Final Sol documentation review found a P1 in the bounded session-log selection:
+the prior implementation retained the beginning of the final window and could
+omit the newest handoff state. `tail_clip` now retains complete newest lines and
+adds an explicit earlier-lines marker. Focused active-gate regression coverage
+is 10/10; logged-runner coverage remains 9/9. The real capsule generated before
+this documentation append was 27,279 bytes with a 6,820-token estimate and
+contained the latest full-gate, stale-stamp and credential-rotation status.
+Sol xhigh re-review: `APPROVE — brak P0/P1/P2`.
+
+No phone, Simulator, install, launch, lease, commit or push occurred. The
+existing Fast/full evidence remains bound to the pre-document/pre-tail source
+state; run a new full gate before any install or push. No credential values are
+recorded.
+
+## 2026-08-10 — install-stamp attribution correction
+
+Documentation and session-log appends change the logged runner's full git-state
+binding, but those documents are not `IOS_ARTIFACT_INPUTS` and did not by
+themselves invalidate the install stamp. The later changes to
+`misc/ios/active_gate.py` and `misc/ios/test_active_gate.py`, both artifact
+inputs, made the Fast/full install stamps stale. A new full gate remains
+required before install or push.
+
+## 2026-08-10 — IOS-P0-003 fresh hardened Simulator QuickLoad publication
+
+Fresh phone-free workroot
+`/Users/patryk/openxray-handoff/simulator-work-20260810-164020-71268` closes the
+previous “fresh hardened publication pending” state for the Simulator portion of
+IOS-P0-003. `report.txt` is the sole PASS artifact (SHA-256
+`27f89f6793ec2d0f0ee6831add123ae3e54b9d83eaaa37d4326a62d052f35cb9`); manifest
+SHA-256 is `7d45f49bbe15727a1813971b958fe8c19261b32cc3426a7bfd69dffbdd418896`.
+
+The clean build has one arm64 `IOSSIMULATOR` slice, minOS 16.4 and SDK 27.0.
+PID 77340 recorded epoch 1 `level_load/exact` at frame 35, then epoch 2
+`quick_load/retained` by method `retained` at frame 122. The hardened semantic
+set is exactly B0/B1/C: native 1864x860 gameplay frames 89/94/182 and tokens
+54/58/118. Normal F5/F9 dispatch is bound to scancodes 62/66. Live/private
+QuickSave copies have distinct inodes 22482673/22482715 and identical 649473 B
+SHA-256 `eb82993bc9eb70ef64ef7830669328470fb556da69a82883a41ffc9dda5c43fe`.
+The original save remains unchanged at 631235 B with SHA-256
+`7ff0b12ee5d0a39b7a9595d7cc491cd63a32dfc2ce276e5302f74a4cdf7214cc`.
+
+Both pending aliases are absent, protected inputs are unchanged and dedicated
+Simulator `278AD2E8-7116-448F-8474-670945489415` was deleted before report
+publication. Final Sol xhigh verdict: `APPROVE — brak P0/P1/P2`.
+
+This is evidence of normal F5/F9 control flow on Apple Software Renderer only.
+It is not evidence for iPhone behavior, pixels, readability, lighting,
+performance or other content. IOS-P0-003 stays active for physical and wider
+content acceptance. No phone, lease, `devicectl`, device install, commit or push
+occurred. Existing device-install stamps remain stale because of prior
+`active_gate` artifact-input changes; a fresh full gate is required before
+install or push.

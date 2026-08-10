@@ -1,0 +1,39 @@
+# OpenXRay-only Codex surface.  Keep credentials and server launch details in
+# the user config; this trusted-project layer only selects what is available.
+
+[mcp_servers.cloudflare]
+enabled = false
+
+[mcp_servers.firecrawl]
+enabled = false
+
+[mcp_servers.plugin_discord_discord]
+enabled = false
+
+[mcp_servers.supabase]
+enabled = false
+
+[mcp_servers.openaiDeveloperDocs]
+enabled = false
+
+[mcp_servers.node_repl]
+enabled = false
+
+[mcp_servers.computer-use]
+enabled = false
+
+[mcp_servers.context7]
+enabled = true
+
+[mcp_servers.ios-simulator]
+enabled = true
+
+# Pilot: OpenXRay's checked-in checkpoint and gate capsule are the source of
+# current project state.  This affects new tasks; it does not rewrite an active
+# task that already received memories.
+[features]
+memories = false
+
+[memories]
+use_memories = false
+generate_memories = false

@@ -6,6 +6,8 @@
 !.vscode
 !.Codex/
 !.Codex/session-log.md
+!/.Codex/config.toml
+/.Codex/runtime/
 
 # exclude binaries and temporary files
 [Bb]in/

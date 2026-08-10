@@ -35,8 +35,9 @@ The port is past initial bring-up. On a physical iPhone it can:
 It is not release-ready. The startup geometry defect, stationary startup-sector
 branch and proven SSAO macro defect are fixed, but a later dark-frame smoke
 remains causally unresolved. The isolated iOS 27 Simulator capture-v2 path has
-published its first real T0/T1/T2 packet after a stationary saved-game load.
-IOS-P0-003 remains open for wider physical-device and content coverage.
+published a fresh hardened normal F5/F9 QuickLoad packet after a stationary
+saved-game load. IOS-P0-003 remains open for wider physical-device and content
+coverage.
 IOS-P1-006 now additionally has two independent native 1864x860 Simulator UI
 capture packets with semantic navigation and post-stop manifests; these are
 file-level Simulator visual evidence only and do not replace the remaining
@@ -594,20 +595,25 @@ is hard-linked last after dedicated-Simulator deletion; the evidence manifest
 cannot claim PASS by itself. An empty post-sanitization iOS username now falls
 back to `Player`, while every nonempty device username remains unchanged.
 
-Workroot
-`/Users/patryk/openxray-handoff/simulator-work-20260810-134537-64428` passed on
-iOS 27 with PID 73664. Epoch 1 was `level_load/exact` at frame 35 and epoch 2
-was `quick_load/retained` at frame 122; captures advanced at frames 90, 94 and
-182. The live and private QuickSave copies were each 649947 bytes with SHA-256
-`f49e87d54c1c9c8aee656bce941f8aabdcee76f0e3e77746108cda1a5489dd96`.
-Post-stop revalidation, protected-input checks and Simulator cleanup passed
-before report publication. Retail 97/97, QuickLoad oracle 22/22 and input
-mapping 3/3 pass. This is Apple Software Renderer save/load and sector
-control-flow evidence, not physical-iPhone, pixel-quality or performance proof.
-That workroot predates the final host-only hardening which requires exactly
-B0/B1/C semantic revalidation and unlinks both pending publication aliases.
-Those contracts pass 22/22; a fresh run is still required before claiming the
-current proof-last publication implementation as real-Simulator proven.
+Fresh hardened workroot
+`/Users/patryk/openxray-handoff/simulator-work-20260810-164020-71268` passed on
+iOS 27 with PID 77340 after a clean single-slice arm64 `IOSSIMULATOR` build
+(minOS 16.4, SDK 27.0). Epoch 1 was `level_load/exact` at frame 35; epoch 2 was
+`quick_load/retained` by method `retained` at frame 122. Exactly B0/B1/C were
+native 1864x860 gameplay captures at frames 89/94/182 and tokens 54/58/118;
+normal F5/F9 dispatch used SDL scancodes 62/66. Live/private QuickSave copies
+had distinct inodes 22482673/22482715, identical 649473-byte content and
+SHA-256 `eb82993bc9eb70ef64ef7830669328470fb556da69a82883a41ffc9dda5c43fe`.
+The original staged save remained 631235 bytes with SHA-256
+`7ff0b12ee5d0a39b7a9595d7cc491cd63a32dfc2ce276e5302f74a4cdf7214cc`.
+`report.txt` (SHA-256 `27f89f6793ec2d0f0ee6831add123ae3e54b9d83eaaa37d4326a62d052f35cb9`)
+is PASS; its evidence manifest SHA-256 is
+`7d45f49bbe15727a1813971b958fe8c19261b32cc3426a7bfd69dffbdd418896`.
+Protected inputs were unchanged; pending aliases were absent; Simulator
+`278AD2E8-7116-448F-8474-670945489415` was deleted before report publication.
+Final Sol xhigh verdict: `APPROVE — brak P0/P1/P2`. This proves normal F5/F9
+control flow on Apple Software Renderer only, not iPhone behavior, pixels,
+readability, lighting, performance or other content.
 
 The final Sol xhigh verdict for the Locator/autoload and semantic UI navigation
 checkpoint is `APPROVE — brak P0/P1/P2`.
@@ -629,8 +635,8 @@ and exact scope `semantic-ui-navigation-only`.
 
 Its task-specific host contracts passed; historical artifact identifiers for
 that semantic-navigation slice are retained in the append-only Journal. The
-current authoritative full-gate stamp is recorded below under the UIKit scene
-lifecycle, not inferred from an older FastDevice or UI-only artifact.
+last full-gate stamp recorded below under the UIKit scene lifecycle is also
+historical and stale; no current install-authorizing stamp exists.
 
 This establishes semantic navigation and saved-game synchronization only. It
 does not prove pixels, readability, performance or physical-device behavior.
@@ -679,17 +685,19 @@ under IOS-P1-010 and IOS-P1-002.
 The UIScene-local full gate rebuilt four translation units and passed its SDL
 scene 7/7, lifecycle marker 10/10 and retail oracle 74/74 contracts alongside
 the shader gates. It remains valid UIScene-local/Simulator evidence, but its
-older stamp is not the current authoritative full-gate stamp.
+older stamp is stale and does not authorize an install or push.
 
-### Last documented code-artifact full-gate stamp
+### Historical last code-artifact full-gate stamp (stale)
 
 After commit `362bf625d59a5219857382afb8a5f23ccbf54fbe`, the final uncached
 full gate rebuilt 68 translation units and passed the strict/sanitized BC
 contract, retail 84/84, installer 13/13, local CI contract 79/79, numeric
 macros 30/30, low 2/2, SSAO 6/6, shader contract 279/279 and links 137/137.
-Platform is `IOS`, minOS 16.4 and shader cache is forced off. The current source
-hash was independently recomputed after the gate and exactly matches this
-stamp. This post-commit artifact has not yet been installed on a phone:
+Platform is `IOS`, minOS 16.4 and shader cache is forced off. Subsequent
+`active_gate.py` artifact-input changes moved the current hash away from this
+stamp, so both existing FastDevice/full stamps are stale and must not authorize
+an install or push. Rerun the full gate first. This historical artifact was not
+installed on a phone:
 
 ```text
 source_sha256=33c9efabda5cfdb99939440199b87331fac3ee8deb106383ca8fb6112a6e9c06
@@ -700,11 +708,10 @@ openal_sha256=86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914
 __debug_info=513888155
 ```
 
-Subsequent documentation-only provenance commits intentionally advance HEAD
-after this recorded artifact. Because these documents participate in the source
-hash, embedding a self-referential "current" hash is impossible. Run a fresh
-full gate and use its on-disk stamp before any install or push; do not treat the
-recorded values above as a matching stamp for a later docs-only HEAD.
+Subsequent `active_gate.py` artifact-input changes moved the current artifact
+hash after this recorded build. Run a fresh full gate and use its newly written
+on-disk stamp before any install or push; do not treat the recorded values above
+as a matching stamp.
 
 The installer has local-only completion. `--device` resolves CLI over
 environment over the fixed default. A custom absolute `.app`/stamp pair resolves

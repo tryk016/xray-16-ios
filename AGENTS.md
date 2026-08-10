@@ -15,20 +15,25 @@ options, not active migrations.
 
 ## Context bootstrap and source-of-truth hierarchy
 
-Do not load every iOS document in full. Start each task with the smallest
-context that can safely answer it:
+Do not load every iOS document in full. Start each task from the deterministic
+active-gate capsule:
 
-1. Read `doc/iOS-Port-Resume.md` completely.
-2. Read the current focus and the relevant task in `doc/iOS-Port-Plan.md`.
-3. Read only the relevant current-facts section of `doc/iOS-Port.md`.
-4. Search `doc/iOS-Port-Journal.md` with `rg` using the task ID, subsystem and
-   exact error text; then read only the bounded matching section.
+1. Run `git status --short`, then
+   `python3 misc/ios/active_gate.py check`.
+2. If the capsule is missing or stale, run
+   `python3 misc/ios/active_gate.py generate`, then repeat `check`.
+3. Read `.Codex/runtime/active-gate.md` completely. Its explicit estimator must
+   remain within 6,000-9,000 tokens; generated runtime files stay untracked.
+4. Open the bounded source section only when changing it, resolving a conflict,
+   or investigating evidence beyond the capsule. Search the Journal with `rg`
+   using the task ID, subsystem or exact error text.
 5. Read `doc/iOS-Port-Backlog.md` only when promoting, reprioritizing or
    investigating deferred work.
 6. Read `doc/iOS-Metal-Plan-Draft.md` only for an explicitly approved renderer
    decision or migration task.
-7. Read only the recent tail of `.Codex/session-log.md` when operational history
-   beyond the Resume is actually needed.
+
+The capsule is a checked cache, never a new source of truth. A failed `check`
+means it must not be used.
 
 Document precedence is independent from loading order:
 
@@ -48,10 +53,11 @@ evidence with a new Journal entry.
 1. Start with `git status --short`; preserve unrelated user changes.
 2. State the hypothesis and the observable that can prove or refute it.
 3. Make one smallest self-contained change.
-4. Run `./misc/ios/build_fast_device.sh` for the normal local iteration, or
-   `./misc/ios/build_check.sh` when a symbol-complete Release artifact is needed.
-5. Run `./misc/ios/build_check.sh --full` after the final commit and before push
-   of engine or shader changes; partial modes are never install stamps.
+4. Run `./misc/ios/run_gate_logged.sh fast` for the normal local iteration, or
+   `./misc/ios/run_gate_logged.sh device` when a symbol-complete Release
+   artifact is needed.
+5. Run `./misc/ios/run_gate_logged.sh full` after the final commit and before
+   push of engine or shader changes; partial modes are never install stamps.
 6. Use `./misc/ios/install_device.sh --fast --launch` for FastDevice validation
    or the non-fast form for the symbol-complete Release artifact.
 7. Use `misc/ios/input.sh` and `misc/ios/shot.sh` for repeatable camera paths
@@ -60,9 +66,26 @@ evidence with a new Journal entry.
 9. Update `doc/iOS-Port-Journal.md` and `.Codex/session-log.md` when a slice
    changes project state.
 
+The logged runner preserves the real gate exit code, serializes ownership of a
+build tree, and writes private full stdout/stderr plus inner configure/build
+logs under `/Users/patryk/openxray-handoff/gate-logs`. Put only its bounded
+causal excerpt in a task. After the gate, evidence, documentation and Sol xhigh
+review are complete, regenerate/check the capsule and issue `/compact` before
+starting the next gate; never compact unfinished diagnostic state.
+
 Never install a build after a failed or stale matching gate. Do not pipe either
 build script through a command that hides its exit status. Only one worker may
 own the device or a given iOS build tree at a time.
+
+### Codex surface for this project
+
+The checked project config keeps only Context7 and iOS Simulator enabled by
+default and disables project memory for new tasks. CLI coding sessions should
+use `codex -p code`; that profile disables document, PDF, spreadsheet,
+presentation, template, Sites and Visualize plugins. Enable a disabled MCP for
+one new CLI process with `codex -c mcp_servers.<id>.enabled=true`. Desktop tasks
+must be restarted to prove project/profile or memory changes; do not infer that
+an already-open task reloaded them.
 
 ### Shared physical iPhone lease
 

@@ -10,11 +10,11 @@ The M3 Pro host runs macOS/Xcode/SDK 27.0 beta and CMake 4.4.0; device and Simul
 The physical-device baseline renders Call of Pripyat through native OpenGL ES 3.0 at a real 1864×860 drawable with 1:1 presentation and Bluetooth controller.
 Sector fallback and SSAO value-macro fixes resolved their proven defects; a
 later dark-frame smoke remains causally unresolved.
-IOS-P0-003 has a real iOS 27 Simulator F5 QuickSave -> F9 QuickLoad packet:
-`simulator-work-20260810-134537-64428`, PID 73664, epoch 1
-`level_load/exact`, epoch 2 `quick_load/retained`, captures at frames 90/94/182,
-post-stop save/hash revalidation, protected inputs unchanged and cleanup PASS.
-It proves normal save/load and sector control flow; the hardened publication rerun remains phone-free and pending.
+IOS-P0-003 hardened iOS 27 Simulator F5 -> F9 workroot is `simulator-work-20260810-164020-71268`: report PASS `27f89f6793ec2d0f0ee6831add123ae3e54b9d83eaaa37d4326a62d052f35cb9`, manifest `7d45f49bbe15727a1813971b958fe8c19261b32cc3426a7bfd69dffbdd418896`, PID 77340.
+Epochs are `level_load/exact` frame35 then `quick_load/retained` frame122; exactly B0/B1/C at 1864×860 frames 89/94/182, tokens 54/58/118, F5/F9 scancodes 62/66.
+QuickSave live/private inodes differ but both are 649473 B SHA `eb82993bc9eb70ef64ef7830669328470fb556da69a82883a41ffc9dda5c43fe`; original save is unchanged (631235 B, `7ff0b12ee5d0a39b7a9595d7cc491cd63a32dfc2ce276e5302f74a4cdf7214cc`).
+Pending aliases are absent, protected inputs unchanged and Simulator `278AD2E8-7116-448F-8474-670945489415` was deleted before report.
+Final Sol xhigh: `APPROVE — brak P0/P1/P2`. Apple Software Renderer normal-control-flow proof only; IOS-P0-003 remains active for iPhone/wider content, not pixel/readability/lighting/performance proof.
 Capture-state v2 binds canonical JSON to PPM/PNG; iPhone A/B and cause proof remain open.
 The reviewed iOS 27 capture path is parser 31/31, runner 84/84; its delayed lifecycle mock passes 50 serial/200 P8 without changing production guards.
 Opt-in `--ui-captures` has two PASS packets: seven states and four native
@@ -42,13 +42,13 @@ IOS-P2-004 installer hardening (13/13) and IOS-P2-005 local CI provenance (79/79
 ## First commands
 
 ```bash
-git status --short
-./misc/ios/build_fast_device.sh
-./misc/ios/build_check.sh --full   # required before push
+git status --short && (python3 misc/ios/active_gate.py check || { python3 misc/ios/active_gate.py generate && python3 misc/ios/active_gate.py check; })
+./misc/ios/run_gate_logged.sh fast
+./misc/ios/run_gate_logged.sh full   # required before push
 ./misc/ios/install_device.sh --preflight  # host-only signing/preflight check
 ```
 
-Preserve unrelated work. Device capture-state v2 is commit `90e9d3c3e`; inspect `git status` before every slice.
+Preserve unrelated work; use `codex -p code` for CLI and `/compact` only after a reviewed gate. Device capture-state v2 is commit `90e9d3c3e`; inspect `git status` before every slice.
 
 When the phone is available and the matching FastDevice gate is green:
 
@@ -84,7 +84,7 @@ Commit `362bf625d` passed the post-commit full gate after rebuilding 68 TUs. UUI
 `0e0ba58332a97b6d04fa458a50fd82006ebd6cecbe1f6f1182f8dabf453b6ff3`; OpenAL
 Soft 1.25.2 static SHA-256 `86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914`.
 Gates: BC strict/sanitized, retail 84/84, installer 13/13, CI 79/79, shaders 279/279, low 2/2, SSAO 6/6, numeric 30/30, links 137/137; IOS/minOS 16.4, shader cache forced off.
-Later docs-only provenance commits advance HEAD because documentation is hashed; rerun the full gate and use its on-disk stamp before install or push.
+Later `active_gate.py` artifact-input changes advanced the current hash; both existing FastDevice/full install stamps are stale. Rerun the full gate before install or push and use only the newly generated stamp.
 A real preflight validated the existing profile/keychain and temporary signed copy without lease, provisioning or device access. The older UIScene stamp is local/Simulator evidence, not current.
 
 ## Proven on device
