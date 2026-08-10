@@ -569,3 +569,13 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   post-runtime log/save/staged/protected guards did not run. Scope is Apple
   Software Renderer only; no phone/lease/devicectl/sign/install/pixel/
   performance/cause claim and no push.
+
+## 2026-08-10 — capture-v2 commit and post-commit full gate
+
+- Commit `362bf625d` records the reviewed capture-v2 host checkpoint.
+- Full uncached gate PASS: retail 84/84, numeric 30/30, low 2/2, SSAO 6/6,
+  shaders 279/279, links 137/137 and all established host contracts; 68 TUs.
+- Stamp: source `33c9efab...`, UUID `7297E9B6-1DBE-348D-8BAE-A153A19F781E`,
+  bundle `0e0ba583...`, iOS 16.4, dSYM `__debug_info` 513,888,155 bytes.
+- Host-only gate; no phone/lease/devicectl/sign/install/launch/push. Successful
+  T2 publication remains blocked by active IOS-P0-003 stationary-sector work.

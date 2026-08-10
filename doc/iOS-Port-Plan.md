@@ -49,7 +49,8 @@ strict/sanitized C++ PASS, post-commit full Release and Sol xhigh approval), but
 have not yet produced a physical-device A/B packet. The separate isolated iOS
 27 single-capture host extension is also locally reviewed (final static PASS,
 parser 31/31, runner 84/84 and final Sol xhigh
-`APPROVE — brak P0/P1/P2`), but no real T2 publication has passed.
+`APPROVE — brak P0/P1/P2`). Commit `362bf625d` passed the post-commit full
+Release gate, but no real T2 publication has passed.
 
 Real workroot `simulator-work-20260810-015703-14748` exposed and corrected an
 over-strict live-readiness classification: a valid post-T1 `loading` candidate

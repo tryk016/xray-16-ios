@@ -626,18 +626,18 @@ older stamp is not the current authoritative full-gate stamp.
 
 ### Current authoritative full-gate stamp
 
-After commit `90e9d3c3e6de12c86be682875784d2032bcbc238`, the final uncached
-full gate rebuilt 69 translation units and passed the strict/sanitized BC
-contract, retail 74/74, installer 13/13, local CI contract 79/79, numeric
+After commit `362bf625d59a5219857382afb8a5f23ccbf54fbe`, the final uncached
+full gate rebuilt 68 translation units and passed the strict/sanitized BC
+contract, retail 84/84, installer 13/13, local CI contract 79/79, numeric
 macros 30/30, low 2/2, SSAO 6/6, shader contract 279/279 and links 137/137.
 Platform is `IOS`, minOS 16.4 and shader cache is forced off. The current source
 hash was independently recomputed after the gate and exactly matches this
 stamp. This post-commit artifact has not yet been installed on a phone:
 
 ```text
-source_sha256=ff2c33c77f1fb0aca0a6b2ec9d49661ea41ded30ce44ffe28469167055b57f02
-app_uuid=226890F0-CF42-302B-AA5F-3092CB5E4AF3
-bundle_sha256=620f3b98983fe10184b31a232dbf564bf256b6d68e7073f1f547ff6e0181ae1a
+source_sha256=33c9efabda5cfdb99939440199b87331fac3ee8deb106383ca8fb6112a6e9c06
+app_uuid=7297E9B6-1DBE-348D-8BAE-A153A19F781E
+bundle_sha256=0e0ba58332a97b6d04fa458a50fd82006ebd6cecbe1f6f1182f8dabf453b6ff3
 openal_provider=OpenALSoft-1.25.2-static
 openal_sha256=86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914
 __debug_info=513888155

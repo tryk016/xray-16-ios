@@ -72,12 +72,12 @@ file polling in performance evidence and use ordinary launch for final baselines
 | Lua | LuaJIT interpreter mode |
 | Presentation | logical 932×430, drawable/render targets 1864×860 |
 
-The post-commit full gate rebuilt 69 TUs. UUID
-`226890F0-CF42-302B-AA5F-3092CB5E4AF3`; source
-`ff2c33c77f1fb0aca0a6b2ec9d49661ea41ded30ce44ffe28469167055b57f02`; bundle
-`620f3b98983fe10184b31a232dbf564bf256b6d68e7073f1f547ff6e0181ae1a`; OpenAL
+Commit `362bf625d` passed the post-commit full gate after rebuilding 68 TUs. UUID
+`7297E9B6-1DBE-348D-8BAE-A153A19F781E`; source
+`33c9efabda5cfdb99939440199b87331fac3ee8deb106383ca8fb6112a6e9c06`; bundle
+`0e0ba58332a97b6d04fa458a50fd82006ebd6cecbe1f6f1182f8dabf453b6ff3`; OpenAL
 Soft 1.25.2 static SHA-256 `86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914`.
-Gates: BC strict/sanitized, retail 74/74, installer 13/13, CI 79/79, shaders 279/279, low 2/2, SSAO 6/6, numeric 30/30, links 137/137; IOS/minOS 16.4, shader cache forced off.
+Gates: BC strict/sanitized, retail 84/84, installer 13/13, CI 79/79, shaders 279/279, low 2/2, SSAO 6/6, numeric 30/30, links 137/137; IOS/minOS 16.4, shader cache forced off.
 A real preflight validated the existing profile/keychain and temporary signed copy without lease, provisioning or device access. The older UIScene stamp is local/Simulator evidence, not current.
 
 ## Proven on device

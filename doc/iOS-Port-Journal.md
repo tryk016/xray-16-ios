@@ -4361,3 +4361,27 @@ behavior, performance or a lighting cause. IOS-P0-003 remains active. Its next
 local action is to make the stationary initial epoch attempt exact/fallback
 once without weakening QuickLoad barriers, retained-sector semantics or
 invalid-sector commit protection, then rerun capture-v2 in a fresh workroot.
+
+## 2026-08-10 — capture-v2 host checkpoint committed and full-gated
+
+Commit `362bf625d59a5219857382afb8a5f23ccbf54fbe` records the reviewed
+five-file capture-v2 host implementation, its tests and the current-state
+documentation. The post-commit full uncached gate passed: retail isolation
+84/84, numeric macros 30/30, low 2/2, SSAO branches 6/6, shader contract
+279/279 and links 137/137, plus all established installer, CI, lifecycle,
+memory, audio, UI and BC contracts. The symbol-complete arm64 iPhoneOS build
+recompiled 68 translation units; platform is IOS, minOS 16.4 and shader cache
+is forced off.
+
+```text
+source_sha256=33c9efabda5cfdb99939440199b87331fac3ee8deb106383ca8fb6112a6e9c06
+app_uuid=7297E9B6-1DBE-348D-8BAE-A153A19F781E
+bundle_sha256=0e0ba58332a97b6d04fa458a50fd82006ebd6cecbe1f6f1182f8dabf453b6ff3
+openal_provider=OpenALSoft-1.25.2-static
+openal_sha256=86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914
+__debug_info=513888155
+```
+
+The gate was host-only: no phone, lease, `devicectl`, signing, installation or
+launch occurred. It validates the committed tooling and artifact, not a real
+T2 publication; the stationary Simulator sector branch remains IOS-P0-003.
