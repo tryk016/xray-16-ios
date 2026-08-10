@@ -700,3 +700,15 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
 - Sol xhigh: `APPROVE — brak P0/P1/P2`. Apple Software Renderer control flow
   only; IOS-P0-003 stays active for physical/wider content. No phone/lease/
   devicectl/device install/commit/push; device-install stamps remain stale.
+
+## 2026-08-10 — current post-commit full stamp
+
+- Clean post-commit full gate `e967a4c36dfbecf13f3934fee1cf018d618dd776`:
+  retail 97/97, macros 30/30, shaders 279/279, links 137/137, 68 TUs; identical
+  clean before/after and HEAD. Log `gate-1786383243349579000-249-0.log` SHA
+  `56cc51…38d90`; current source `e0c841…3e8d0`, UUID
+  `6F266276-A948-3D6F-838A-09E60F04BD11`, bundle `53dd0d5c…175f39`, IOS/minOS
+  16.4/cache off/OpenAL SHA unchanged.
+- Supersedes the prior stale-stamp current state. Next artifact-input change
+  stales this stamp and needs another full gate before install/push. The gate
+  used no phone/lease/Simulator/install and made no further commit/push.

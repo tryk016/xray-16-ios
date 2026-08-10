@@ -635,8 +635,8 @@ and exact scope `semantic-ui-navigation-only`.
 
 Its task-specific host contracts passed; historical artifact identifiers for
 that semantic-navigation slice are retained in the append-only Journal. The
-last full-gate stamp recorded below under the UIKit scene lifecycle is also
-historical and stale; no current install-authorizing stamp exists.
+current install-authorizing full stamp is recorded below; it remains valid only
+until an artifact input changes.
 
 This establishes semantic navigation and saved-game synchronization only. It
 does not prove pixels, readability, performance or physical-device behavior.
@@ -687,17 +687,42 @@ scene 7/7, lifecycle marker 10/10 and retail oracle 74/74 contracts alongside
 the shader gates. It remains valid UIScene-local/Simulator evidence, but its
 older stamp is stale and does not authorize an install or push.
 
-### Historical last code-artifact full-gate stamp (stale)
+### Current code-artifact full-gate stamp
+
+The clean post-commit full gate for
+`e967a4c36dfbecf13f3934fee1cf018d618dd776` passed with identical clean
+before/after worktrees and identical HEAD. Its private gate log is
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786383243349579000-249-0.log`
+(SHA-256 `56cc51ce531ffd76a83dce0653620d7b71e720ea940189a1deaae26e65c38d90`);
+the matching metadata is `gate-1786383243349579000-249-0.json`. It passed
+retail 97/97, numeric macros 30/30, shaders 279/279 and links 137/137, rebuilt
+68 translation units, targets arm64 `IOS` with minOS 16.4, and forces the
+shader cache off. During this gate no phone, device install, lease, Simulator,
+further commit or push occurred.
+
+```text
+source_sha256=e0c841e751510fb7ccbb4ea40f37e3cef1eb0875f44306119a1f055f85b3e8d0
+app_uuid=6F266276-A948-3D6F-838A-09E60F04BD11
+bundle_sha256=53dd0d5c87ce40c0a9e663befb9238a7514fc479cf206549ded19ae814175f39
+openal_provider=OpenALSoft-1.25.2-static
+openal_sha256=86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914
+platform=IOS
+minos=16.4
+shader_cache=forced-off
+```
+
+This stamp authorizes an install only while the corresponding artifact inputs
+remain unchanged. The next artifact-input change invalidates it and requires a
+fresh full gate before an install or push. It has not been installed on a phone.
+
+### Historical code-artifact full-gate stamp (stale)
 
 After commit `362bf625d59a5219857382afb8a5f23ccbf54fbe`, the final uncached
 full gate rebuilt 68 translation units and passed the strict/sanitized BC
 contract, retail 84/84, installer 13/13, local CI contract 79/79, numeric
 macros 30/30, low 2/2, SSAO 6/6, shader contract 279/279 and links 137/137.
-Platform is `IOS`, minOS 16.4 and shader cache is forced off. Subsequent
-`active_gate.py` artifact-input changes moved the current hash away from this
-stamp, so both existing FastDevice/full stamps are stale and must not authorize
-an install or push. Rerun the full gate first. This historical artifact was not
-installed on a phone:
+Platform is `IOS`, minOS 16.4 and shader cache is forced off. This historical
+artifact was not installed on a phone:
 
 ```text
 source_sha256=33c9efabda5cfdb99939440199b87331fac3ee8deb106383ca8fb6112a6e9c06
@@ -708,10 +733,9 @@ openal_sha256=86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914
 __debug_info=513888155
 ```
 
-Subsequent `active_gate.py` artifact-input changes moved the current artifact
-hash after this recorded build. Run a fresh full gate and use its newly written
-on-disk stamp before any install or push; do not treat the recorded values above
-as a matching stamp.
+Subsequent `active_gate.py` artifact-input changes moved the artifact hash after
+this recorded build. Do not treat these historical values as a matching stamp;
+the current matching stamp is the `e967a4c...` one above.
 
 The installer has local-only completion. `--device` resolves CLI over
 environment over the fixed default. A custom absolute `.app`/stamp pair resolves
@@ -730,11 +754,11 @@ ShellCheck, `bash -n`, no-write Python compile and scoped `git diff --check`
 passed. The corrected complete closeout received the independent Sol xhigh
 verdict `APPROVE — brak P0/P1/P2`.
 
-The main worker independently recomputed the current gate hash and it exactly
-matched this stamp. A real no-device preflight passed with a sentinel lock path
-still absent, a cleaned temporary work directory and unchanged source-bundle
-hash. This is host/build/signing-preflight evidence only: it adds no device
-install, container, runtime, visual or pixel proof.
+The main worker independently recomputed the then-current gate hash and it
+exactly matched the historical stamp. A real no-device preflight passed with a
+sentinel lock path still absent, a cleaned temporary work directory and
+unchanged source-bundle hash. This is host/build/signing-preflight evidence
+only: it adds no device install, container, runtime, visual or pixel proof.
 
 Xcode 27's Metal toolchain is installed. A ten-second whole-device
 `Metal System Trace` captured the running GLES-on-Metal application, exported

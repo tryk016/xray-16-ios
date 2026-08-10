@@ -78,14 +78,13 @@ file polling in performance evidence and use ordinary launch for final baselines
 | Lua | LuaJIT interpreter mode |
 | Presentation | logical 932×430, drawable/render targets 1864×860 |
 
-Commit `362bf625d` passed the post-commit full gate after rebuilding 68 TUs. UUID
-`7297E9B6-1DBE-348D-8BAE-A153A19F781E`; source
-`33c9efabda5cfdb99939440199b87331fac3ee8deb106383ca8fb6112a6e9c06`; bundle
-`0e0ba58332a97b6d04fa458a50fd82006ebd6cecbe1f6f1182f8dabf453b6ff3`; OpenAL
-Soft 1.25.2 static SHA-256 `86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914`.
-Gates: BC strict/sanitized, retail 84/84, installer 13/13, CI 79/79, shaders 279/279, low 2/2, SSAO 6/6, numeric 30/30, links 137/137; IOS/minOS 16.4, shader cache forced off.
-Later `active_gate.py` artifact-input changes advanced the current hash; both existing FastDevice/full install stamps are stale. Rerun the full gate before install or push and use only the newly generated stamp.
-A real preflight validated the existing profile/keychain and temporary signed copy without lease, provisioning or device access. The older UIScene stamp is local/Simulator evidence, not current.
+Clean post-commit full gate for `e967a4c36dfbecf13f3934fee1cf018d618dd776` is
+the current install stamp: source `e0c841e751510fb7ccbb4ea40f37e3cef1eb0875f44306119a1f055f85b3e8d0`, UUID `6F266276-A948-3D6F-838A-09E60F04BD11`, bundle
+`53dd0d5c87ce40c0a9e663befb9238a7514fc479cf206549ded19ae814175f39` and existing OpenAL Soft 1.25.2 static SHA-256. Gate log `gate-1786383243349579000-249-0.log`
+has SHA `56cc51ce531ffd76a83dce0653620d7b71e720ea940189a1deaae26e65c38d90`; metadata records clean identical before/after and HEAD. It passes retail 97/97,
+numeric 30/30, shaders 279/279 and links 137/137; arm64 IOS/minOS 16.4 with shader cache off. During the gate no phone, install, lease, Simulator, further commit or push occurred.
+The next artifact-input change stales this stamp and requires a new full gate
+before install or push. Older `362bf625d`/UIScene stamps are historical only.
 
 ## Proven on device
 

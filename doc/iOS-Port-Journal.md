@@ -4696,3 +4696,25 @@ content acceptance. No phone, lease, `devicectl`, device install, commit or push
 occurred. Existing device-install stamps remain stale because of prior
 `active_gate` artifact-input changes; a fresh full gate is required before
 install or push.
+
+## 2026-08-10 — current post-commit full-gate stamp
+
+The clean post-commit full gate for
+`e967a4c36dfbecf13f3934fee1cf018d618dd776` passed with identical clean
+before/after worktrees and identical HEAD. Gate log
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786383243349579000-249-0.log`
+has SHA-256 `56cc51ce531ffd76a83dce0653620d7b71e720ea940189a1deaae26e65c38d90`;
+matching metadata is `gate-1786383243349579000-249-0.json`. The full gate
+passes retail 97/97, numeric macros 30/30, shader compile 279/279 and links
+137/137 after rebuilding 68 translation units. The stamp is source
+`e0c841e751510fb7ccbb4ea40f37e3cef1eb0875f44306119a1f055f85b3e8d0`, UUID
+`6F266276-A948-3D6F-838A-09E60F04BD11`, bundle
+`53dd0d5c87ce40c0a9e663befb9238a7514fc479cf206549ded19ae814175f39`, existing
+OpenAL Soft SHA-256 `86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914`,
+`IOS`, minOS 16.4 and forced-off shader cache.
+
+This supersedes the current-state claim that no install-authorizing stamp
+existed; earlier `362bf625d`/UIScene stamps remain historical and stale. The
+new stamp remains valid only until another artifact input changes, at which
+point a new full gate is mandatory before install or push. During the gate no
+phone, lease, Simulator, device installation, further commit or push occurred.

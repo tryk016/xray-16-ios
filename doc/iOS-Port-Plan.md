@@ -52,10 +52,13 @@ have not yet produced a physical-device A/B packet. The separate isolated iOS
 parser 31/31, runner 84/84 and final Sol xhigh
 `APPROVE — brak P0/P1/P2`). Commit `399b7fdbb` records the stationary-branch
 correction, its real successful T2 publication and its post-commit full Release
-PASS. The later fixture-only reliability correction has fresh FastDevice
-and full Release PASS evidence, but subsequent `active_gate.py` artifact-input
-changes made both on-disk install stamps stale. Rerun the full gate before any
-push or install; do not use either existing stamp.
+PASS. The clean post-commit full gate for `e967a4c36dfbecf13f3934fee1cf018d618dd776`
+now supplies the current full install stamp: source
+`e0c841e751510fb7ccbb4ea40f37e3cef1eb0875f44306119a1f055f85b3e8d0`, UUID
+`6F266276-A948-3D6F-838A-09E60F04BD11` and bundle
+`53dd0d5c87ce40c0a9e663befb9238a7514fc479cf206549ded19ae814175f39`.
+It is valid only while its artifact inputs remain unchanged; the next such
+change requires another full gate before install or push.
 
 Real workroot `simulator-work-20260810-015703-14748` exposed and corrected an
 over-strict live-readiness classification: a valid post-T1 `loading` candidate
@@ -235,9 +238,10 @@ inputs are unchanged and cleanup passed. Binding JSON has
 and exact scope `semantic-ui-navigation-only`.
 
 Its task-specific host contracts passed and final Sol xhigh verdict is
-`APPROVE — brak P0/P1/P2`. Both existing install stamps are stale after
-`active_gate.py` artifact-input changes, so a new full gate is mandatory before
-install or push. This is semantic navigation only, not pixel, readability,
+`APPROVE — brak P0/P1/P2`. The current full stamp is the clean post-commit
+`e967a4c36dfbecf13f3934fee1cf018d618dd776` stamp recorded above; it is
+invalidated by the next artifact-input change and then requires another full
+gate before install or push. This is semantic navigation only, not pixel, readability,
 performance or physical-device proof.
 
 The opt-in iOS 27 `--ui-captures` path now layers native evidence on top of
