@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -26,6 +27,12 @@ assert SPEC is not None and SPEC.loader is not None
 ui = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = ui
 SPEC.loader.exec_module(ui)
+
+CAPTURE_MODULE_PATH = REPO_ROOT / "misc/ios/ui_capture_evidence.py"
+CAPTURE_SPEC = importlib.util.spec_from_file_location("ui_capture_evidence_for_navigation_tests", CAPTURE_MODULE_PATH)
+assert CAPTURE_SPEC is not None and CAPTURE_SPEC.loader is not None
+capture_ui = importlib.util.module_from_spec(CAPTURE_SPEC)
+CAPTURE_SPEC.loader.exec_module(capture_ui)
 
 
 class FakeClock:
@@ -139,6 +146,31 @@ class UiNavigationTests(unittest.TestCase):
     def full_fixture(self) -> EngineFixture:
         return EngineFixture(self.documents, self.log, self.clock)
 
+    def capture_closeout_fixture(self):
+        fixture = self.full_fixture()
+        result = self.controller(fixture.hook).run()
+        snapshot = self.root / "capture-snapshot.log"
+        report = self.root / "capture-pre-report.json"
+        run_root = self.root / "ui-captures" / "00000000-0000-4000-8000-000000000001"
+        run_root.mkdir(parents=True)
+
+        class CaptureReport:
+            root = run_root
+            expected_level = "zaton"
+            selected: list[dict[str, object]] = []
+            provenance = {
+                "simulator_udid": "00000000-0000-0000-0000-000000000001",
+                "runtime": "27.0",
+                "renderer": "Apple-Software-Renderer",
+                "git_revision": "a" * 40,
+                "source_tree_sha256": "b" * 64,
+            }
+
+        source = ui.read_stable_regular_nofollow(self.log, "runtime log")
+        ui.write_snapshot(snapshot, source)
+        ui.write_pre_termination_report(report, source, result, 4242, CaptureReport())
+        return snapshot, report, run_root / "manifest.json"
+
     def assert_fails(self, expression, message: str) -> None:
         with self.assertRaisesRegex(ui.NavigationError, message):
             expression()
@@ -164,6 +196,86 @@ class UiNavigationTests(unittest.TestCase):
         self.assertEqual(document["result"], "PASS")
         self.assertEqual(document["scope"], ui.SEMANTIC_SCOPE)
         self.assert_fails(lambda: ui.write_snapshot(snapshot, source), "must not pre-exist")
+
+    def test_native_capture_waits_before_the_next_request_and_keeps_all_seven_steps(self) -> None:
+        fixture = self.full_fixture()
+        events: list[tuple[str, int]] = []
+
+        class PartialWriter:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+                self.selected: list[dict[str, object]] = []
+
+            def baseline(self) -> str:
+                step = len(self.selected)
+                events.append(("baseline", step))
+                return f"{'a' * 32}:{step + 1}"
+
+            def observe(self, transition: dict[str, object], baseline: str) -> None:
+                # A following request would recreate this trigger.  Holding the
+                # controlled writer here proves the controller cannot overlap it.
+                self.outer.assertFalse((self.outer.appdata / "autoinput.txt").exists())
+                events.append(("observe", int(transition["step"])))
+                self.outer.clock.sleep(0.10)
+                self.selected.append({"step": transition["step"], "token": baseline})
+
+        writer = PartialWriter(self)
+        result = self.controller(fixture.hook, capture_observer=writer).run()
+        self.assertEqual(len(result), 7)
+        self.assertEqual(events, [("baseline", 0), ("observe", 1), ("baseline", 1), ("observe", 3),
+                                  ("baseline", 2), ("observe", 4), ("baseline", 3), ("observe", 6)])
+
+    def test_capture_closeout_preexisting_final_report_never_publishes_manifest(self) -> None:
+        snapshot, report, manifest = self.capture_closeout_fixture()
+        finalize = mock.Mock()
+        with mock.patch.dict(sys.modules, {"ui_capture_evidence": capture_ui}), mock.patch.object(
+                capture_ui, "finalize_run_with_identity", finalize):
+            existing = self.root / "preexisting-final.json"
+            existing.write_text("sentinel", encoding="utf-8")
+            with self.assertRaisesRegex(ui.NavigationError, "must not pre-exist"):
+                ui.finalize_after_termination(self.log, snapshot, report, existing)
+            self.assertEqual(existing.read_text(encoding="utf-8"), "sentinel")
+            self.assertFalse(manifest.exists())
+
+            target = self.root / "outside-final-target"
+            target.write_text("unchanged", encoding="utf-8")
+            symlink = self.root / "symlink-final.json"
+            symlink.symlink_to(target)
+            with self.assertRaisesRegex(ui.NavigationError, "must not pre-exist"):
+                ui.finalize_after_termination(self.log, snapshot, report, symlink)
+            self.assertEqual(target.read_text(encoding="utf-8"), "unchanged")
+            self.assertFalse(manifest.exists())
+        finalize.assert_not_called()
+
+    def test_capture_closeout_report_failure_rolls_back_only_exact_manifest(self) -> None:
+        snapshot, report, manifest = self.capture_closeout_fixture()
+
+        def publish_manifest(*_args, **_kwargs):
+            device, inode = capture_ui._new_file(manifest, b"owned manifest\n", "test manifest")
+            return capture_ui.ManifestPublication(manifest, device, inode)
+
+        with mock.patch.dict(sys.modules, {"ui_capture_evidence": capture_ui}), mock.patch.object(
+                capture_ui, "finalize_run_with_identity", side_effect=publish_manifest), mock.patch.object(
+                ui, "write_new_regular", side_effect=OSError("forced final-report failure")):
+            final_report = self.root / "failed-final.json"
+            with self.assertRaisesRegex(OSError, "forced final-report failure"):
+                ui.finalize_after_termination(self.log, snapshot, report, final_report)
+            self.assertFalse(final_report.exists())
+            self.assertFalse(manifest.exists())
+
+        def replace_then_fail(*_args, **_kwargs):
+            manifest.unlink()
+            manifest.write_text("replacement", encoding="utf-8")
+            raise ui.NavigationError("forced replacement failure")
+
+        with mock.patch.dict(sys.modules, {"ui_capture_evidence": capture_ui}), mock.patch.object(
+                capture_ui, "finalize_run_with_identity", side_effect=publish_manifest), mock.patch.object(
+                ui, "write_new_regular", side_effect=replace_then_fail):
+            final_report = self.root / "replacement-failed-final.json"
+            with self.assertRaisesRegex(ui.NavigationError, "forced replacement failure"):
+                ui.finalize_after_termination(self.log, snapshot, report, final_report)
+            self.assertFalse(final_report.exists())
+            self.assertEqual(manifest.read_text(encoding="utf-8"), "replacement")
 
     def test_verify_log_is_read_only_and_checks_whole_history(self) -> None:
         fixture = self.full_fixture()
@@ -218,6 +330,92 @@ class UiNavigationTests(unittest.TestCase):
         self.log.unlink()
         self.log.symlink_to(target)
         self.assert_fails(lambda: self.controller().run(), "runtime log must be a regular non-symlink")
+
+    def test_live_log_reader_accepts_append_during_read_or_stats(self) -> None:
+        for timing in ("read", "stats"):
+            with self.subTest(timing=timing):
+                self.setUp_clean_log()
+                prefix = self.log.read_bytes()
+                appended = False
+                if timing == "read":
+                    real_read = ui.os.read
+
+                    def append_on_first_read(descriptor: int, length: int) -> bytes:
+                        nonlocal appended
+                        if not appended:
+                            appended = True
+                            with self.log.open("ab") as output:
+                                output.write(b"live append during read\\n")
+                        return real_read(descriptor, length)
+
+                    patcher = mock.patch.object(ui.os, "read", side_effect=append_on_first_read)
+                else:
+                    real_fstat = ui.os.fstat
+                    fstat_calls = 0
+
+                    def append_between_stats(descriptor: int):
+                        nonlocal appended, fstat_calls
+                        result = real_fstat(descriptor)
+                        fstat_calls += 1
+                        if fstat_calls == 2:
+                            appended = True
+                            with self.log.open("ab") as output:
+                                output.write(b"live append between stats\\n")
+                        return result
+
+                    patcher = mock.patch.object(ui.os, "fstat", side_effect=append_between_stats)
+                with patcher:
+                    snapshot = ui.read_live_appendable_regular_nofollow(self.log, "runtime log")
+                self.assertTrue(appended)
+                self.assertEqual(snapshot.data, prefix)
+                self.assertEqual(snapshot.size, len(prefix))
+
+    def test_live_log_reader_accepts_append_between_lstat_and_open(self) -> None:
+        prefix = self.log.read_bytes()
+        real_open = ui.os.open
+        appended = False
+
+        def append_before_guard_open(path: Path, flags: int, *args: int) -> int:
+            nonlocal appended
+            if not appended and os.fspath(path) == os.fspath(self.log):
+                appended = True
+                writer = real_open(self.log, os.O_WRONLY | os.O_APPEND)
+                try:
+                    os.write(writer, b"live append before open\\n")
+                finally:
+                    os.close(writer)
+            return real_open(path, flags, *args)
+
+        with mock.patch.object(ui.os, "open", side_effect=append_before_guard_open):
+            snapshot = ui.read_live_appendable_regular_nofollow(self.log, "runtime log")
+        self.assertTrue(appended)
+        self.assertEqual(snapshot.data, prefix + b"live append before open\\n")
+        self.assertEqual(snapshot.size, len(snapshot.data))
+
+    def test_live_log_reader_rejects_rotation_shrink_and_rewrite(self) -> None:
+        for mode in ("rotation", "shrink", "rewrite"):
+            with self.subTest(mode=mode):
+                self.setUp_clean_log()
+                real_read = ui.os.read
+                original = self.log.read_bytes()
+                changed = False
+
+                def mutate_on_first_read(descriptor: int, length: int) -> bytes:
+                    nonlocal changed
+                    if not changed:
+                        changed = True
+                        if mode == "rotation":
+                            self.log.replace(self.root / "rotated.log")
+                            self.log.write_bytes(b"replacement\\n")
+                        elif mode == "shrink":
+                            self.log.write_bytes(b"")
+                        else:
+                            self.log.write_bytes(b"x" * len(original))
+                    return real_read(descriptor, length)
+
+                with mock.patch.object(ui.os, "read", side_effect=mutate_on_first_read):
+                    with self.assertRaises(ui.NavigationError):
+                        ui.read_live_appendable_regular_nofollow(self.log, "runtime log")
 
     def test_rejects_ack_symlink_after_request(self) -> None:
         def hook():

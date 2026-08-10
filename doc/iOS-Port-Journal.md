@@ -4476,3 +4476,55 @@ dSYM `__debug_info` 513889052 bytes with UUID
 This closes only deterministic host-fixture reliability. It adds no Simulator
 runtime, pixel, iPhone, lifecycle, performance or audio evidence. No phone,
 lease, `devicectl`, signing, installation, commit or push occurred.
+
+## 2026-08-10 — opt-in native iOS 27 Simulator UI-capture evidence
+
+The new host-only `--ui-captures` mode is intentionally coupled to
+`--ui-navigation`, iOS 27, diagnostics and autoinput. The semantic marker is
+emitted after `DoRenderDialogs()`. The controller path uses `I, I, P, E, Escape,
+M, Escape` and requires the seven post-baseline states `inventory`, `world`,
+`pda_tasks`, `other`, `world`, `pda_tasks`, `world`. Captures are required at
+steps 1, 3, 4 and 6 respectively: inventory, combined CoP Tasks/Map,
+other/Stats, combined CoP Tasks/Map.
+
+The evidence mechanism accepts a stable metadata/PPM pair only when exact
+session, PID, token, frame, dimensions and input ordering agree. The PPM is
+authoritative; the PNG is generated as its exact derivative. Acceptance order
+is `accepted.frame <= marker.frame < released.frame <= capture.frame`, so an
+input release in `FrameMove` may share the rendered capture frame but cannot
+precede a marker from the same frame. Process-stop revalidation precedes the
+new-only manifest and report publication. The live runtime-log reader admits a
+monotonic append while the process is alive, but fails closed on a symlink or
+nonregular file, inode change, shrink, rewrite, truncation or any read race.
+
+The initial workroot
+`/Users/patryk/openxray-handoff/simulator-work-20260810-082352-68297` failed
+closed after 6/7 transitions: the strict immutable reader saw an ordinary live
+append. It published no manifest or report and its dedicated Simulator was
+deleted. This was a host-harness boundary, not evidence of a game failure; the
+bounded append-only reader above replaced immutable reading only for live
+runtime observation. The earlier capture ordering issue was corrected to the
+explicit inequality above.
+
+Two independent iOS 27 Apple Software Renderer runs then passed. Workroot
+`/Users/patryk/openxray-handoff/simulator-work-20260810-085137-86609` used PID
+92589; Simulator `064FCEBA-4D4B-445C-B25F-C0C22B262519` was deleted. Its
+manifest SHA-256 is
+`7274f1b111e48be3e5febad225c3bb151392750bf63b52715f2bb6ebdc29148d`.
+Workroot
+`/Users/patryk/openxray-handoff/simulator-work-20260810-090751-93548` used PID
+99569; Simulator `A5DF823B-917C-4E0D-8E0B-533F29C5C636` was deleted. Its
+manifest SHA-256 is
+`7c609c49fbfd483e046bbce6f9fbc67a2884c1d0435b3ce9a8a1ee5f8034b2ca`.
+Each report records 7/7 semantic transitions, 4/4 native 1864x860 captures,
+post-stop revalidation and unchanged protected inputs.
+
+Focused host tests were capture evidence 15/15, navigation 34/34 and retail
+isolation 92/92. The main chat inspected all eight resulting PNGs: complete
+inventory, area map/tasks, Stats and area map/tasks in each run. This is native
+file-level Simulator visual evidence for those surfaces. It is not iPhone,
+readability, color or performance proof, and it does not close the remaining
+overfilled-inventory, faction-war or other listed UI surface tests under
+IOS-P1-006. No phone, shared lease, `devicectl`, signing, installation, commit
+or push occurred. The final Sol xhigh verdict is exactly
+`APPROVE — brak P0/P1/P2`.

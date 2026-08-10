@@ -17,6 +17,7 @@ work_base="$DEFAULT_WORK_BASE"
 with_saves=0
 autoload_save=""
 ui_navigation=0
+ui_captures=0
 capture_v2=0
 runtime_label="26.5"
 launch_timeout=120
@@ -25,7 +26,7 @@ poll_interval="${RETAIL_SIMULATOR_POLL_INTERVAL:-1}"
 usage() {
     cat >&2 <<'EOF'
 usage: retail_simulator.sh --backup PATH [--manifest PATH] [--work-base PATH]
-                           [--with-saves] [--autoload-save NAME] [--ui-navigation|--capture-v2]
+                           [--with-saves] [--autoload-save NAME] [--ui-navigation [--ui-captures]|--capture-v2]
                            [--runtime 26.5|27.0] [--launch-timeout SECONDS]
 
 Creates a new, external Simulator work root. It never reuses a work root and
@@ -43,6 +44,7 @@ while [ "$#" -gt 0 ]; do
         --with-saves) with_saves=1; shift ;;
         --autoload-save) [ "$#" -ge 2 ] || fail "--autoload-save requires a save name"; autoload_save="$2"; shift 2 ;;
         --ui-navigation) ui_navigation=1; shift ;;
+        --ui-captures) ui_captures=1; shift ;;
         --capture-v2) capture_v2=1; shift ;;
         --runtime) [ "$#" -ge 2 ] || fail "--runtime requires 26.5 or 27.0"; runtime_label="$2"; shift 2 ;;
         --launch-timeout) [ "$#" -ge 2 ] || fail "--launch-timeout requires seconds"; launch_timeout="$2"; shift 2 ;;
@@ -70,6 +72,12 @@ esac
     || fail "--capture-v2 requires both --with-saves and --autoload-save"
 [ "$ui_navigation" = 0 ] || [ "$capture_v2" = 0 ] \
     || fail "--capture-v2 conflicts with --ui-navigation"
+[ "$ui_captures" = 0 ] || [ "$ui_navigation" = 1 ] \
+    || fail "--ui-captures requires --ui-navigation"
+[ "$ui_captures" = 0 ] || [ "$capture_v2" = 0 ] \
+    || fail "--ui-captures rejects --capture-v2"
+[ "$ui_captures" = 0 ] || [ "$runtime_label" = "27.0" ] \
+    || fail "--ui-captures requires --runtime 27.0"
 [ "$capture_v2" = 0 ] || [ "$runtime_label" = "27.0" ] \
     || fail "--capture-v2 requires --runtime 27.0"
 if [ -z "$manifest" ]; then
@@ -190,6 +198,18 @@ manifest_file "$REPO_ROOT/build/ios-engine-iphoneos/.ios_full_gate_ok" "$guard_r
 manifest_file "$REPO_ROOT/build/ios-engine-iphoneos/.ios_cmake_inputs.sha256" "$guard_root/release-cmake-inputs.stamp.tsv"
 manifest_file "$REPO_ROOT/build/ios-engine-fastdevice-iphoneos/.ios_fast_device_gate_ok" "$guard_root/fastdevice-gate.stamp.tsv"
 manifest_file "$REPO_ROOT/build/ios-engine-fastdevice-iphoneos/.ios_cmake_inputs.sha256" "$guard_root/fastdevice-cmake-inputs.stamp.tsv"
+git_revision=""
+source_tree_sha256=""
+if (( ui_captures )); then
+    git_revision="$(git -C "$REPO_ROOT" rev-parse --verify HEAD)" \
+        || fail "could not identify source-snapshot git revision"
+    [[ "$git_revision" =~ ^[0-9a-f]{40}$ ]] \
+        || fail "source-snapshot git revision is not canonical"
+    source_tree_sha256="$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$guard_root/repo.tsv")" \
+        || fail "could not hash source-snapshot tree manifest"
+    [[ "$source_tree_sha256" =~ ^[0-9a-f]{64}$ ]] \
+        || fail "source-snapshot tree digest is not canonical"
+fi
 
 rsync_args=(-a)
 for exclusion in "${SOURCE_EXCLUDES[@]}"; do rsync_args+=("--exclude=/$exclusion"); done
@@ -275,6 +295,9 @@ if [ -n "$autoload_save" ]; then
         --manifest "$work_root/generated-user.ltx.manifest.tsv")
     [ "$ui_navigation" = 0 ] || autoload_config_args+=(--ios-autoinput)
     [ "$capture_v2" = 0 ] || autoload_config_args+=(--ios-diagnostics)
+    if [ "$ui_captures" = 1 ]; then
+        autoload_config_args+=(--ios-diagnostics --ui-captures)
+    fi
     python3 "$GUARD" "${autoload_config_args[@]}" \
         || fail "could not generate isolated Simulator user.ltx"
     selected_save="$documents/_appdata_/savedgames/$autoload_save.scop"
@@ -305,6 +328,18 @@ if [ "$ui_navigation" = 1 ]; then
         --navigation-snapshot "$work_root/ui-navigation-log-snapshot.txt" \
         --navigation-pre-report "$work_root/ui-navigation-pre-termination.json")
 fi
+if [ "$ui_captures" = 1 ]; then
+    ui_capture_root="$work_root/ui-captures"
+    mkdir "$ui_capture_root" || fail "could not create native UI capture parent"
+    ui_capture_run_uuid="$(python3 -c 'import uuid; print(uuid.uuid4())')" || fail "could not create native UI capture run UUID"
+    ui_capture_run="$ui_capture_root/$ui_capture_run_uuid"
+    launch_args+=(--ui-capture-root "$ui_capture_root" \
+        --ui-capture-run-uuid "$ui_capture_run_uuid" \
+        --ui-capture-runtime "$runtime_label" \
+        --ui-capture-renderer "Apple-Software-Renderer" \
+        --ui-capture-git-revision "$git_revision" \
+        --ui-capture-source-tree-sha256 "$source_tree_sha256")
+fi
 if [ "$capture_v2" = 1 ]; then
     capture_root="$work_root/capture-v2"
     mkdir "$capture_root" || fail "could not create capture-v2 evidence directory"
@@ -334,6 +369,18 @@ if [ "$ui_navigation" = 1 ]; then
         --pre-report "$work_root/ui-navigation-pre-termination.json" \
         --final-report "$work_root/ui-navigation-post-termination.json" \
         || fail "post-stop semantic Simulator UI navigation proof failed"
+fi
+if [ "$ui_captures" = 1 ]; then
+    [ -f "$ui_capture_run/manifest.json" ] && [ ! -L "$ui_capture_run/manifest.json" ] \
+        || fail "post-stop native UI capture manifest is missing"
+    ui_capture_manifest_state="$work_root/ui-capture-manifest.state"
+    ui_capture_manifest_report_fields="$work_root/ui-capture-manifest-report-fields.txt"
+    python3 "$GUARD" capture-manifest-state --manifest "$ui_capture_run/manifest.json" \
+        --output "$ui_capture_manifest_state" \
+        || fail "could not bind finalized native UI capture manifest state"
+    python3 "$GUARD" capture-manifest-report-fields --state "$ui_capture_manifest_state" \
+        --output "$ui_capture_manifest_report_fields" \
+        || fail "could not prepare native UI capture manifest report fields"
 fi
 compare_args=(staged-compare --root "$documents" \
     --manifest "$work_root/staged-files.tsv" \
@@ -406,6 +453,12 @@ fi
         printf 'ui_navigation_final_report=%s\n' "$work_root/ui-navigation-post-termination.json"
         printf 'ui_navigation_scope=semantic-ui-navigation-only; CoP eptTasks is the combined tasks/map surface; not pixel, readability, performance, or physical-device proof\n'
     fi
+    if [ "$ui_captures" = 1 ]; then
+        printf 'ui_captures=PASS\n'
+        printf 'ui_capture_manifest=%s\n' "$ui_capture_run/manifest.json"
+        cat "$ui_capture_manifest_report_fields"
+        printf 'ui_capture_scope=iOS-27.0-Simulator-Apple-Software-Renderer-only; native diagnostic readback only; not iPhone/readability/color/performance proof\n'
+    fi
     if [ "$capture_v2" = 1 ]; then
         printf 'capture_v2=PASS\n'
         printf 'capture_runtime_boundary=saved_game_sync_complete\n'
@@ -434,6 +487,12 @@ fi
 xcrun simctl shutdown "$device_uuid" >/dev/null 2>&1 || true
 xcrun simctl delete "$device_uuid" || fail "could not delete dedicated Simulator after successful run"
 simulator_created=0
-python3 "$GUARD" publish-report --source "$report_pending" --destination "$report" >/dev/null \
+# publish-report revalidates the finalized manifest immediately before linking
+# report.txt and immediately afterwards, deleting the link on any mismatch.
+publish_args=(publish-report --source "$report_pending" --destination "$report")
+if [ "$ui_captures" = 1 ]; then
+    publish_args+=(--capture-manifest-state "$ui_capture_manifest_state")
+fi
+python3 "$GUARD" "${publish_args[@]}" >/dev/null \
     || fail "could not atomically publish retail Simulator report"
 echo "PASS — isolated retail Simulator workflow: $work_root"

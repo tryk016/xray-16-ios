@@ -213,12 +213,31 @@ Its task-specific host contracts passed and final Sol xhigh verdict is
 the canonical contract and Resume; this is semantic navigation only, not pixel,
 readability, performance or physical-device proof.
 
+The opt-in iOS 27 `--ui-captures` path now layers native evidence on top of
+`--ui-navigation`: it requires diagnostics/autoinput and captures steps 1
+`inventory`, 3 `pda_tasks`, 4 `other`/Stats and 6 `pda_tasks` after the
+post-`DoRenderDialogs()` marker. Stable metadata/PPM pairs are bound to exact
+session/PID/token/frame/dimensions/input ordering; PPM is authoritative, PNG is
+an exact derivative, and manifest/report publication follows process-stop
+revalidation. The live log reader permits monotonic append but rejects
+symlink/nonregular input, inode replacement, shrink, rewrite, truncation and
+races. Two independent iOS 27 Apple Software Renderer runs passed 7/7 expected
+states (`inventory, world, pda_tasks, other, world, pda_tasks, world`) and 4/4
+1864x860 captures with protected inputs unchanged and deleted Simulators.
+Focused tests are capture 15/15, navigation 34/34 and retail isolation 92/92.
+The eight PNGs were visually inspected as complete inventory, area map/tasks,
+Stats and area map/tasks. This is native file-level Simulator evidence, not
+iPhone/readability/color/performance proof. Final Sol xhigh verdict is
+`APPROVE — brak P0/P1/P2`.
+
 **Next actions:**
 
 1. Validate focus auto-scroll and clipping in an overfilled inventory.
 2. Open the faction-war PDA page and visually validate the authored
    three-slice/static fallback without missing-texture noise.
 3. Verify cursor, minimap, magnifier and video-wrapper textured surfaces.
+4. Device-validate the remaining listed surfaces; do not promote the Simulator
+   captures to their readability, color or performance acceptance.
 
 Advanced desktop graphics controls are not part of the iOS product.
 

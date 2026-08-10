@@ -613,3 +613,20 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   137/137, Release 0 TUs, UUID `A94C72FB-B192-34CA-9B5B-3B563839DDC3`.
 - Host-fixture reliability only; no phone/lease/devicectl/Simulator/sign/install/
   commit/push and no physical lifecycle or pixel claim.
+
+## 2026-08-10 — native iOS 27 Simulator UI-capture evidence
+
+- Opt-in `--ui-captures` requires `--ui-navigation`, iOS 27 and diagnostics/
+  autoinput. It binds stable metadata/authoritative PPM/exact PNG to semantic
+  input ordering, then revalidates after process stop before manifest/report.
+- PASS workroots `085137-86609` and `090751-93548`: both 7/7 semantic states,
+  4/4 native 1864x860 captures, protected inputs unchanged and dedicated
+  Simulators deleted. Focused tests: capture 15/15, navigation 34/34, retail
+  92/92. Eight PNGs visually show inventory, area map/tasks, Stats, map/tasks.
+- The first `082352-68297` run failed closed at 6/7 when an immutable log read
+  met normal append; bounded append-only live reading and strict capture order
+  `accepted <= marker < released <= capture` correct that harness boundary.
+- Scope is Apple Software Renderer file-level Simulator evidence, not iPhone,
+  readability, color or performance proof. Final Sol xhigh verdict is
+  `APPROVE — brak P0/P1/P2`; no phone, lease, devicectl, signing, install or
+  push occurred.

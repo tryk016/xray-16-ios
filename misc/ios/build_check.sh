@@ -471,6 +471,10 @@ echo "== iOS Simulator semantic UI-navigation gate =="
 python3 misc/ios/test_simulator_ui_navigation.py \
     || fail "iOS Simulator semantic UI-navigation regression tests failed"
 
+echo "== iOS Simulator native UI-capture evidence gate =="
+python3 misc/ios/test_ui_capture_evidence.py \
+    || fail "iOS Simulator native UI-capture evidence regression tests failed"
+
 if [ "$run_shaders" = 1 ]; then
     echo "== iOS Locator registration contract gate =="
     python3 misc/ios/test_locator_registration_contract.py \

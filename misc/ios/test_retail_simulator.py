@@ -171,7 +171,7 @@ class RetailSimulatorTests(unittest.TestCase):
         """
         controller = self.repo / "misc/ios/simulator_ui_navigation.py"
         controller.write_text(textwrap.dedent("""
-            import os, pathlib, sys
+            import json, os, pathlib, sys
             args=sys.argv[1:]
             log_file=pathlib.Path(os.environ['MOCK_LOG'])
             log_file.open('a').write('navigation-'+args[0]+' '+sys.argv[0]+' '+' '.join(args[1:])+'\\n')
@@ -181,7 +181,10 @@ class RetailSimulatorTests(unittest.TestCase):
                     pathlib.Path(value('--log')).open('a').write('navigation fixture failure\\n')
                     sys.exit(7)
                 documents=pathlib.Path(value('--documents'))
-                if 'ios_autoinput 1\\n' not in (documents/'_appdata_/user.ltx').read_text(): sys.exit(8)
+                config=(documents/'_appdata_/user.ltx').read_text()
+                if 'ios_autoinput 1\\n' not in config: sys.exit(8)
+                ui_capture='--ui-capture-root' in args
+                if ui_capture and 'ios_diagnostics 1\\n' not in config: sys.exit(13)
                 log=pathlib.Path(value('--log'))
                 pid=value('--expected-pid')
                 states=('world','inventory','world','pda_tasks','other','world','pda_tasks','world')
@@ -190,20 +193,38 @@ class RetailSimulatorTests(unittest.TestCase):
                         output.write(f'* iOS UI state v1 pid={pid} seq={index} frame={index*10} state={state}\\n')
                 payload=log.read_bytes()
                 pathlib.Path(value('--snapshot')).write_bytes(payload)
-                pathlib.Path(value('--report')).write_text(f'{log.stat().st_ino}\\n{pid}\\n')
+                report={'inode':log.stat().st_ino,'pid':int(pid),'ui_capture':ui_capture}
+                if ui_capture:
+                    capture_parent=pathlib.Path(value('--ui-capture-root'))
+                    capture_run=capture_parent/value('--ui-capture-run-uuid')
+                    (capture_run/'raw').mkdir(parents=True)
+                    (capture_run/'png').mkdir()
+                    report.update({'capture_run':str(capture_run),'expected_level':value('--ui-capture-expected-level'),
+                        'provenance':{'simulator_udid':value('--simulator-udid'),'runtime':value('--ui-capture-runtime'),
+                        'renderer':value('--ui-capture-renderer'),'git_revision':value('--ui-capture-git-revision'),
+                        'source_tree_sha256':value('--ui-capture-source-tree-sha256')}})
+                pathlib.Path(value('--report')).write_text(json.dumps(report))
             elif args[0] == 'finalize':
                 if os.environ.get('MOCK_NAV_FINALIZE_FAILURE'): sys.exit(9)
                 log=pathlib.Path(value('--log'))
                 snapshot=pathlib.Path(value('--snapshot'))
-                expected_inode=int(pathlib.Path(value('--pre-report')).read_text().splitlines()[0])
+                report=json.loads(pathlib.Path(value('--pre-report')).read_text())
                 payload=log.read_bytes()
-                if log.stat().st_ino != expected_inode or not payload.startswith(snapshot.read_bytes()): sys.exit(10)
+                if log.stat().st_ino != report['inode'] or not payload.startswith(snapshot.read_bytes()): sys.exit(10)
                 if b'FATAL:' in payload or payload.count(b'* iOS UI state v1 ') != 8: sys.exit(11)
+                if report['ui_capture'] and not os.environ.get('MOCK_UI_MANIFEST_MISSING'):
+                    manifest={'schema':'openxray-ios-ui-captures-v1','run_uuid':pathlib.Path(report['capture_run']).name,
+                        'launched_pid':report['pid'],'provenance':report['provenance'],
+                        'transitions':[{'step':index} for index in range(1,8)],
+                        'captures':[{'step':index} for index in (1,3,4,6)],'post_stop_revalidated':True,
+                        'scope':'iOS-27.0-Simulator-Apple-Software-Renderer-only'}
+                    pathlib.Path(report['capture_run'],'manifest.json').write_text(json.dumps(manifest))
                 pathlib.Path(value('--final-report')).write_text('PASS\\n')
             else: sys.exit(12)
         """), encoding="utf-8")
 
     def _write_mocks(self) -> None:
+        self._mock("git", "import sys\nprint('0ee372005d3818c2239cfb0d72e289fe41b4a5d2')\n")
         self._mock("rsync", textwrap.dedent("""
             import os, shutil, sys
             log=os.environ['MOCK_LOG']; open(log,'a').write('rsync '+ ' '.join(sys.argv[1:])+'\\n')
@@ -352,6 +373,14 @@ class RetailSimulatorTests(unittest.TestCase):
                     if provider_mutation == 'missing': provider=''
                     elif provider_mutation == 'duplicate': provider += provider
                     elif provider_mutation == 'bad-proc': provider=provider.replace('pause_proc=1','pause_proc=0')
+                    if autoload:
+                        renderer_mode=os.environ.get('MOCK_UI_CAPTURE_RENDERER_MODE','normal')
+                        renderer='* GPU vendor: [Apple Inc.] device: [Apple Software Renderer]\\n'
+                        if renderer_mode == 'missing': renderer=''
+                        elif renderer_mode == 'mismatch': renderer='* GPU vendor: [Apple Inc.] device: [Apple GPU]\\n'
+                        elif renderer_mode == 'duplicate-conflict': renderer += '* GPU vendor: [Apple Inc.] device: [Apple GPU]\\n'
+                        elif renderer_mode == 'duplicate-identical': renderer += renderer
+                        text += renderer
                     text += provider
                     (root/'xr_boot.log').write_text(text)
                     (root/'fsgame.ltx').write_text('engine-owned')
@@ -451,6 +480,11 @@ class RetailSimulatorTests(unittest.TestCase):
                     else: sys.exit(2)
                 if os.environ.get('MOCK_TERMINATE_FAILURE'): sys.exit(1)
             elif args[1] == 'delete' and os.environ.get('MOCK_DELETE_FAILURE'): sys.exit(1)
+            elif args[1] == 'delete' and os.environ.get('MOCK_UI_MANIFEST_MUTATION'):
+                manifest=next(pathlib.Path(os.environ['MOCK_WORK_BASE']).glob('simulator-work-*/ui-captures/*/manifest.json'))
+                old=manifest.with_name('manifest.before-replacement.json')
+                manifest.replace(old)
+                manifest.write_text('{"replacement":true}\\n')
             sys.exit(0)
         """))
         self._mock("ps", textwrap.dedent("""
@@ -588,6 +622,9 @@ class RetailSimulatorTests(unittest.TestCase):
                    post_launch_log_mode: str | None = None,
                    navigation_failure: bool = False,
                    navigation_finalize_failure: bool = False,
+                   ui_manifest_missing: bool = False,
+                   ui_manifest_mutation: bool = False,
+                   ui_capture_renderer_mode: str | None = None,
                    openal_log_mutation: str | None = None,
                    foreground_log_mode: str | None = None,
                    pid_replacement: bool = False,
@@ -634,6 +671,12 @@ class RetailSimulatorTests(unittest.TestCase):
             environment["MOCK_NAV_FAILURE"] = "1"
         if navigation_finalize_failure:
             environment["MOCK_NAV_FINALIZE_FAILURE"] = "1"
+        if ui_manifest_missing:
+            environment["MOCK_UI_MANIFEST_MISSING"] = "1"
+        if ui_manifest_mutation:
+            environment["MOCK_UI_MANIFEST_MUTATION"] = "1"
+        if ui_capture_renderer_mode is not None:
+            environment["MOCK_UI_CAPTURE_RENDERER_MODE"] = ui_capture_renderer_mode
         if openal_log_mutation is not None:
             environment["MOCK_OPENAL_LOG_MUTATION"] = openal_log_mutation
         if foreground_log_mode is not None:
@@ -1320,6 +1363,170 @@ class RetailSimulatorTests(unittest.TestCase):
             GUARD_MODULE.publish_report(candidate, report)
         self.assertEqual(report.read_bytes(), b"result=PASS\nfield=value\n")
 
+    def test_native_ui_capture_manifest_state_binds_identity_and_publish_revalidates_it(self) -> None:
+        manifest = self.root / "manifest.json"
+        manifest.write_bytes(b'{"capture":"original"}\n')
+        state = self.root / "manifest.state"
+        fields = self.root / "manifest.fields"
+        GUARD_MODULE.write_capture_manifest_state(manifest, state)
+        bound_path, (_, inode), size, digest_value = GUARD_MODULE.validate_capture_manifest_state(state)
+        self.assertEqual(bound_path, manifest)
+        self.assertEqual(size, manifest.stat().st_size)
+        self.assertEqual(digest_value, digest(manifest))
+        GUARD_MODULE.write_capture_manifest_report_fields(state, fields)
+        self.assertEqual(fields.read_text(), (
+            f"ui_capture_manifest_inode={inode}\n"
+            f"ui_capture_manifest_bytes={size}\n"
+            f"ui_capture_manifest_sha256={digest_value}\n"
+        ))
+
+        replacement = self.root / "manifest.replacement.json"
+        replacement.write_bytes(b'{"capture":"replacement"}\n')
+        replacement.replace(manifest)
+        with self.assertRaisesRegex(GUARD_MODULE.GuardError, "no longer matches"):
+            GUARD_MODULE.validate_capture_manifest_state(state)
+
+        manifest.write_bytes(b'{"capture":"publish"}\n')
+        state.unlink()
+        GUARD_MODULE.write_capture_manifest_state(manifest, state)
+        bound_path, (_, inode), size, digest_value = GUARD_MODULE.validate_capture_manifest_state(state)
+        pending = self.root / "publish.pending"
+        report = self.root / "publish.txt"
+        GUARD_MODULE.prepare_report(pending, (
+            "result=PASS\n"
+            f"ui_capture_manifest={bound_path}\n"
+            f"ui_capture_manifest_inode={inode}\n"
+            f"ui_capture_manifest_bytes={size}\n"
+            f"ui_capture_manifest_sha256={digest_value}\n"
+        ).encode())
+        real_link = GUARD_MODULE.os.link
+
+        def link_then_replace(source: Path, destination: Path, *, follow_symlinks: bool = True) -> None:
+            real_link(source, destination, follow_symlinks=follow_symlinks)
+            manifest.replace(self.root / "manifest.before-coordinated-replacement.json")
+            manifest.write_bytes(b'{"capture":"changed-during-publish"}\n')
+            replacement_state = self.root / "manifest.replacement.state"
+            GUARD_MODULE.write_capture_manifest_state(manifest, replacement_state)
+            replacement_state.replace(state)
+
+        with mock.patch.object(GUARD_MODULE.os, "link", side_effect=link_then_replace):
+            with self.assertRaisesRegex(GUARD_MODULE.GuardError, "no longer matches"):
+                GUARD_MODULE.publish_report(pending, report, state)
+        self.assertFalse(report.exists())
+
+    def test_native_ui_capture_renderer_is_measured_from_sync_snapshot(self) -> None:
+        exact = (b"before\n" + GUARD_MODULE.APPLE_SOFTWARE_RENDERER_LINE.encode() + b"\n")
+        self.assertEqual(
+            GUARD_MODULE.measured_ui_capture_renderer(exact, "Apple-Software-Renderer"),
+            "Apple-Software-Renderer",
+        )
+        self.assertEqual(
+            GUARD_MODULE.measured_ui_capture_renderer(
+                exact + GUARD_MODULE.APPLE_SOFTWARE_RENDERER_LINE.encode() + b"\n",
+                "Apple-Software-Renderer",
+            ),
+            "Apple-Software-Renderer",
+        )
+        for snapshot, claimed, message in (
+            (b"before\n", "Apple-Software-Renderer", "no GPU renderer line"),
+            (exact, "claimed-renderer", "claimed renderer"),
+            (exact + b"* GPU vendor: [Apple Inc.] device: [Apple GPU]\n",
+             "Apple-Software-Renderer", "conflicting GPU renderer lines"),
+        ):
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(GUARD_MODULE.GuardError, message):
+                    GUARD_MODULE.measured_ui_capture_renderer(snapshot, claimed)
+
+    def test_live_runtime_log_snapshot_accepts_append_but_final_read_stays_strict(self) -> None:
+        source = self.root / "live-runtime.log"
+        copied = self.root / "copied-runtime.log"
+        source.write_bytes(b"prefix\n")
+        real_read = GUARD_MODULE.os.read
+        appended = False
+
+        def append_on_first_read(descriptor: int, length: int) -> bytes:
+            nonlocal appended
+            if not appended:
+                appended = True
+                with source.open("ab") as output:
+                    output.write(b"appended\n")
+            return real_read(descriptor, length)
+
+        with mock.patch.object(GUARD_MODULE.os, "read", side_effect=append_on_first_read):
+            identity, snapshot = GUARD_MODULE.copy_runtime_log_snapshot(source, copied, None, live=True)
+        self.assertEqual(snapshot, b"prefix\n")
+        self.assertEqual(copied.read_bytes(), snapshot)
+        self.assertEqual(identity, (source.stat().st_dev, source.stat().st_ino))
+
+        strict_source = self.root / "strict-runtime.log"
+        strict_copied = self.root / "strict-copied.log"
+        strict_source.write_bytes(b"prefix\n")
+        appended = False
+
+        def append_during_strict_read(descriptor: int, length: int) -> bytes:
+            nonlocal appended
+            if not appended:
+                appended = True
+                with strict_source.open("ab") as output:
+                    output.write(b"appended\n")
+            return real_read(descriptor, length)
+
+        with mock.patch.object(GUARD_MODULE.os, "read", side_effect=append_during_strict_read):
+            with self.assertRaisesRegex(GUARD_MODULE.GuardError, "identity or size changed"):
+                GUARD_MODULE.copy_runtime_log_snapshot(strict_source, strict_copied, None)
+
+        for mode in ("rotation", "truncate", "rewrite"):
+            with self.subTest(mode=mode):
+                target = self.root / f"{mode}-runtime.log"
+                target.write_bytes(b"prefix\n")
+                copied_target = self.root / f"{mode}-copied.log"
+                changed = False
+
+                def mutate_on_first_read(descriptor: int, length: int) -> bytes:
+                    nonlocal changed
+                    if not changed:
+                        changed = True
+                        if mode == "rotation":
+                            rotated = target.with_suffix(".rotated")
+                            target.replace(rotated)
+                            target.write_bytes(b"replacement\n")
+                        elif mode == "truncate":
+                            target.write_bytes(b"")
+                        else:
+                            target.write_bytes(b"change\n")
+                    return real_read(descriptor, length)
+
+                with mock.patch.object(GUARD_MODULE.os, "read", side_effect=mutate_on_first_read):
+                    with self.assertRaises(GUARD_MODULE.GuardError):
+                        GUARD_MODULE.copy_runtime_log_snapshot(target, copied_target, None, live=True)
+
+    def test_live_runtime_log_snapshot_accepts_append_between_lstat_and_open(self) -> None:
+        source = self.root / "between-lstat-open-runtime.log"
+        copied = self.root / "between-lstat-open-copied.log"
+        source.write_bytes(b"prefix\n")
+        real_open = GUARD_MODULE.os.open
+        appended = False
+
+        def append_before_guard_open(path: Path, flags: int, *args: int) -> int:
+            nonlocal appended
+            if not appended and os.fspath(path) == os.fspath(source):
+                appended = True
+                writer = real_open(source, os.O_WRONLY | os.O_APPEND)
+                try:
+                    os.write(writer, b"appended\n")
+                finally:
+                    os.close(writer)
+            return real_open(path, flags, *args)
+
+        with mock.patch.object(GUARD_MODULE.os, "open", side_effect=append_before_guard_open):
+            identity, snapshot = GUARD_MODULE.copy_runtime_log_snapshot(
+                source, copied, None, live=True,
+            )
+        self.assertTrue(appended)
+        self.assertEqual(snapshot, b"prefix\nappended\n")
+        self.assertEqual(copied.read_bytes(), snapshot)
+        self.assertEqual(identity, (source.stat().st_dev, source.stat().st_ino))
+
     def test_capture_t0_retries_race_and_writes_null_only_for_explicit_absent(self) -> None:
         parser = self.root / "capture-parser.py"
         parser.write_text("# fixture\n", encoding="utf-8")
@@ -1374,6 +1581,128 @@ class RetailSimulatorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("ios_autoinput 1\n", evidence.read_text())
         self.assertNotIn("ios_autoinput=", evidence.read_text())
+
+    def test_native_ui_capture_cli_is_opt_in_and_guarded(self) -> None:
+        for arguments, message in (
+            (("--ui-captures",), "--ui-captures requires --ui-navigation"),
+            (("--with-saves", "--autoload-save", "save", "--ui-captures"), "--ui-captures requires --ui-navigation"),
+            (("--with-saves", "--autoload-save", "save", "--ui-navigation", "--ui-captures", "--capture-v2"), "--capture-v2 conflicts"),
+            (("--with-saves", "--autoload-save", "save", "--ui-navigation", "--ui-captures"), "--ui-captures requires --runtime 27.0"),
+        ):
+            with self.subTest(arguments=arguments):
+                result = self.run_runner(*arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
+        documents, _ = self.stage_runtime_fixture(with_saves=True)
+        evidence, manifest = self.root / "ui-captures-user.ltx", self.root / "ui-captures-user.tsv"
+        rejected = self.run_guard(
+            "autoload-config", "--documents", str(documents), "--name", "save",
+            "--evidence", str(evidence), "--manifest", str(manifest),
+            "--ios-autoinput", "--ios-diagnostics",
+        )
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("cannot enable diagnostics", rejected.stderr)
+        accepted = self.run_guard(
+            "autoload-config", "--documents", str(documents), "--name", "save",
+            "--evidence", str(evidence), "--manifest", str(manifest),
+            "--ios-autoinput", "--ios-diagnostics", "--ui-captures",
+        )
+        self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+        self.assertEqual(evidence.read_text(), (
+            "keypress_on_start 0\nios_diagnostics 1\nios_autoinput 1\n"
+            "start server(save/single/alife/load) client(localhost)\n"
+        ))
+
+    def test_native_ui_capture_full_runner_wiring_publishes_only_post_stop(self) -> None:
+        result = self.run_runner(
+            "--with-saves", "--autoload-save", "save", "--ui-navigation", "--ui-captures",
+            "--runtime", "27.0", "--launch-timeout", "0.5", autoload_mode="normal",
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        work = next(self.work_base.glob("simulator-work-*"))
+        config = (work / "generated-user.ltx").read_text()
+        self.assertIn("ios_autoinput 1\n", config)
+        self.assertIn("ios_diagnostics 1\n", config)
+        capture_runs = list((work / "ui-captures").iterdir())
+        self.assertEqual(len(capture_runs), 1)
+        manifest_path = capture_runs[0] / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        self.assertEqual(manifest["schema"], "openxray-ios-ui-captures-v1")
+        self.assertEqual(len(manifest["transitions"]), 7)
+        self.assertEqual([item["step"] for item in manifest["captures"]], [1, 3, 4, 6])
+        self.assertIs(manifest["post_stop_revalidated"], True)
+        provenance = manifest["provenance"]
+        self.assertEqual(provenance["runtime"], "27.0")
+        self.assertEqual(provenance["renderer"], "Apple-Software-Renderer")
+        self.assertEqual(provenance["git_revision"], "0ee372005d3818c2239cfb0d72e289fe41b4a5d2")
+        self.assertEqual(provenance["source_tree_sha256"], digest(work / "guards/repo.tsv"))
+        report = (work / "report.txt").read_text()
+        self.assertIn("ui_captures=PASS", report)
+        self.assertIn(f"ui_capture_manifest={manifest_path}", report)
+        self.assertIn(f"ui_capture_manifest_inode={manifest_path.stat().st_ino}", report)
+        self.assertIn(f"ui_capture_manifest_bytes={manifest_path.stat().st_size}", report)
+        self.assertIn(f"ui_capture_manifest_sha256={digest(manifest_path)}", report)
+        self.assertIn("ui_capture_scope=iOS-27.0-Simulator-Apple-Software-Renderer-only", report)
+        commands = self.commands.read_text().splitlines()
+        app_launches = [line for line in commands if line.startswith("xcrun simctl launch ")]
+        self.assertEqual(len(app_launches), 1)
+        navigation_run = next(index for index, line in enumerate(commands) if line.startswith("navigation-run "))
+        navigation_finalize = next(index for index, line in enumerate(commands) if line.startswith("navigation-finalize "))
+        terminate = next(index for index, line in enumerate(commands) if line.startswith("xcrun simctl terminate "))
+        delete = max(index for index, line in enumerate(commands) if line.startswith("xcrun simctl delete "))
+        self.assertLess(navigation_run, terminate)
+        self.assertLess(terminate, navigation_finalize)
+        self.assertLess(navigation_finalize, delete)
+        command = commands[navigation_run]
+        for exact in (
+            "--ui-capture-expected-level zaton", "--ui-capture-runtime 27.0",
+            "--ui-capture-renderer Apple-Software-Renderer",
+            "--ui-capture-git-revision 0ee372005d3818c2239cfb0d72e289fe41b4a5d2",
+            f"--ui-capture-source-tree-sha256 {digest(work / 'guards/repo.tsv')}",
+        ):
+            self.assertIn(exact, command)
+
+    def test_native_ui_capture_failures_never_publish_report_or_pass_claim(self) -> None:
+        modes = (
+            ({"navigation_failure": True}, "run"),
+            ({"navigation_finalize_failure": True}, "finalize"),
+            ({"ui_manifest_missing": True}, "manifest"),
+        )
+        known: set[Path] = set()
+        for options, label in modes:
+            with self.subTest(label=label):
+                result = self.run_runner(
+                    "--with-saves", "--autoload-save", "save", "--ui-navigation", "--ui-captures",
+                    "--runtime", "27.0", "--launch-timeout", "0.5", autoload_mode="normal", **options,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                work = next(path for path in self.work_base.glob("simulator-work-*") if path not in known)
+                known.add(work)
+                self.assertFalse((work / "report.txt").exists())
+                self.assertNotIn("ui_captures=PASS", result.stdout + result.stderr)
+                manifests = list((work / "ui-captures").glob("*/manifest.json"))
+                self.assertEqual(manifests, [])
+
+    def test_native_ui_capture_renderer_and_manifest_mutations_never_publish_report(self) -> None:
+        cases = (
+            ({"ui_capture_renderer_mode": "missing"}, "no GPU renderer line"),
+            ({"ui_capture_renderer_mode": "mismatch"}, "conflicting GPU renderer lines"),
+            ({"ui_capture_renderer_mode": "duplicate-conflict"}, "conflicting GPU renderer lines"),
+            ({"ui_manifest_mutation": True}, "could not atomically publish"),
+        )
+        known: set[Path] = set()
+        for options, expected in cases:
+            with self.subTest(expected=expected):
+                result = self.run_runner(
+                    "--with-saves", "--autoload-save", "save", "--ui-navigation", "--ui-captures",
+                    "--runtime", "27.0", "--launch-timeout", "0.5", autoload_mode="normal", **options,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected, result.stderr)
+                work = next(path for path in self.work_base.glob("simulator-work-*") if path not in known)
+                known.add(work)
+                self.assertFalse((work / "report.txt").exists())
+                self.assertNotIn("ui_captures=PASS", result.stdout + result.stderr)
 
     def test_ui_navigation_happy_path_uses_one_launch_exact_pid_and_correct_order(self) -> None:
         result = self.run_runner(
@@ -2044,11 +2373,14 @@ class RetailSimulatorTests(unittest.TestCase):
             '} | python3 "$GUARD" prepare-report --destination "$report_pending" >/dev/null'
         )
         delete = source.index('xcrun simctl delete "$device_uuid" || fail')
-        publish = source.index(
-            'python3 "$GUARD" publish-report --source "$report_pending" --destination "$report"'
+        publish_args = source.index(
+            'publish_args=(publish-report --source "$report_pending" --destination "$report")'
         )
+        publish = source.index('python3 "$GUARD" "${publish_args[@]}" >/dev/null')
         self.assertLess(prepare, delete)
         self.assertLess(delete, publish)
+        self.assertLess(delete, publish_args)
+        self.assertIn('publish_args+=(--capture-manifest-state "$ui_capture_manifest_state")', source)
         self.assertNotIn('> "$report"', source)
 
 

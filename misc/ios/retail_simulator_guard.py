@@ -64,6 +64,9 @@ NAVIGATION_SUBPROCESS_TIMEOUT_SECONDS = (
 )
 CAPTURE_PARSER_TIMEOUT_SECONDS = 5.0
 CAPTURE_TOKEN = re.compile(r"^[0-9a-f]{32}:[1-9][0-9]*$")
+GPU_RENDERER_PREFIX = "* GPU vendor: "
+APPLE_SOFTWARE_RENDERER_LINE = "* GPU vendor: [Apple Inc.] device: [Apple Software Renderer]"
+APPLE_SOFTWARE_RENDERER = "Apple-Software-Renderer"
 
 
 class GuardError(RuntimeError):
@@ -519,17 +522,26 @@ def prepare_report(path: Path, data: bytes) -> None:
     write_new_regular(path, data)
 
 
-def publish_report(source: Path, destination: Path) -> None:
+def publish_report(source: Path, destination: Path,
+                   capture_manifest_state: Path | None = None) -> None:
     """Publish a complete report atomically through a new hard-link name."""
 
+    manifest_binding = (
+        parse_capture_manifest_state(capture_manifest_state)
+        if capture_manifest_state is not None else None
+    )
     identity, data = read_stable_regular_nofollow(source, "prepared Simulator report")
     prepare_lines = data.decode("utf-8", errors="strict").splitlines()
     if (not prepare_lines or prepare_lines[0] != "result=PASS"
             or sum(line.startswith("result=") for line in prepare_lines) != 1):
         fail("prepared Simulator report has an invalid result marker")
+    if manifest_binding is not None:
+        require_capture_manifest_report_binding(prepare_lines, manifest_binding)
     require_real_directory(destination.parent)
     if os.path.lexists(destination):
         fail("published Simulator report destination already exists")
+    if manifest_binding is not None:
+        validate_capture_manifest_binding(manifest_binding)
     try:
         os.link(source, destination, follow_symlinks=False)
     except OSError as error:
@@ -544,6 +556,8 @@ def publish_report(source: Path, destination: Path) -> None:
         )
         if published_identity != identity or published_data != data:
             fail("published Simulator report failed exact revalidation")
+        if manifest_binding is not None:
+            validate_capture_manifest_binding(manifest_binding)
         source_details = source.lstat()
         if (not stat.S_ISREG(source_details.st_mode)
                 or (source_details.st_dev, source_details.st_ino) != identity):
@@ -561,7 +575,8 @@ def publish_report(source: Path, destination: Path) -> None:
 
 
 def write_autoload_config(documents: Path, name: str, evidence: Path, manifest: Path,
-                          *, ios_diagnostics: bool = False, ios_autoinput: bool = False) -> None:
+                          *, ios_diagnostics: bool = False, ios_autoinput: bool = False,
+                          ui_captures: bool = False) -> None:
     """Generate the only non-retail config inside a staged Simulator container."""
 
     require_save_file(documents, name)
@@ -573,8 +588,10 @@ def write_autoload_config(documents: Path, name: str, evidence: Path, manifest: 
         fail("autoload evidence destination must not already exist")
     require_real_directory(evidence.parent)
     require_real_directory(manifest.parent)
-    if ios_diagnostics and ios_autoinput:
+    if ios_diagnostics and ios_autoinput and not ui_captures:
         fail("autoload config cannot enable diagnostics and automatic input together")
+    if ui_captures and not (ios_diagnostics and ios_autoinput):
+        fail("native UI captures require both diagnostics and automatic input")
     contents = autoload_config(name, ios_diagnostics=ios_diagnostics,
                                ios_autoinput=ios_autoinput)
     write_new_regular(target, contents)
@@ -771,8 +788,80 @@ def read_stable_regular_nofollow(path: Path, label: str) -> tuple[tuple[int, int
     return (after.st_dev, after.st_ino), bytes(contents)
 
 
+def read_live_appendable_regular_nofollow(path: Path, label: str) -> tuple[tuple[int, int], bytes]:
+    """Read a stable prefix while a live regular log may only append.
+
+    The prefix length is fixed from the opened descriptor.  A second read of
+    that prefix rejects in-place rewrites; growth after opening is allowed.
+    """
+
+    try:
+        initial = path.lstat()
+    except FileNotFoundError:
+        fail(f"{label} is missing")
+    if stat.S_ISLNK(initial.st_mode) or not stat.S_ISREG(initial.st_mode):
+        fail(f"{label} must be a regular non-symlink file")
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, os.O_RDONLY | nofollow)
+    except OSError as error:
+        fail(f"cannot open {label} safely: {error}")
+    try:
+        opened = os.fstat(descriptor)
+        if (not stat.S_ISREG(opened.st_mode)
+                or (opened.st_dev, opened.st_ino) != (initial.st_dev, initial.st_ino)
+                or opened.st_size < initial.st_size):
+            fail(f"{label} identity or size changed while being read")
+        prefix_size = opened.st_size
+        contents = bytearray()
+        while len(contents) < prefix_size:
+            block = os.read(descriptor, min(CHUNK, prefix_size - len(contents)))
+            if not block:
+                fail(f"{label} read is truncated")
+            contents.extend(block)
+        after = os.fstat(descriptor)
+        if (not stat.S_ISREG(after.st_mode) or (after.st_dev, after.st_ino) != (opened.st_dev, opened.st_ino)
+                or after.st_size < prefix_size):
+            fail(f"{label} identity or size changed while being read")
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        verified = bytearray()
+        while len(verified) < prefix_size:
+            block = os.read(descriptor, min(CHUNK, prefix_size - len(verified)))
+            if not block:
+                fail(f"{label} read is truncated")
+            verified.extend(block)
+        verified_after = os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+    try:
+        final = path.lstat()
+    except FileNotFoundError:
+        fail(f"{label} disappeared while being read")
+    states = (initial, opened, after, verified_after, final)
+    identities = {(details.st_dev, details.st_ino) for details in states}
+    if (len(identities) != 1 or any(not stat.S_ISREG(details.st_mode) for details in states)
+            or stat.S_ISLNK(final.st_mode)
+            or after.st_size < prefix_size or verified_after.st_size < after.st_size
+            or final.st_size < verified_after.st_size):
+        fail(f"{label} identity or size changed while being read")
+    if verified != contents:
+        fail(f"{label} was rewritten while being read")
+    stable_mtimes = {
+        opened.st_mtime_ns, after.st_mtime_ns,
+        verified_after.st_mtime_ns, final.st_mtime_ns,
+    }
+    if opened.st_size == initial.st_size:
+        stable_mtimes.add(initial.st_mtime_ns)
+    if (after.st_size == prefix_size and verified_after.st_size == prefix_size
+            and final.st_size == prefix_size
+            and len(stable_mtimes) != 1):
+        fail(f"{label} was rewritten while being read")
+    return (opened.st_dev, opened.st_ino), bytes(contents)
+
+
 def copy_runtime_log_snapshot(source: Path, copied: Path,
-                              previous: tuple[tuple[int, int], bytes] | None) -> tuple[tuple[int, int], bytes]:
+                              previous: tuple[tuple[int, int], bytes] | None,
+                              *, live: bool = False) -> tuple[tuple[int, int], bytes]:
     """Copy a monotonic, non-symlinked runtime-log snapshot.
 
     A later snapshot must retain the earlier byte prefix on the same inode.  A
@@ -780,7 +869,8 @@ def copy_runtime_log_snapshot(source: Path, copied: Path,
     allowing a previously observed readiness sequence to stand on its own.
     """
 
-    identity, data = read_stable_regular_nofollow(source, "runtime log")
+    reader = read_live_appendable_regular_nofollow if live else read_stable_regular_nofollow
+    identity, data = reader(source, "runtime log")
     if previous is not None:
         previous_identity, previous_data = previous
         if identity != previous_identity:
@@ -820,7 +910,7 @@ def fail_after_navigation_log_refresh(source_log: Path, copied_log: Path,
     """
 
     try:
-        copy_runtime_log_snapshot(source_log, copied_log, previous_snapshot)
+        copy_runtime_log_snapshot(source_log, copied_log, previous_snapshot, live=True)
     except GuardError as error:
         fail(f"{message}; runtime log refresh also failed: {error}")
     fail(message)
@@ -848,6 +938,111 @@ def write_runtime_snapshot_manifest(path: Path, snapshot: tuple[tuple[int, int],
         f"pid={pid}\n"
     )
     write_new_regular(path, contents.encode("ascii"))
+
+
+def measured_ui_capture_renderer(snapshot: bytes, claimed_renderer: str) -> str:
+    """Derive the UI-capture renderer from the saved sync-complete snapshot."""
+
+    lines = snapshot.decode("utf-8", errors="replace").splitlines()
+    renderer_lines = [line for line in lines if line.startswith(GPU_RENDERER_PREFIX)]
+    if not renderer_lines:
+        fail("saved-game runtime snapshot has no GPU renderer line")
+    if any(line != APPLE_SOFTWARE_RENDERER_LINE for line in renderer_lines):
+        fail("saved-game runtime snapshot has conflicting GPU renderer lines")
+    measured = APPLE_SOFTWARE_RENDERER
+    if claimed_renderer != measured:
+        fail("native UI capture claimed renderer does not match saved-game runtime snapshot")
+    return measured
+
+
+def write_capture_manifest_state(manifest: Path, output: Path) -> None:
+    """Bind a finalized native UI manifest to its exact file identity and bytes."""
+
+    manifest = absolute_unresolved(manifest)
+    identity, data = read_stable_regular_nofollow(manifest, "native UI capture manifest")
+    digest = hashlib.sha256(data).hexdigest()
+    contents = (
+        "version=1\n"
+        f"path={manifest}\n"
+        f"device={identity[0]}\n"
+        f"inode={identity[1]}\n"
+        f"bytes={len(data)}\n"
+        f"sha256={digest}\n"
+    )
+    write_new_regular(output, contents.encode("utf-8"))
+
+
+def parse_capture_manifest_state(path: Path) -> tuple[Path, tuple[int, int], int, str]:
+    expected_keys = ("version", "path", "device", "inode", "bytes", "sha256")
+    _, data = read_stable_regular_nofollow(path, "native UI capture manifest state")
+    try:
+        lines = data.decode("utf-8", errors="strict").splitlines()
+    except UnicodeDecodeError as error:
+        fail(f"native UI capture manifest state is not UTF-8: {error}")
+    if len(lines) != len(expected_keys):
+        fail("native UI capture manifest state has an invalid row count")
+    values: dict[str, str] = {}
+    for expected_key, line in zip(expected_keys, lines):
+        key, separator, value = line.partition("=")
+        if separator != "=" or key != expected_key or not value or "\x00" in value:
+            fail("native UI capture manifest state has an invalid row")
+        values[key] = value
+    if values["version"] != "1" or not os.path.isabs(values["path"]):
+        fail("native UI capture manifest state has an invalid version or path")
+    try:
+        device, inode, size = (int(values[key]) for key in ("device", "inode", "bytes"))
+    except ValueError:
+        fail("native UI capture manifest state has an invalid numeric value")
+    digest = values["sha256"]
+    if (device < 0 or inode <= 0 or size < 0 or re.fullmatch(r"[0-9a-f]{64}", digest) is None):
+        fail("native UI capture manifest state has an invalid identity or digest")
+    return Path(values["path"]), (device, inode), size, digest
+
+
+def validate_capture_manifest_binding(
+        binding: tuple[Path, tuple[int, int], int, str],
+) -> tuple[Path, tuple[int, int], int, str]:
+    manifest, expected_identity, expected_size, expected_digest = binding
+    identity, data = read_stable_regular_nofollow(manifest, "native UI capture manifest")
+    if (identity != expected_identity or len(data) != expected_size
+            or hashlib.sha256(data).hexdigest() != expected_digest):
+        fail("native UI capture manifest no longer matches its finalized state")
+    return manifest, identity, expected_size, expected_digest
+
+
+def validate_capture_manifest_state(path: Path) -> tuple[Path, tuple[int, int], int, str]:
+    return validate_capture_manifest_binding(parse_capture_manifest_state(path))
+
+
+def require_capture_manifest_report_binding(
+        lines: list[str], binding: tuple[Path, tuple[int, int], int, str],
+) -> None:
+    manifest, (_, inode), size, digest = binding
+    expected = {
+        "ui_capture_manifest": str(manifest),
+        "ui_capture_manifest_inode": str(inode),
+        "ui_capture_manifest_bytes": str(size),
+        "ui_capture_manifest_sha256": digest,
+    }
+    actual: dict[str, str] = {}
+    for line in lines:
+        key, separator, value = line.partition("=")
+        if separator == "=" and key in expected:
+            if key in actual:
+                fail("prepared Simulator report has duplicate native UI capture manifest fields")
+            actual[key] = value
+    if actual != expected:
+        fail("prepared Simulator report does not match native UI capture manifest binding")
+
+
+def write_capture_manifest_report_fields(state: Path, output: Path) -> None:
+    _, (_, inode), size, digest = validate_capture_manifest_state(state)
+    contents = (
+        f"ui_capture_manifest_inode={inode}\n"
+        f"ui_capture_manifest_bytes={size}\n"
+        f"ui_capture_manifest_sha256={digest}\n"
+    )
+    write_new_regular(output, contents.encode("ascii"))
 
 
 def parse_runtime_snapshot_manifest(path: Path, copied_log: Path,
@@ -1209,7 +1404,7 @@ def prove_foreground_cycle(timeout: float, poll: float, stderr, stdout_path: Pat
     background_deadline = time.monotonic() + timeout
     while time.monotonic() < background_deadline:
         if source_log.exists() or source_log.is_symlink():
-            snapshot = copy_runtime_log_snapshot(source_log, copied_log, snapshot)
+            snapshot = copy_runtime_log_snapshot(source_log, copied_log, snapshot, live=True)
             text = snapshot[1].decode("utf-8", errors="replace")
             ready, _ = runtime_log_state(text, None, expected_pid)
             appended = snapshot[1][len(pre_cycle_snapshot[1]):]
@@ -1237,7 +1432,7 @@ def prove_foreground_cycle(timeout: float, poll: float, stderr, stdout_path: Pat
     recovery_deadline = time.monotonic() + timeout
     while time.monotonic() < recovery_deadline:
         if source_log.exists() or source_log.is_symlink():
-            snapshot = copy_runtime_log_snapshot(source_log, copied_log, snapshot)
+            snapshot = copy_runtime_log_snapshot(source_log, copied_log, snapshot, live=True)
             text = snapshot[1].decode("utf-8", errors="replace")
             ready, _ = runtime_log_state(text, None, expected_pid)
             appended = snapshot[1][len(pre_cycle_snapshot[1]):]
@@ -1256,7 +1451,7 @@ def prove_foreground_cycle(timeout: float, poll: float, stderr, stdout_path: Pat
         require_live_app_pid(expected_pid, "during foreground-recovery stability interval")
         if not source_log.exists() and not source_log.is_symlink():
             fail("runtime log disappeared during foreground-recovery stability interval")
-        snapshot = copy_runtime_log_snapshot(source_log, copied_log, snapshot)
+        snapshot = copy_runtime_log_snapshot(source_log, copied_log, snapshot, live=True)
         text = snapshot[1].decode("utf-8", errors="replace")
         ready, _ = runtime_log_state(text, None, expected_pid)
         appended = snapshot[1][len(pre_cycle_snapshot[1]):]
@@ -1276,7 +1471,7 @@ def prove_foreground_cycle(timeout: float, poll: float, stderr, stdout_path: Pat
     require_live_app_pid(expected_pid, "after foreground-recovery screenshot")
     if not source_log.exists() and not source_log.is_symlink():
         fail("runtime log disappeared before final foreground-recovery proof")
-    snapshot = copy_runtime_log_snapshot(source_log, copied_log, snapshot)
+    snapshot = copy_runtime_log_snapshot(source_log, copied_log, snapshot, live=True)
     text = snapshot[1].decode("utf-8", errors="replace")
     ready, _ = runtime_log_state(text, None, expected_pid)
     appended = snapshot[1][len(pre_cycle_snapshot[1]):]
@@ -1294,7 +1489,13 @@ def prove_launch(timeout: float, poll: float, stdout_path: Path, stderr_path: Pa
                  navigation_pre_report: Path | None, initial_pid_path: Path | None = None,
                  recovery_screenshot: Path | None = None,
                  capture_v2_parser: Path | None = None,
-                 capture_v2_root: Path | None = None) -> None:
+                 capture_v2_root: Path | None = None,
+                 ui_capture_root: Path | None = None,
+                 ui_capture_run_uuid: str | None = None,
+                 ui_capture_runtime: str | None = None,
+                 ui_capture_renderer: str | None = None,
+                 ui_capture_git_revision: str | None = None,
+                 ui_capture_source_tree_sha256: str | None = None) -> None:
     navigation_values = (navigation_script, navigation_documents, navigation_snapshot, navigation_pre_report)
     navigation_requested = any(value is not None for value in navigation_values)
     if navigation_requested and any(value is None for value in navigation_values):
@@ -1312,6 +1513,15 @@ def prove_launch(timeout: float, poll: float, stdout_path: Path, stderr_path: Pa
         fail("capture-v2 launch-proof arguments must be supplied as one complete set")
     if capture_requested and (autoload_save is None or navigation_requested):
         fail("capture-v2 requires autoload mode and conflicts with UI navigation")
+    ui_capture_values = (ui_capture_root, ui_capture_run_uuid, ui_capture_runtime, ui_capture_renderer,
+                         ui_capture_git_revision, ui_capture_source_tree_sha256)
+    ui_capture_requested = any(value is not None for value in ui_capture_values)
+    if ui_capture_requested and (not navigation_requested or any(value is None for value in ui_capture_values)):
+        fail("native UI capture launch-proof arguments require complete UI navigation arguments")
+    if ui_capture_requested and (ui_capture_runtime != "27.0" or ui_capture_renderer != "Apple-Software-Renderer"
+            or re.fullmatch(r"[0-9a-f]{40}", ui_capture_git_revision or "") is None
+            or re.fullmatch(r"[0-9a-f]{64}", ui_capture_source_tree_sha256 or "") is None):
+        fail("native UI capture provenance is invalid")
     foreground_values = (initial_pid_path, recovery_screenshot)
     foreground_requested = any(value is not None for value in foreground_values)
     if foreground_requested and any(value is None for value in foreground_values):
@@ -1345,12 +1555,13 @@ def prove_launch(timeout: float, poll: float, stdout_path: Path, stderr_path: Pa
     stability_window = min(1.0, max(0.1, poll))
     sync_complete_since: float | None = None
     sync_level: str | None = None
+    measured_renderer: str | None = None
     capture_completed = False
     log_snapshot: tuple[tuple[int, int], bytes] | None = None
     with stderr_path.open("ab") as stderr:
         while time.monotonic() < deadline:
             if source_log.exists() or source_log.is_symlink():
-                log_snapshot = copy_runtime_log_snapshot(source_log, copied_log, log_snapshot)
+                log_snapshot = copy_runtime_log_snapshot(source_log, copied_log, log_snapshot, live=True)
                 text = log_snapshot[1].decode("utf-8", errors="replace")
                 runtime_ready, current_level = runtime_log_state(text, autoload_save, pid)
                 if autoload_save is not None:
@@ -1364,6 +1575,11 @@ def prove_launch(timeout: float, poll: float, stdout_path: Path, stderr_path: Pa
                 if runtime_ready:
                     if autoload_save is not None and sync_complete_since is None:
                         sync_complete_since = time.monotonic()
+                        if ui_capture_requested:
+                            assert ui_capture_renderer is not None
+                            measured_renderer = measured_ui_capture_renderer(
+                                log_snapshot[1], ui_capture_renderer,
+                            )
                     if capture_requested and not capture_completed:
                         assert capture_v2_parser is not None
                         assert capture_v2_root is not None
@@ -1394,6 +1610,21 @@ def prove_launch(timeout: float, poll: float, stdout_path: Path, stderr_path: Pa
                             "--snapshot", str(navigation_snapshot), "--report", str(navigation_pre_report),
                             "--timeout-seconds", str(NAVIGATION_STEP_TIMEOUT_SECONDS),
                         )
+                        if ui_capture_requested:
+                            assert ui_capture_root is not None and ui_capture_run_uuid is not None
+                            assert ui_capture_runtime is not None and measured_renderer is not None
+                            assert ui_capture_git_revision is not None and ui_capture_source_tree_sha256 is not None
+                            if sync_level is None:
+                                fail("native UI captures require a synchronized saved-game level")
+                            navigation_command += (
+                                "--ui-capture-root", str(ui_capture_root),
+                                "--ui-capture-run-uuid", ui_capture_run_uuid,
+                                "--ui-capture-expected-level", sync_level,
+                                "--ui-capture-runtime", ui_capture_runtime,
+                                "--ui-capture-renderer", measured_renderer,
+                                "--ui-capture-git-revision", ui_capture_git_revision,
+                                "--ui-capture-source-tree-sha256", ui_capture_source_tree_sha256,
+                            )
                         try:
                             navigation = subprocess.run(
                                 navigation_command, check=False, stdout=stderr, stderr=stderr,
@@ -1437,7 +1668,7 @@ def prove_launch(timeout: float, poll: float, stdout_path: Path, stderr_path: Pa
                     require_live_app_pid(pid, "before final runtime-log proof")
                     if not source_log.exists() and not source_log.is_symlink():
                         fail("runtime log disappeared before final proof")
-                    log_snapshot = copy_runtime_log_snapshot(source_log, copied_log, log_snapshot)
+                    log_snapshot = copy_runtime_log_snapshot(source_log, copied_log, log_snapshot, live=True)
                     final_ready, final_level = runtime_log_state(
                         log_snapshot[1].decode("utf-8", errors="replace"), autoload_save, pid,
                     )
@@ -1771,6 +2002,12 @@ def parser() -> argparse.ArgumentParser:
     launch.add_argument("--recovery-screenshot")
     launch.add_argument("--capture-v2-parser")
     launch.add_argument("--capture-v2-root")
+    launch.add_argument("--ui-capture-root")
+    launch.add_argument("--ui-capture-run-uuid")
+    launch.add_argument("--ui-capture-runtime")
+    launch.add_argument("--ui-capture-renderer")
+    launch.add_argument("--ui-capture-git-revision")
+    launch.add_argument("--ui-capture-source-tree-sha256")
     finalize = commands.add_parser("finalize-log")
     finalize.add_argument("--source-log", required=True)
     finalize.add_argument("--copied-log", required=True)
@@ -1803,6 +2040,8 @@ def parser() -> argparse.ArgumentParser:
                            help="write ios_autoinput 1 for the explicit Simulator UI workflow")
     generated.add_argument("--ios-diagnostics", action="store_true",
                            help="write ios_diagnostics 1 for the explicit capture-v2 workflow")
+    generated.add_argument("--ui-captures", action="store_true",
+                           help="explicitly permit diagnostics plus automatic input for native UI captures")
     state = commands.add_parser("selected-save-state")
     state.add_argument("--file", required=True)
     state.add_argument("--output", required=True)
@@ -1816,6 +2055,15 @@ def parser() -> argparse.ArgumentParser:
     report_publish = commands.add_parser("publish-report")
     report_publish.add_argument("--source", required=True)
     report_publish.add_argument("--destination", required=True)
+    report_publish.add_argument("--capture-manifest-state")
+    capture_manifest_state = commands.add_parser("capture-manifest-state")
+    capture_manifest_state.add_argument("--manifest", required=True)
+    capture_manifest_state.add_argument("--output", required=True)
+    capture_manifest_report = commands.add_parser("capture-manifest-report-fields")
+    capture_manifest_report.add_argument("--state", required=True)
+    capture_manifest_report.add_argument("--output", required=True)
+    capture_manifest_verify = commands.add_parser("capture-manifest-verify")
+    capture_manifest_verify.add_argument("--state", required=True)
     paths = commands.add_parser("paths")
     paths.add_argument("--repo", required=True)
     paths.add_argument("--backup", required=True)
@@ -1883,6 +2131,9 @@ def main() -> int:
                 (absolute_unresolved(args.recovery_screenshot) if args.recovery_screenshot else None),
                 (absolute_unresolved(args.capture_v2_parser) if args.capture_v2_parser else None),
                 (absolute_unresolved(args.capture_v2_root) if args.capture_v2_root else None),
+                (absolute_unresolved(args.ui_capture_root) if args.ui_capture_root else None),
+                args.ui_capture_run_uuid, args.ui_capture_runtime, args.ui_capture_renderer,
+                args.ui_capture_git_revision, args.ui_capture_source_tree_sha256,
             )
         elif args.command == "finalize-log":
             autoload_save = validate_autoload_name(args.autoload_save) if args.autoload_save else None
@@ -1913,7 +2164,8 @@ def main() -> int:
             manifest = Path(args.manifest).expanduser()
             write_autoload_config(documents, args.name, evidence, manifest,
                                   ios_diagnostics=args.ios_diagnostics,
-                                  ios_autoinput=args.ios_autoinput)
+                                  ios_autoinput=args.ios_autoinput,
+                                  ui_captures=args.ui_captures)
         elif args.command == "selected-save-state":
             write_selected_save_state(resolved(args.file), Path(args.output).expanduser())
         elif args.command == "selected-save-mutation":
@@ -1927,7 +2179,19 @@ def main() -> int:
         elif args.command == "publish-report":
             publish_report(
                 absolute_unresolved(args.source), absolute_unresolved(args.destination),
+                (absolute_unresolved(args.capture_manifest_state)
+                 if args.capture_manifest_state else None),
             )
+        elif args.command == "capture-manifest-state":
+            write_capture_manifest_state(
+                absolute_unresolved(args.manifest), absolute_unresolved(args.output),
+            )
+        elif args.command == "capture-manifest-report-fields":
+            write_capture_manifest_report_fields(
+                absolute_unresolved(args.state), absolute_unresolved(args.output),
+            )
+        elif args.command == "capture-manifest-verify":
+            validate_capture_manifest_state(absolute_unresolved(args.state))
         elif args.command == "paths":
             repo, backup, manifest, base = map(resolved, (args.repo, args.backup, args.manifest, args.work_base))
             require_not_inside(base, repo, backup, manifest)

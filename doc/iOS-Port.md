@@ -37,6 +37,10 @@ branch and proven SSAO macro defect are fixed, but a later dark-frame smoke
 remains causally unresolved. The isolated iOS 27 Simulator capture-v2 path has
 published its first real T0/T1/T2 packet after a stationary saved-game load.
 IOS-P0-003 remains open for wider physical-device and content coverage.
+IOS-P1-006 now additionally has two independent native 1864x860 Simulator UI
+capture packets with semantic navigation and post-stop manifests; these are
+file-level Simulator visual evidence only and do not replace the remaining
+iPhone surface/readability/color/performance tests.
 Diagnostic lifecycle recovery, LOWMEMORY handling and
 decoded-texture lazy reload are device-proven; normal lock/audio cycles,
 multi-level validation, memory budgets and a repeatable performance baseline
@@ -114,6 +118,24 @@ remain.
   neither available surface is a no-op. The isolated Simulator navigation
   evidence is deliberately `semantic-ui-navigation-only`, not pixel,
   readability, performance or physical-device evidence.
+- The opt-in `--ui-captures` extension requires `--ui-navigation`, iOS 27,
+  diagnostics and autoinput. It captures semantic steps 1 `inventory`, 3
+  `pda_tasks`, 4 `other`/Stats and 6 `pda_tasks` of the expected
+  `inventory, world, pda_tasks, other, world, pda_tasks, world` sequence.
+  It accepts only stable metadata/PPM pairs bound to the exact session, PID,
+  token, frame, dimensions and input order; the PPM is authoritative and its
+  PNG is an exact derivative. The manifest/report publish only after process
+  stop and revalidation. Its live runtime-log reader allows monotonic append
+  but fails closed on symlink/nonregular input, inode change, shrink, rewrite,
+  truncation or a read race.
+- Two isolated iOS 27 Apple Software Renderer runs passed all 7 transitions and
+  all 4 native 1864x860 captures with protected inputs unchanged and deleted
+  dedicated Simulators. The main chat visually inspected their eight PNGs:
+  complete inventory, area map/tasks, Stats and area map/tasks. This proves
+  native file-level Simulator presentation at those surfaces, not iPhone,
+  readability, color or performance. Focused host tests are capture 15/15,
+  navigation 34/34 and retail isolation 92/92. Final Sol xhigh verdict is
+  `APPROVE — brak P0/P1/P2`.
 
 ## Graphics profiles
 

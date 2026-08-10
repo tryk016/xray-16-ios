@@ -48,6 +48,8 @@ IOS_ARTIFACT_INPUTS = (
     "misc/ios/test_retail_simulator.py",
     "misc/ios/simulator_ui_navigation.py",
     "misc/ios/test_simulator_ui_navigation.py",
+    "misc/ios/ui_capture_evidence.py",
+    "misc/ios/test_ui_capture_evidence.py",
     "misc/ios/test_pda_map_hotkey_contract.py",
     "misc/ios/test_ui_state_marker_contract.py",
     "misc/ios/test_lifecycle_marker_contract.py",

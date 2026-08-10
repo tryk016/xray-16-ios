@@ -28,7 +28,7 @@ import stat
 import subprocess
 import sys
 import time
-from typing import Callable, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence
 import uuid
 
 
@@ -129,6 +129,10 @@ class PreTerminationProof:
     expected_pid: int
     snapshot_sha256: str
     evidence: tuple[TransitionEvidence, ...]
+    captures: tuple[dict[str, Any], ...]
+    ui_capture_root: str | None
+    expected_level: str | None
+    provenance: dict[str, str] | None
 
 
 SEQUENCE: tuple[NavigationStep, ...] = (
@@ -196,6 +200,77 @@ def read_stable_regular_nofollow(path: Path, label: str) -> FileSnapshot:
     if len(contents) != after.st_size:
         fail(f"{label} read is truncated")
     return FileSnapshot(after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, bytes(contents))
+
+
+def read_live_appendable_regular_nofollow(path: Path, label: str) -> FileSnapshot:
+    """Read a stable prefix while a live regular log may only append.
+
+    The prefix length is fixed from the opened descriptor.  A second read of
+    that prefix rejects in-place rewrites; growth after opening is allowed.
+    """
+
+    try:
+        initial = path.lstat()
+    except FileNotFoundError:
+        fail(f"{label} is missing: {path}")
+    if stat.S_ISLNK(initial.st_mode) or not stat.S_ISREG(initial.st_mode):
+        fail(f"{label} must be a regular non-symlink file: {path}")
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, os.O_RDONLY | nofollow)
+    except OSError as error:
+        fail(f"cannot open {label} safely: {error}")
+    try:
+        opened = os.fstat(descriptor)
+        if (not stat.S_ISREG(opened.st_mode)
+                or (opened.st_dev, opened.st_ino) != (initial.st_dev, initial.st_ino)
+                or opened.st_size < initial.st_size):
+            fail(f"{label} identity, size, or timestamp changed while being read")
+        prefix_size = opened.st_size
+        contents = bytearray()
+        while len(contents) < prefix_size:
+            block = os.read(descriptor, min(CHUNK, prefix_size - len(contents)))
+            if not block:
+                fail(f"{label} read is truncated")
+            contents.extend(block)
+        after = os.fstat(descriptor)
+        if (not stat.S_ISREG(after.st_mode)
+                or (after.st_dev, after.st_ino) != (opened.st_dev, opened.st_ino)
+                or after.st_size < prefix_size):
+            fail(f"{label} identity, size, or timestamp changed while being read")
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        verified = bytearray()
+        while len(verified) < prefix_size:
+            block = os.read(descriptor, min(CHUNK, prefix_size - len(verified)))
+            if not block:
+                fail(f"{label} read is truncated")
+            verified.extend(block)
+        verified_after = os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+    try:
+        final = path.lstat()
+    except FileNotFoundError:
+        fail(f"{label} disappeared while being read")
+    states = (initial, opened, after, verified_after, final)
+    identities = {(details.st_dev, details.st_ino) for details in states}
+    if (len(identities) != 1 or any(not stat.S_ISREG(details.st_mode) for details in states)
+            or stat.S_ISLNK(final.st_mode)
+            or after.st_size < prefix_size or verified_after.st_size < after.st_size
+            or final.st_size < verified_after.st_size):
+        fail(f"{label} identity, size, or timestamp changed while being read")
+    if verified != contents:
+        fail(f"{label} was rewritten while being read")
+    stable_mtimes = {
+        opened.st_mtime_ns, after.st_mtime_ns,
+        verified_after.st_mtime_ns, final.st_mtime_ns,
+    }
+    if opened.st_size == initial.st_size:
+        stable_mtimes.add(initial.st_mtime_ns)
+    if (after.st_size == prefix_size and verified_after.st_size == prefix_size
+            and final.st_size == prefix_size and len(stable_mtimes) != 1):
+        fail(f"{label} was rewritten while being read")
+    return FileSnapshot(opened.st_dev, opened.st_ino, prefix_size, opened.st_mtime_ns, bytes(contents))
 
 
 def complete_lines(snapshot: FileSnapshot, label: str) -> list[str]:
@@ -402,7 +477,8 @@ class UiNavigationController:
                  wall_clock_ns: Callable[[], int] = time.time_ns,
                  sleep: Callable[[float], None] = time.sleep,
                  liveness: Callable[[int], bool | None] = require_live_process,
-                 poll_hook: Callable[[], None] | None = None) -> None:
+                 poll_hook: Callable[[], None] | None = None,
+                 capture_observer: Any | None = None) -> None:
         if not MIN_HOLD_MS <= hold_ms <= MAX_HOLD_MS:
             fail(f"hold duration must be {MIN_HOLD_MS}..{MAX_HOLD_MS} ms")
         if timeout_seconds <= 0 or dwell_seconds < 0 or poll_seconds < 0:
@@ -426,6 +502,7 @@ class UiNavigationController:
         self.sleep = sleep
         self.liveness = liveness
         self.poll_hook = poll_hook
+        self.capture_observer = capture_observer
 
     def require_live(self, phase: str) -> None:
         try:
@@ -440,16 +517,19 @@ class UiNavigationController:
             fail(f"expected Simulator process PID {self.expected_pid} is not live during {phase}")
 
     def _read_log(self, previous: FileSnapshot | None) -> tuple[FileSnapshot, list[str], list[UiStateMarker]]:
-        snapshot = read_stable_regular_nofollow(self.log_path, "runtime log")
+        snapshot = read_live_appendable_regular_nofollow(self.log_path, "runtime log")
         if previous is not None:
             check_monotonic_log(previous, snapshot)
         lines = complete_lines(snapshot, "runtime log")
         markers = verify_log_lines(lines)
         return snapshot, lines, markers
 
-    def _wait_transition(self, step: NavigationStep, baseline: FileSnapshot,
+    def _wait_transition(self, step: NavigationStep, step_number: int, baseline: FileSnapshot,
                          baseline_lines: list[str], baseline_markers: list[UiStateMarker]) -> tuple[FileSnapshot, list[str], list[UiStateMarker], TransitionEvidence]:
         self.require_live(f"transition {step.key} request")
+        capture_baseline = self.capture_observer.baseline() if (
+            self.capture_observer is not None and step_number in {1, 3, 4, 6}
+        ) else None
         remove_regular_nofollow(self.ack_path, "previous autoinput ACK")
         require_absent_output(self.trigger_path, "autoinput trigger")
         request_id = validate_request_id(self.uuid_factory().lower())
@@ -538,11 +618,17 @@ class UiNavigationController:
                     self.require_live("end release dwell")
                     if observed_marker is None or release_scancode is None:
                         fail("internal transition evidence is incomplete")
-                    return current, current_lines, current_markers, TransitionEvidence(
+                    result = TransitionEvidence(
                         request_id=request_id, key=step.key, state=observed_marker.state,
                         pid=observed_marker.pid, seq=observed_marker.seq,
                         frame=observed_marker.frame, release_scancode=release_scancode,
                     )
+                    if capture_baseline is not None:
+                        self.capture_observer.observe(
+                            {**asdict(result), "step": step_number, "hold_ms": self.hold_ms},
+                            capture_baseline,
+                        )
+                    return current, current_lines, current_markers, result
             if self.poll_seconds:
                 self.sleep(self.poll_seconds)
 
@@ -563,8 +649,8 @@ class UiNavigationController:
         require_absent_output(self.ack_path, "initial autoinput ACK")
         require_absent_output(self.trigger_path, "initial autoinput trigger")
         evidence: list[TransitionEvidence] = []
-        for step in SEQUENCE:
-            baseline, lines, markers, result = self._wait_transition(step, baseline, lines, markers)
+        for step_number, step in enumerate(SEQUENCE, 1):
+            baseline, lines, markers, result = self._wait_transition(step, step_number, baseline, lines, markers)
             evidence.append(result)
         remove_regular_nofollow(self.ack_path, "final autoinput ACK")
         remove_regular_nofollow(self.trigger_path, "final autoinput trigger")
@@ -580,11 +666,12 @@ def snapshot_digest(snapshot: FileSnapshot) -> str:
 
 
 def write_pre_termination_report(path: Path, snapshot: FileSnapshot,
-                                 evidence: Sequence[TransitionEvidence], expected_pid: int) -> None:
+                                 evidence: Sequence[TransitionEvidence], expected_pid: int,
+                                 capture_observer: Any | None = None) -> None:
     validate_expected_pid(expected_pid)
     if any(item.pid != expected_pid for item in evidence):
         fail("navigation evidence PID does not match the expected launch PID")
-    document = {
+    document: dict[str, Any] = {
         "version": 1,
         "result": "PASS",
         "phase": "pre-termination",
@@ -595,6 +682,14 @@ def write_pre_termination_report(path: Path, snapshot: FileSnapshot,
         "evidence": [asdict(item) for item in evidence],
         "scope": SEMANTIC_SCOPE,
     }
+    if capture_observer is not None:
+        document.update({
+            "version": 2,
+            "ui_capture_root": str(capture_observer.root.absolute()),
+            "expected_level": capture_observer.expected_level,
+            "captures": capture_observer.selected,
+            "provenance": capture_observer.provenance,
+        })
     write_new_regular(path.absolute(), (json.dumps(document, sort_keys=True) + "\n").encode("utf-8"), "navigation report")
 
 
@@ -605,7 +700,8 @@ def _parse_pre_termination_report(path: Path) -> PreTerminationProof:
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         fail(f"pre-termination navigation report is invalid JSON: {error}")
     required = {"version", "result", "phase", "log_device", "log_inode", "expected_pid", "snapshot_sha256", "evidence", "scope"}
-    if (set(value) != required or value["version"] != 1 or value["result"] != "PASS"
+    capture_fields = {"ui_capture_root", "expected_level", "captures", "provenance"}
+    if (set(value) not in (required, required | capture_fields) or value["version"] not in (1, 2) or value["result"] != "PASS"
             or value["phase"] != "pre-termination" or value["scope"] != SEMANTIC_SCOPE):
         fail("pre-termination navigation report has an invalid schema")
     if (not isinstance(value["log_device"], int) or value["log_device"] < 0
@@ -635,13 +731,30 @@ def _parse_pre_termination_report(path: Path) -> PreTerminationProof:
     for previous, current in zip(parsed, parsed[1:]):
         if (current.pid != previous.pid or current.seq != previous.seq + 1 or current.frame <= previous.frame):
             fail("pre-termination navigation report evidence is not one ordered same-PID sequence")
-    return PreTerminationProof(value["log_device"], value["log_inode"], value["expected_pid"], digest, tuple(parsed))
+    captures: tuple[dict[str, Any], ...] = ()
+    capture_root: str | None = None
+    expected_level: str | None = None
+    provenance: dict[str, str] | None = None
+    if value["version"] == 2:
+        if (set(value) != required | capture_fields or not isinstance(value["ui_capture_root"], str)
+                or not isinstance(value["expected_level"], str)
+                or not isinstance(value["captures"], list) or type(value["provenance"]) is not dict
+                or not all(type(key) is str and type(item) is str for key, item in value["provenance"].items())):
+            fail("pre-termination UI capture report has invalid schema")
+        captures = tuple(value["captures"])
+        capture_root, expected_level, provenance = value["ui_capture_root"], value["expected_level"], value["provenance"]
+    elif set(value) != required:
+        fail("pre-termination navigation report has an invalid schema")
+    return PreTerminationProof(value["log_device"], value["log_inode"], value["expected_pid"], digest,
+                               tuple(parsed), captures, capture_root, expected_level, provenance)
 
 
 def finalize_after_termination(log_path: Path, snapshot_path: Path, pre_report_path: Path,
                                final_report_path: Path) -> None:
     """Revalidate the immutable pre-stop prefix after the caller stopped the app."""
 
+    final_report_path = final_report_path.absolute()
+    require_absent_output(final_report_path, "post-termination navigation report")
     proof = _parse_pre_termination_report(pre_report_path)
     snapshot = read_stable_regular_nofollow(snapshot_path.absolute(), "navigation log snapshot")
     if snapshot_digest(snapshot) != proof.snapshot_sha256:
@@ -666,6 +779,20 @@ def finalize_after_termination(log_path: Path, snapshot_path: Path, pre_report_p
     final_marker = markers[-1]
     if (final_marker.pid, final_marker.seq, final_marker.frame, final_marker.state) != expected_markers[-1]:
         fail("post-termination runtime log contains an unexpected UI state after the final dwell")
+    manifest: str | None = None
+    manifest_publication: Any | None = None
+    capture_module: Any | None = None
+    if proof.ui_capture_root is not None:
+        try:
+            import ui_capture_evidence
+            capture_module = ui_capture_evidence
+            manifest_publication = ui_capture_evidence.finalize_run_with_identity(
+                Path(proof.ui_capture_root), [asdict(item) for item in proof.evidence],
+                list(proof.captures), proof.expected_pid, proof.expected_level or "", proof.provenance or {},
+            )
+            manifest = str(manifest_publication.path)
+        except (ImportError, RuntimeError) as error:
+            fail(f"post-termination native UI capture proof failed: {error}")
     document = {
         "version": 1,
         "result": "PASS",
@@ -676,7 +803,18 @@ def finalize_after_termination(log_path: Path, snapshot_path: Path, pre_report_p
         "evidence": [asdict(item) for item in proof.evidence],
         "scope": SEMANTIC_SCOPE,
     }
-    write_new_regular(final_report_path.absolute(), (json.dumps(document, sort_keys=True) + "\n").encode("utf-8"), "post-termination navigation report")
+    if manifest is not None:
+        document["ui_capture_manifest"] = manifest
+    try:
+        write_new_regular(final_report_path, (json.dumps(document, sort_keys=True) + "\n").encode("utf-8"),
+                          "post-termination navigation report")
+    except Exception as report_error:
+        if manifest_publication is not None and capture_module is not None:
+            try:
+                capture_module.remove_exact_manifest(manifest_publication)
+            except Exception as cleanup_error:
+                fail(f"{report_error}; exact UI capture manifest rollback failed: {cleanup_error}")
+        raise
 
 
 def resolve_simulator_documents(udid: str, bundle_id: str) -> Path:
@@ -718,16 +856,40 @@ def command_run(args: argparse.Namespace) -> int:
     if args.documents and SIMULATOR_UDID_RE.fullmatch(args.simulator_udid) is None:
         fail(f"invalid Simulator UDID: {args.simulator_udid!r}")
     log_path = Path(args.log).absolute() if args.log else documents / "xr_boot.log"
+    capture_values = (args.ui_capture_root, args.ui_capture_run_uuid, args.ui_capture_expected_level,
+                      args.ui_capture_runtime, args.ui_capture_renderer, args.ui_capture_git_revision,
+                      args.ui_capture_source_tree_sha256)
+    if any(capture_values) and any(value is None for value in capture_values):
+        fail("native UI capture arguments must be supplied as one complete set")
+    capture_observer = None
+    provenance = None
+    if args.ui_capture_root is not None:
+        try:
+            import ui_capture_evidence
+            provenance = {"simulator_udid": args.simulator_udid,
+                          "runtime": args.ui_capture_runtime,
+                          "renderer": args.ui_capture_renderer,
+                          "git_revision": args.ui_capture_git_revision,
+                          "source_tree_sha256": args.ui_capture_source_tree_sha256}
+            capture_observer = ui_capture_evidence.UiCaptureObserver(
+                documents, log_path, Path(args.ui_capture_root).absolute(),
+                args.ui_capture_run_uuid, args.expected_pid, args.ui_capture_expected_level,
+                provenance,
+            )
+        except (ImportError, RuntimeError) as error:
+            fail(f"native UI capture setup failed: {error}")
     controller = UiNavigationController(
         documents, log_path, expected_pid=args.expected_pid, hold_ms=args.hold_ms, timeout_seconds=args.timeout_seconds,
         dwell_seconds=args.dwell_seconds, poll_seconds=args.poll_seconds,
+        capture_observer=capture_observer,
     )
     evidence = controller.run()
-    snapshot = read_stable_regular_nofollow(log_path, "runtime log")
+    snapshot = read_live_appendable_regular_nofollow(log_path, "runtime log")
     controller.require_live("snapshot publication")
     write_snapshot(Path(args.snapshot), snapshot)
     controller.require_live("report publication")
-    write_pre_termination_report(Path(args.report), snapshot, evidence, args.expected_pid)
+    write_pre_termination_report(Path(args.report), snapshot, evidence, args.expected_pid,
+                                 capture_observer)
     print(f"PASS — semantic Simulator UI navigation: {args.report}")
     return 0
 
@@ -755,6 +917,13 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--log", help="local engine log; defaults to Documents/xr_boot.log")
     run.add_argument("--snapshot", required=True, help="new pre-termination log snapshot; existing files are refused")
     run.add_argument("--report", required=True, help="new pre-termination report path; existing files are refused")
+    run.add_argument("--ui-capture-root", help="new-only parent directory for native UI captures")
+    run.add_argument("--ui-capture-run-uuid")
+    run.add_argument("--ui-capture-expected-level")
+    run.add_argument("--ui-capture-runtime")
+    run.add_argument("--ui-capture-renderer")
+    run.add_argument("--ui-capture-git-revision")
+    run.add_argument("--ui-capture-source-tree-sha256")
     run.add_argument("--hold-ms", type=int, default=DEFAULT_HOLD_MS)
     run.add_argument("--timeout-seconds", type=float, default=DEFAULT_TIMEOUT_SECONDS)
     run.add_argument("--dwell-seconds", type=float, default=DEFAULT_DWELL_SECONDS)
