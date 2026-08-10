@@ -295,6 +295,26 @@ was no stationary control. This observation neither invalidates the proven SSAO
 macro mechanism nor proves a movement/streaming cause; controlled device A/B
 evidence remains required before classifying it.
 
+Capture-state v2 now prepares that controlled run without claiming its result.
+Each opt-in diagnostic frame freezes one canonical JSON snapshot of capture
+identity, scene, camera, level/epoch/sector, environment and diagnostic input,
+then binds it to the PPM and converted PNG with one process-session/sequence
+token. The producer drains and reports pre-existing GL errors, verifies the read
+framebuffer, zeroes the destination and publishes neither image nor sidecar if
+`glReadPixels` fails. Host reads require byte-identical metadata-before/after
+and an exact matching image token; evidence files and reports never overwrite.
+
+`lighting_ab_capture.sh` uses one exact-token lease, renews it before each later
+device phase and requests A, stationary B=`A+3`, then a UUID-correlated 12 s W
+hold and C=`B+3`. The offline verifier requires one PID/session/level/epoch,
+equal 15 s arms, stationary A-B, forward B-C, stable camera direction/FOV,
+comparable game time/weather and no active or intervening A-B diagnostic input.
+Position-modified `ambient.rgb` and `hemi.rgb` are gated against stationary A-B
+evolution; nonlinear `hemi.a`, sun color and sun direction remain explicitly
+reported as non-gating observations. `READY_FOR_DEVICE_VISUAL_COMPARISON` means
+only that correlation controls passed; pixel correctness and a movement,
+streaming or lighting cause remain device/manual-review pending.
+
 The static shader contract now covers all five numeric zero-default macros:
 `SUN_QUALITY`, `SSR_QUALITY`, `SSAO_QUALITY`, `SSAO_OPT_DATA` and
 `MSAA_SAMPLES`. Thirty mutation tests validate complete guarded zero fallbacks,
@@ -538,8 +558,8 @@ older stamp is not the current authoritative full-gate stamp.
 
 ### Current authoritative full-gate stamp
 
-After commit `27d966ddc8a571955abdb861839ece5d3b77289a`, the final uncached
-full gate rebuilt 68 translation units and passed the strict/sanitized BC
+After commit `90e9d3c3e6de12c86be682875784d2032bcbc238`, the final uncached
+full gate rebuilt 69 translation units and passed the strict/sanitized BC
 contract, retail 74/74, installer 13/13, local CI contract 79/79, numeric
 macros 30/30, low 2/2, SSAO 6/6, shader contract 279/279 and links 137/137.
 Platform is `IOS`, minOS 16.4 and shader cache is forced off. The current source
@@ -547,12 +567,12 @@ hash was independently recomputed after the gate and exactly matches this
 stamp. This post-commit artifact has not yet been installed on a phone:
 
 ```text
-source_sha256=449dd3f9d6bcd540d1ed6739fa111219f7c9d95fddcc0eed8529e10326a28da6
-app_uuid=545F8958-0B1F-3D85-BDF2-758CF9553A16
-bundle_sha256=eeacc4b2d878f62ca70a33cf51e9014b2f20de20a28a64e50096879467c68351
+source_sha256=ff2c33c77f1fb0aca0a6b2ec9d49661ea41ded30ce44ffe28469167055b57f02
+app_uuid=226890F0-CF42-302B-AA5F-3092CB5E4AF3
+bundle_sha256=620f3b98983fe10184b31a232dbf564bf256b6d68e7073f1f547ff6e0181ae1a
 openal_provider=OpenALSoft-1.25.2-static
 openal_sha256=86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914
-__debug_info=513541671
+__debug_info=513888155
 ```
 
 The installer has local-only completion. `--device` resolves CLI over
@@ -657,8 +677,9 @@ five-second frame capture. `--autoinput` instead writes diagnostics off and only
 the input gate on, allowing repeatable unattended camera paths without periodic
 `glReadPixels`; this mode does not suppress graphics-profile measurement. The
 capture cadence uses continual time, so it advances while Options pauses game
-time. `shot.sh` waits for a new generation token, or two tokens after an
-uncertain first cable read, and refuses stale output.
+time. `shot.sh` accepts only a capture-v2 JSON/PPM pair with stable metadata and
+the same process-session/sequence token, embeds that token in PNG output and
+refuses stale, partial, overshot or existing evidence paths.
 `input.sh tap x y` accepts logical 932×430 coordinates. The engine moves the
 cursor first, then waits 500 ms before sending press/release so one command can
 both establish UI focus and activate the target. Every request now carries a

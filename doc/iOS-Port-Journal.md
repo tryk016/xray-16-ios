@@ -4241,3 +4241,48 @@ This post-commit artifact was not installed or run on a phone. The immediately
 preceding device smoke used the prior stamped build-10045 artifact, so its visual
 evidence must not be attributed to this new UUID. No Simulator, phone command,
 lease, install or push occurred during the post-commit gate verification.
+
+## 2026-08-10 — capture-state v2 and controlled lighting A/B local closeout
+
+Commit `90e9d3c3e6de12c86be682875784d2032bcbc238` adds an iOS-only
+capture-state v2 producer and host evidence pipeline for the unresolved later
+dark-frame smoke. One frozen canonical JSON snapshot carries process/session,
+sequence, PID/frame/time, scene, camera, world epoch/sector, final environment
+and diagnostic-input state. The same token is embedded in the PPM and PNG.
+Publication is fail-closed: stale GL errors are drained and logged, the read FBO
+and `glReadPixels` result are checked, the RGBA allocation is zeroed, writes are
+temporary-plus-rename and no JSON is published for a failed image.
+
+`shot.sh` now reads metadata-before, PPM and metadata-after, accepts only
+byte-identical metadata and a matching token, and refuses stale, partial,
+overshot or pre-existing evidence. `lighting_ab_capture.sh` holds one exact
+8-minute lease, renews the same token before B/input/C and captures A, stationary
+B=A+3, a UUID-correlated released 12 s W request, then C=B+3. The verifier
+requires one PID/session/level/epoch, controlled 15 s arms, stationary A-B,
+forward B-C, camera/time/weather/sector constraints and no active/intervening
+A-B diagnostic request. It gates only position-modified `ambient.rgb` and
+`hemi.rgb`; nonlinear hemi alpha, sun and sun direction are retained as
+explicit non-gating observations. Its success token proves correlation controls
+only and does not classify pixels or establish a movement/streaming cause.
+
+The first Sol xhigh review rejected four P1s: intervening stationary input,
+uncontrolled final lighting, publish-on-readback-error and a lease shorter than
+the bounded batch. Re-review rejected an over-strict constant-light model and
+an active-hold loophole; a later review rejected linear gating of nonlinear sun
+motion. Each finding received a focused mutation/adversarial test. The corrected
+complete code/test/tooling diff received exactly
+`APPROVE — brak P0/P1/P2`.
+
+Post-commit `./misc/ios/build_check.sh --full` rebuilt 69 translation units and
+passed capture evidence 16/16, host mocks 8/8, source mutation 2/2, strict and
+ASan/UBSan C++ tests, retail 74/74, installer 13/13, CI 79/79, numeric 30/30,
+low 2/2, SSAO 6/6, shaders 279/279 and links 137/137. Stamp:
+`source_sha256=ff2c33c77f1fb0aca0a6b2ec9d49661ea41ded30ce44ffe28469167055b57f02`,
+UUID `226890F0-CF42-302B-AA5F-3092CB5E4AF3`, bundle
+`620f3b98983fe10184b31a232dbf564bf256b6d68e7073f1f547ff6e0181ae1a`,
+platform IOS, minOS 16.4, forced-off shader cache and dSYM `__debug_info`
+513,888,155 bytes.
+
+No phone, shared lease, `devicectl`, Simulator, signing, installation, launch,
+runtime capture or push occurred. Physical capture values, image comparison and
+the underlying cause remain open.

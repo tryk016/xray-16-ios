@@ -1,6 +1,6 @@
 # OpenXRay iOS — operational handoff
 
-**Updated:** 2026-08-09
+**Updated:** 2026-08-10
 **Docs:** [canonical](iOS-Port.md), [active](iOS-Port-Plan.md), [deferred](iOS-Port-Backlog.md).
 
 Read this file completely, then the relevant active task/canonical section; search the Journal by task ID or exact symptom, never in full.
@@ -17,6 +17,7 @@ IOS-P0-003 startup-sector v1 has host-complete `level_load`/`QuickLoad` epoch
 evidence and exact/fallback/retained/unresolved/recovered outcomes. `retained`
 only reuses a prior valid sector after authoritative camera application; JSON
 PASS is structural, never world-frame/pixel proof, and unresolved fails device startup.
+Capture-state v2 binds canonical JSON to each PPM/PNG token; its one-lease A/A+3/A+6 harness is local/Sol-complete, while iPhone A/B and pixel/cause proof remain open.
 The simplified main/Video menu and Performance/Optimal/Quality controller are
 device-proven. Diagnostic mode no longer suppresses Low Power/thermal limits.
 Repeated diagnostic launches reached `serious thermal` and about 3.25 GB
@@ -39,7 +40,7 @@ git status --short
 ./misc/ios/install_device.sh --preflight  # host-only signing/preflight check
 ```
 
-Preserve unrelated work. The consolidated source checkpoint is commit `27d966ddc`; inspect `git status` before every new slice.
+Preserve unrelated work. The capture-v2 checkpoint is commit `90e9d3c3e`; inspect `git status` before every new slice.
 
 When the phone is available and the matching FastDevice gate is green:
 
@@ -69,10 +70,10 @@ file polling in performance evidence and use ordinary launch for final baselines
 | Lua | LuaJIT interpreter mode |
 | Presentation | logical 932×430, drawable/render targets 1864×860 |
 
-The post-commit full gate rebuilt 68 TUs. UUID
-`545F8958-0B1F-3D85-BDF2-758CF9553A16`; source
-`449dd3f9d6bcd540d1ed6739fa111219f7c9d95fddcc0eed8529e10326a28da6`; bundle
-`eeacc4b2d878f62ca70a33cf51e9014b2f20de20a28a64e50096879467c68351`; OpenAL
+The post-commit full gate rebuilt 69 TUs. UUID
+`226890F0-CF42-302B-AA5F-3092CB5E4AF3`; source
+`ff2c33c77f1fb0aca0a6b2ec9d49661ea41ded30ce44ffe28469167055b57f02`; bundle
+`620f3b98983fe10184b31a232dbf564bf256b6d68e7073f1f547ff6e0181ae1a`; OpenAL
 Soft 1.25.2 static SHA-256 `86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914`.
 Gates: BC strict/sanitized, retail 74/74, installer 13/13, CI 79/79, shaders 279/279, low 2/2, SSAO 6/6, numeric 30/30, links 137/137; IOS/minOS 16.4, shader cache forced off.
 A real preflight validated the existing profile/keychain and temporary signed copy without lease, provisioning or device access. The older UIScene stamp is local/Simulator evidence, not current.
@@ -109,13 +110,13 @@ A real preflight validated the existing profile/keychain and temporary signed co
 - Validate Optimal's measured downgrade/upgrade thresholds and frame pacing on
   a repeatable normal-mode path after the phone cools.
 - For each IOS-P0-003 short phone batch, record a completed baseline epoch
-  before the exact expected oracle batch; separately require resolved sector
-  classification and an objective world frame. Run another outdoor save, an
-  indoor/portal start, QuickLoad/save-reload and a level transition.
+  before the exact expected oracle batch; require resolved sector plus a world frame.
+  Run another outdoor save, indoor/portal, QuickLoad and a level transition.
+- Run a new-directory `lighting_ab_capture.sh` packet; only offline-ready permits manual A/B/C review.
 - Parser validation is 20/20; complete the budget: one PID, at least 1,700 seconds,
   at least 1,500 samples with no gap over five seconds, at most 3,328 MiB
-  footprint and at most 128 MiB net growth. The separate
-  2,560 MiB target remains unprovable until a 6 GB device exists. A 20-second
+  footprint and at most 128 MiB net growth. The 2,560 MiB target remains
+  unprovable until a 6 GB device exists. A 20-second
   normal-mode trace was stable near 3.20 GB, while repeated diagnostic launches
   produced `serious thermal` and system compressor pressure.
 - Test dense inventory focus/clipping and the PDA faction-war surface. Retail
@@ -131,9 +132,8 @@ A real preflight validated the existing profile/keychain and temporary signed co
 
 Follow the numbered order in the active Plan:
 
-1. Let the phone cool, then validate IOS-P0-003 on another outdoor save and an
-   indoor/portal start: baseline completed epoch, exact batch, resolved outcome,
-   then separately an objective world frame.
+1. Run the controlled lighting A/B packet, then validate IOS-P0-003 on another
+   outdoor and indoor/portal start with baseline, resolved outcome and a frame.
 2. Device-accept IOS-P1-010 and IOS-P1-002: five Safari app-switch cycles,
    then separate lock/held-touch and OpenAL Soft interruption cycles.
 3. Measure the same normal-mode path under all profiles.

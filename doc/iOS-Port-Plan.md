@@ -1,6 +1,6 @@
 # OpenXRay iOS — active roadmap
 
-**Last synchronized:** 2026-08-09
+**Last synchronized:** 2026-08-10
 
 **Canonical contract:** [iOS-Port.md](iOS-Port.md)
 
@@ -41,6 +41,10 @@ here is deferred and must be promoted explicitly from the Backlog.
 startup-sector evidence oracle is host-complete (parser 17/17, mutation 9/9,
 strict/ASan/UBSan PASS and final Sol xhigh approval); other saves, indoor/portal
 starts, QuickLoad, transitions and device visual proof remain untested.
+Capture-state v2 and the stationary-vs-forward A/B harness are locally complete
+(evidence parser 16/16, host-tool mocks 8/8, producer mutation contract 2/2,
+strict/sanitized C++ PASS, post-commit full Release and Sol xhigh approval), but
+have not yet produced a physical-device A/B packet.
 
 The exact vertical query misses the affected spawn floor. The iOS-only
 nearest-floor fallback finds sector 115 at 8 m and renders the complete static
@@ -61,9 +65,10 @@ device-untested.
 
 1. Before every short phone batch, record its completed baseline epoch, then
    require the exact expected marker batch with the expected PID and trigger.
-2. On the next outdoor batch, add equal-duration stationary and forward-path
-   captures; do not attribute lighting changes unless game-time/weather and
-   sector evidence separate movement from elapsed-time effects.
+2. On the next outdoor batch, run `lighting_ab_capture.sh` into a new evidence
+   directory. Accept only its exact A/A+3/A+6 token chain and offline
+   `READY_FOR_DEVICE_VISUAL_COMPARISON`; inspect all three images manually and
+   do not infer a cause from that correlation packet alone.
 3. Load one additional outdoor save and one indoor/portal location; separately
    require resolved classification and an objective world frame.
 4. Exercise QuickLoad/save-reload and one level transition with the same

@@ -535,3 +535,16 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   513,541,671 bytes. Current hash and no-device signing preflight pass.
 - The post-commit artifact is not device-tested; the preceding visual smoke
   belongs to the prior stamped artifact. No phone, lease, Simulator or push.
+
+## 2026-08-10 — capture-state v2 local checkpoint
+
+- Commit `90e9d3c3e` adds token-bound canonical JSON/PPM/PNG capture state and a
+  one-lease A/A+3/A+6 stationary-vs-forward evidence batch.
+- Offline controls pass 16/16 parser/evidence, 8/8 mocked host tools, 2/2
+  producer mutations and strict/sanitized C++; final Sol xhigh:
+  `APPROVE — brak P0/P1/P2`.
+- Post-commit full gate rebuilt 69 TUs; source `ff2c33c7…`, UUID
+  `226890F0-CF42-302B-AA5F-3092CB5E4AF3`, bundle `620f3b98…`, dSYM
+  `__debug_info` 513,888,155 bytes; all established gates passed.
+- Local-only: no phone/lease/devicectl/Simulator/sign/install/launch. The first
+  physical A/B packet, visual interpretation and dark-frame cause remain open.
