@@ -4,13 +4,18 @@
 from __future__ import annotations
 
 import copy
+import contextlib
 import importlib.util
+import io
 import json
 import math
 import os
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -270,6 +275,475 @@ class ImageFormatTests(unittest.TestCase):
         destination.symlink_to("missing-metadata")
         with self.assertRaises(EVIDENCE.EvidenceError):
             EVIDENCE.command_copy_file_exclusive(SimpleNamespace(source=source, destination=destination))
+
+
+class LiveCaptureCommandTests(unittest.TestCase):
+    """Mutation coverage for the local Simulator capture-v2 parser contract."""
+
+    def setUp(self) -> None:
+        self.work = Path(tempfile.mkdtemp(prefix="capture-live-test-"))
+        self.metadata = self.work / "xr_shot_meta.txt"
+        self.ppm = self.work / "xr_shot.ppm"
+        self.output = self.work / "out"
+        self.output.mkdir()
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.work)
+
+    def live_capture(self, sequence: int, frame: int, continual: int) -> dict:
+        value = capture(sequence, frame, continual, 10000 + continual)
+        value["world"]["sector"] = 0  # Zero is valid and must not be rejected.
+        return value
+
+    def write_live_pair(self, value: dict, *, token: str | None = None,
+                        width: int | None = None, height: int | None = None) -> None:
+        write_json(self.metadata, value)
+        make_ppm(self.ppm, token or value["capture"]["token"],
+                 width or value["capture"]["width"], height or value["capture"]["height"],
+                 b"\0" * ((width or value["capture"]["width"]) * (height or value["capture"]["height"]) * 3))
+
+    def observe(self, output: Path, **extra: object) -> None:
+        arguments = {"metadata": self.metadata, "output": output, "expected_pid": 42,
+                     "after_token": None, "expected_session": None, "allow_absent": False}
+        arguments.update(extra)
+        with contextlib.redirect_stdout(io.StringIO()):
+            EVIDENCE.command_observe_live_metadata(SimpleNamespace(**arguments))
+
+    def snapshot(self, baseline: Path, root: Path, **extra: object) -> None:
+        arguments = {"metadata": self.metadata, "ppm": self.ppm, "baseline": baseline,
+                     "metadata_output": root / "capture.json", "ppm_output": root / "capture.ppm",
+                     "proof_output": root / "capture-proof.json", "expected_pid": 42,
+                     "expected_level": "zaton", "after_token": f"{SESSION}:10",
+                     "expected_session": SESSION, "boundary_token": "null"}
+        arguments.update(extra)
+        with contextlib.redirect_stdout(io.StringIO()):
+            EVIDENCE.command_snapshot_live_capture(SimpleNamespace(**arguments))
+
+    def snapshot_cli(self, baseline: Path, root: Path, *, after_token: str = f"{SESSION}:10",
+                     expected_session: str = SESSION) -> subprocess.CompletedProcess[str]:
+        return subprocess.run((
+            sys.executable, str(ROOT / "misc/ios/lighting_ab_evidence.py"),
+            "snapshot-live-capture", "--metadata", str(self.metadata), "--ppm", str(self.ppm),
+            "--baseline", str(baseline), "--metadata-output", str(root / "capture.json"),
+            "--ppm-output", str(root / "capture.ppm"),
+            "--proof-output", str(root / "capture-proof.json"), "--expected-pid", "42",
+            "--expected-level", "zaton", "--after-token", after_token,
+            "--expected-session", expected_session, "--boundary-token", "null",
+        ), text=True, capture_output=True, check=False)
+
+    def assert_exact_retry(self, callback) -> EVIDENCE.RetryableEvidenceError:
+        with self.assertRaises(EVIDENCE.RetryableEvidenceError) as raised:
+            callback()
+        self.assertIs(type(raised.exception), EVIDENCE.RetryableEvidenceError)
+        return raised.exception
+
+    def assert_exact_fatal(self, callback) -> EVIDENCE.EvidenceError:
+        with self.assertRaises(EVIDENCE.EvidenceError) as raised:
+            callback()
+        self.assertIs(type(raised.exception), EVIDENCE.EvidenceError)
+        return raised.exception
+
+    def verify_set(self, root: Path) -> None:
+        with contextlib.redirect_stdout(io.StringIO()):
+            EVIDENCE.command_verify_simulator_capture_set(SimpleNamespace(
+                boundary=root / "boundary-watermark.json", baseline=root / "baseline.json",
+                metadata=root / "capture.json", ppm=root / "capture.ppm",
+                proof=root / "capture-proof.json", expected_pid=42, expected_level="zaton",
+            ))
+
+    def test_observe_missing_race_bad_source_and_dangling_destination_are_distinct(self) -> None:
+        with self.assertRaises(EVIDENCE.RetryableEvidenceError):
+            self.observe(self.output / "missing.json")
+        self.metadata.symlink_to("missing.json")
+        with self.assertRaises(EVIDENCE.EvidenceError):
+            self.observe(self.output / "symlink.json")
+        self.metadata.unlink()
+        self.metadata.write_text("{not-json", encoding="utf-8")
+        with self.assertRaises(EVIDENCE.EvidenceError):
+            self.observe(self.output / "malformed.json")
+        self.metadata.unlink()
+        write_json(self.metadata, self.live_capture(10, 100, 1000))
+        destination = self.output / "dangling.json"
+        destination.symlink_to("not-there")
+        with self.assertRaises(EVIDENCE.EvidenceError):
+            self.observe(destination)
+
+    def test_observe_explicit_absent_is_distinct_from_a_preopen_disappearance_race(self) -> None:
+        output = self.output / "boundary.json"
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            EVIDENCE.command_observe_live_metadata(SimpleNamespace(
+                metadata=self.metadata, output=output, expected_pid=42,
+                after_token=None, expected_session=None, allow_absent=True,
+            ))
+        self.assertEqual(stdout.getvalue(), "ABSENT\n")
+        self.assertFalse(output.exists())
+
+        write_json(self.metadata, self.live_capture(10, 100, 1000))
+        with mock.patch.object(EVIDENCE.os, "open", side_effect=FileNotFoundError()):
+            with self.assertRaises(EVIDENCE.RetryableEvidenceError):
+                EVIDENCE.command_observe_live_metadata(SimpleNamespace(
+                    metadata=self.metadata, output=output, expected_pid=42,
+                    after_token=None, expected_session=None, allow_absent=True,
+                ))
+        self.assertFalse(output.exists())
+
+    def test_loading_t0_and_inflight_loading_t1_use_only_identity_and_order(self) -> None:
+        t0 = self.live_capture(10, 100, 1000)
+        t0["capture"]["scene"] = "loading"
+        t0["capture"]["paused"] = True
+        t0["world"] = None
+        t0["environment"] = None
+        t0["input"] = {"generation": 1, "state": "active", "request_id": REQUEST,
+            "key": "w", "scancode": 26, "duration_ms": 12000,
+            "accepted": {"frame": 99, "continual_ms": 999, "sdl_ms": 1}, "released": None}
+        write_json(self.metadata, t0)
+        boundary = self.output / "boundary.json"
+        self.observe(boundary)
+
+        t1 = copy.deepcopy(t0)
+        t1["capture"].update(token=f"{SESSION}:11", sequence=11, frame=101, continual_ms=1001)
+        write_json(self.metadata, t1)
+        baseline = self.output / "baseline.json"
+        self.observe(baseline, after_token=t0["capture"]["token"], expected_session=SESSION)
+        self.assertEqual(EVIDENCE.validate_capture(EVIDENCE.load_json(baseline)), t1)
+
+        t2 = copy.deepcopy(t1)
+        t2["capture"].update(token=f"{SESSION}:12", sequence=12, frame=102, continual_ms=1002)
+        t2["input"] = {"generation": 0, "state": "none", "request_id": None, "key": None,
+            "scancode": None, "duration_ms": 0, "accepted": None, "released": None}
+        write_json(self.metadata, t2)
+        make_ppm(self.ppm, t2["capture"]["token"], 1864, 860, b"\0" * (1864 * 860 * 3))
+        root = self.output / "loading-t2"
+        root.mkdir()
+        self.assert_exact_retry(
+            lambda: self.snapshot(baseline, root, after_token=t1["capture"]["token"])
+        )
+        self.assertEqual(list(root.iterdir()), [])
+
+    def test_observe_requires_runtime_identity_and_only_publishes_revalidated_copy(self) -> None:
+        value = self.live_capture(10, 100, 1000)
+        write_json(self.metadata, value)
+        output = self.output / "boundary.json"
+        self.observe(output)
+        self.assertEqual(EVIDENCE.validate_capture(EVIDENCE.load_json(output)), value)
+        stale = self.output / "stale.json"
+        with self.assertRaises(EVIDENCE.RetryableEvidenceError):
+            self.observe(stale, after_token=value["capture"]["token"], expected_session=SESSION)
+        self.assertFalse(stale.exists())
+        wrong_pid = self.output / "pid.json"
+        with self.assertRaises(EVIDENCE.EvidenceError):
+            self.observe(wrong_pid, expected_pid=43)
+        self.assertFalse(wrong_pid.exists())
+
+    def test_snapshot_commits_metadata_ppm_then_proof_and_hashes_exact_outputs(self) -> None:
+        baseline_value = self.live_capture(10, 100, 1000)
+        baseline = self.output / "baseline.json"
+        write_json(baseline, baseline_value)
+        value = self.live_capture(11, 110, 6000)
+        self.write_live_pair(value)
+        root = self.output / "capture"
+        root.mkdir()
+        self.snapshot(baseline, root)
+        metadata = root / "capture.json"
+        ppm = root / "capture.ppm"
+        proof = root / "capture-proof.json"
+        self.assertEqual(EVIDENCE.validate_capture_pair(metadata, ppm), value)
+        proof_value = json.loads(proof.read_text())
+        self.assertEqual(proof_value["token"], value["capture"]["token"])
+        self.assertEqual(proof_value["boundary_token"], "null")
+        self.assertEqual(proof_value["baseline_token"], f"{SESSION}:10")
+        self.assertEqual(proof_value["pid"], 42)
+        self.assertEqual(proof_value["sector"], 0)
+        self.assertIn("no causal, pixel, iPhone, or performance claim", proof_value["evidence_boundary"])
+
+    def test_complete_set_revalidation_detects_post_snapshot_ppm_and_proof_mutation(self) -> None:
+        root = self.output / "complete"
+        root.mkdir()
+        (root / "boundary-watermark.json").write_bytes(
+            b'{"schema":"openxray.simulator-capture-v2-boundary.v1","token":null}\n'
+        )
+        baseline = root / "baseline.json"
+        write_json(baseline, self.live_capture(10, 100, 1000))
+        self.write_live_pair(self.live_capture(11, 110, 6000))
+        self.snapshot(baseline, root)
+        self.verify_set(root)
+
+        original_ppm = (root / "capture.ppm").read_bytes()
+        (root / "capture.ppm").write_bytes(original_ppm + b"x")
+        with self.assertRaises(EVIDENCE.EvidenceError):
+            self.verify_set(root)
+        (root / "capture.ppm").write_bytes(original_ppm)
+        (root / "capture-proof.json").write_text("{}\n", encoding="utf-8")
+        with self.assertRaises(EVIDENCE.EvidenceError):
+            self.verify_set(root)
+
+    def test_owned_inode_cleanup_never_removes_a_replacement(self) -> None:
+        destination = self.output / "owned.bin"
+        original_write = EVIDENCE.os.write
+
+        def replace_then_fail(descriptor: int, payload: bytes) -> int:
+            written = original_write(descriptor, payload)
+            destination.unlink()
+            destination.write_bytes(b"replacement")
+            raise OSError("injected write failure")
+
+        with mock.patch.object(EVIDENCE.os, "write", side_effect=replace_then_fail):
+            with self.assertRaises(EVIDENCE.EvidenceError):
+                EVIDENCE.write_bytes_exclusive(destination, b"owned")
+        self.assertEqual(destination.read_bytes(), b"replacement")
+
+    def test_snapshot_failure_after_first_or_second_output_cleans_only_attempt_outputs(self) -> None:
+        baseline = self.output / "baseline.json"
+        write_json(baseline, self.live_capture(10, 100, 1000))
+        self.write_live_pair(self.live_capture(11, 110, 6000))
+        original_writer = EVIDENCE.write_bytes_exclusive
+        for failure_call in (2, 3):
+            with self.subTest(failure_call=failure_call):
+                root = self.output / f"failure-{failure_call}"
+                root.mkdir()
+                calls = 0
+
+                def injected(path: Path, payload: bytes) -> tuple[int, int]:
+                    nonlocal calls
+                    calls += 1
+                    if calls == failure_call:
+                        raise EVIDENCE.EvidenceError("injected publication failure")
+                    return original_writer(path, payload)
+
+                with mock.patch.object(EVIDENCE, "write_bytes_exclusive", side_effect=injected):
+                    with self.assertRaises(EVIDENCE.EvidenceError):
+                        self.snapshot(baseline, root)
+                self.assertEqual(list(root.iterdir()), [])
+
+    def test_snapshot_cleanup_preserves_replaced_first_output_inode(self) -> None:
+        baseline = self.output / "baseline.json"
+        write_json(baseline, self.live_capture(10, 100, 1000))
+        self.write_live_pair(self.live_capture(11, 110, 6000))
+        root = self.output / "replacement-cleanup"
+        root.mkdir()
+        original_writer = EVIDENCE.write_bytes_exclusive
+        calls = 0
+
+        def replace_first_then_fail(path: Path, payload: bytes) -> tuple[int, int]:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                identity = original_writer(path, payload)
+                path.unlink()
+                path.write_bytes(b"replacement")
+                return identity
+            raise EVIDENCE.EvidenceError("injected second-output failure")
+
+        with mock.patch.object(EVIDENCE, "write_bytes_exclusive", side_effect=replace_first_then_fail):
+            with self.assertRaises(EVIDENCE.EvidenceError):
+                self.snapshot(baseline, root)
+        self.assertEqual((root / "capture.json").read_bytes(), b"replacement")
+        self.assertEqual([path.name for path in root.iterdir()], ["capture.json"])
+
+    def test_snapshot_retries_inflight_or_old_and_never_leaves_partial_artifacts(self) -> None:
+        baseline_value = self.live_capture(10, 100, 1000)
+        baseline = self.output / "baseline.json"
+        write_json(baseline, baseline_value)
+        root = self.output / "retry"
+        root.mkdir()
+        stale = self.live_capture(10, 100, 1000)
+        self.write_live_pair(stale)
+        self.assert_exact_retry(lambda: self.snapshot(baseline, root))
+        self.assertEqual(list(root.iterdir()), [])
+        value = self.live_capture(11, 110, 6000)
+        self.write_live_pair(value, token=f"{SESSION}:12")
+        self.assert_exact_retry(lambda: self.snapshot(baseline, root))
+        self.assertEqual(list(root.iterdir()), [])
+        self.write_live_pair(value, width=1863)
+        self.assert_exact_retry(lambda: self.snapshot(baseline, root))
+        self.assertEqual(list(root.iterdir()), [])
+        for field, stale_value in (("frame", 100), ("continual_ms", 1000)):
+            with self.subTest(nonincreasing=field):
+                candidate = self.live_capture(11, 110, 6000)
+                candidate["capture"][field] = stale_value
+                self.write_live_pair(candidate)
+                self.assert_exact_fatal(lambda: self.snapshot(baseline, root))
+                self.assertEqual(list(root.iterdir()), [])
+
+    def test_saved_baseline_pid_or_session_mismatch_is_exact_fatal_cli_1(self) -> None:
+        candidate = self.live_capture(11, 110, 6000)
+        self.write_live_pair(candidate)
+        other_session = "f" * 32
+        for name in ("pid", "session"):
+            with self.subTest(name=name):
+                baseline_value = self.live_capture(10, 100, 1000)
+                if name == "pid":
+                    baseline_value["capture"]["pid"] = 43
+                else:
+                    baseline_value["capture"].update(
+                        session=other_session, token=f"{other_session}:10")
+
+                invariant_error = self.assert_exact_fatal(lambda: EVIDENCE.verify_local_capture_invariants(
+                    candidate, expected_pid=42, expected_level="zaton", after_token=None,
+                    expected_session=SESSION, baseline=baseline_value,
+                ))
+                self.assertIn("does not match the saved baseline", str(invariant_error))
+
+                baseline = self.output / f"baseline-{name}.json"
+                write_json(baseline, baseline_value)
+                after_token = baseline_value["capture"]["token"]
+                direct_root = self.output / f"baseline-{name}-direct"
+                direct_root.mkdir()
+                self.assert_exact_fatal(lambda: self.snapshot(
+                    baseline, direct_root, after_token=after_token, expected_session=SESSION,
+                ))
+                self.assertEqual(list(direct_root.iterdir()), [])
+
+                cli_root = self.output / f"baseline-{name}-cli"
+                cli_root.mkdir()
+                cli = self.snapshot_cli(
+                    baseline, cli_root, after_token=after_token, expected_session=SESSION,
+                )
+                self.assertEqual(cli.returncode, 1, cli.stdout + cli.stderr)
+                self.assertTrue(cli.stderr.startswith("FAIL:"), cli.stderr)
+                self.assertNotIn("RETRY:", cli.stderr)
+                self.assertEqual(list(cli_root.iterdir()), [])
+
+    def test_snapshot_rejects_runtime_contract_destinations_and_proof_preexistence(self) -> None:
+        baseline = self.output / "baseline.json"
+        write_json(baseline, self.live_capture(10, 100, 1000))
+        value = self.live_capture(11, 110, 6000)
+        self.write_live_pair(value)
+        root = self.output / "bad"
+        root.mkdir()
+        (root / "capture-proof.json").symlink_to("missing-proof")
+        with self.assertRaises(EVIDENCE.EvidenceError):
+            self.snapshot(baseline, root)
+        self.assertFalse((root / "capture.json").exists())
+        self.assertFalse((root / "capture.ppm").exists())
+        self.assertTrue((root / "capture-proof.json").is_symlink())
+        (root / "capture-proof.json").unlink()
+        self.assertEqual(list(root.iterdir()), [])
+
+    def test_snapshot_rejects_stable_malformed_ppm_and_every_runtime_field_boundary(self) -> None:
+        baseline = self.output / "baseline.json"
+        write_json(baseline, self.live_capture(10, 100, 1000))
+        value = self.live_capture(11, 110, 6000)
+        self.write_live_pair(value)
+        self.ppm.write_bytes(b"not-a-ppm")
+        malformed_root = self.output / "malformed"
+        malformed_root.mkdir()
+        self.assert_exact_fatal(lambda: self.snapshot(baseline, malformed_root))
+        self.assertEqual(list(malformed_root.iterdir()), [])
+
+        other_session = "f" * 32
+        mutations = {
+            "pid": lambda candidate: candidate["capture"].__setitem__("pid", 43),
+            "session": lambda candidate: candidate["capture"].update(
+                session=other_session, token=f"{other_session}:11"),
+            "menu": lambda candidate: (candidate["capture"].__setitem__("scene", "menu"),
+                candidate.__setitem__("world", None), candidate.__setitem__("environment", None)),
+            "width": lambda candidate: candidate["capture"].__setitem__("width", 1863),
+            "height": lambda candidate: candidate["capture"].__setitem__("height", 859),
+            "period": lambda candidate: candidate["capture"].__setitem__("period_ms", 4999),
+            "level": lambda candidate: candidate["world"].__setitem__("level", "jupiter"),
+            "epoch": lambda candidate: candidate["world"].__setitem__("epoch", 0),
+            "world-null": lambda candidate: candidate.__setitem__("world", None),
+            "input": lambda candidate: candidate.__setitem__("input", {"generation": 1, "state": "active",
+                "request_id": REQUEST, "key": "w", "scancode": 26, "duration_ms": 12000,
+                "accepted": {"frame": 101, "continual_ms": 5000, "sdl_ms": 1}, "released": None}),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                candidate = self.live_capture(11, 110, 6000)
+                mutate(candidate)
+                write_json(self.metadata, candidate)
+                make_ppm(self.ppm, candidate["capture"]["token"], 1864, 860,
+                         b"\0" * (1864 * 860 * 3))
+                root = self.output / name
+                root.mkdir()
+                self.assert_exact_fatal(lambda: self.snapshot(baseline, root))
+                self.assertEqual(list(root.iterdir()), [])
+
+        menu = self.live_capture(11, 110, 6000)
+        menu["capture"]["scene"] = "menu"
+        menu["world"] = None
+        menu["environment"] = None
+        self.write_live_pair(menu)
+        cli_root = self.output / "fatal-cli"
+        cli_root.mkdir()
+        cli = self.snapshot_cli(baseline, cli_root)
+        self.assertEqual(cli.returncode, 1, cli.stdout + cli.stderr)
+        self.assertTrue(cli.stderr.startswith("FAIL:"), cli.stderr)
+        self.assertNotIn("RETRY:", cli.stderr)
+        self.assertEqual(list(cli_root.iterdir()), [])
+
+    def test_live_t2_loading_paused_and_environment_null_are_exact_retry_75(self) -> None:
+        baseline = self.output / "baseline.json"
+        write_json(baseline, self.live_capture(10, 100, 1000))
+        candidates: dict[str, dict] = {}
+
+        loading = self.live_capture(11, 110, 6000)
+        loading["capture"]["scene"] = "loading"
+        loading["world"] = None
+        loading["environment"] = None
+        candidates["loading"] = loading
+
+        paused = self.live_capture(11, 110, 6000)
+        paused["capture"]["paused"] = True
+        candidates["paused"] = paused
+
+        environment_null = self.live_capture(11, 110, 6000)
+        environment_null["environment"] = None
+        candidates["environment-null"] = environment_null
+
+        for name, candidate in candidates.items():
+            with self.subTest(name=name):
+                self.write_live_pair(candidate)
+                direct_root = self.output / f"retry-{name}"
+                direct_root.mkdir()
+                self.assert_exact_retry(lambda: self.snapshot(baseline, direct_root))
+                self.assertEqual(list(direct_root.iterdir()), [])
+
+                cli_root = self.output / f"retry-cli-{name}"
+                cli_root.mkdir()
+                cli = self.snapshot_cli(baseline, cli_root)
+                self.assertEqual(cli.returncode, 75, cli.stdout + cli.stderr)
+                self.assertTrue(cli.stderr.startswith("RETRY:"), cli.stderr)
+                self.assertNotIn("FAIL:", cli.stderr)
+                self.assertEqual(list(cli_root.iterdir()), [])
+
+    def test_post_stop_verifier_escalates_retryable_loading_to_exact_fatal_exit_1(self) -> None:
+        root = self.output / "post-stop-loading"
+        root.mkdir()
+        (root / "boundary-watermark.json").write_bytes(
+            b'{"schema":"openxray.simulator-capture-v2-boundary.v1","token":null}\n'
+        )
+        write_json(root / "baseline.json", self.live_capture(10, 100, 1000))
+        loading = self.live_capture(11, 110, 6000)
+        loading["capture"]["scene"] = "loading"
+        loading["world"] = None
+        loading["environment"] = None
+        write_json(root / "capture.json", loading)
+        make_ppm(root / "capture.ppm", loading["capture"]["token"], 1864, 860,
+                 b"\0" * (1864 * 860 * 3))
+        (root / "capture-proof.json").write_text("{}\n", encoding="utf-8")
+        arguments = SimpleNamespace(
+            boundary=root / "boundary-watermark.json", baseline=root / "baseline.json",
+            metadata=root / "capture.json", ppm=root / "capture.ppm",
+            proof=root / "capture-proof.json", expected_pid=42, expected_level="zaton",
+        )
+        error = self.assert_exact_fatal(
+            lambda: EVIDENCE.command_verify_simulator_capture_set(arguments)
+        )
+        self.assertIn("post-stop capture set retained a retryable state", str(error))
+
+        cli = subprocess.run((
+            sys.executable, str(ROOT / "misc/ios/lighting_ab_evidence.py"),
+            "verify-simulator-capture-set", "--boundary", str(arguments.boundary),
+            "--baseline", str(arguments.baseline), "--metadata", str(arguments.metadata),
+            "--ppm", str(arguments.ppm), "--proof", str(arguments.proof),
+            "--expected-pid", "42", "--expected-level", "zaton",
+        ), text=True, capture_output=True, check=False)
+        self.assertEqual(cli.returncode, 1, cli.stdout + cli.stderr)
+        self.assertTrue(cli.stderr.startswith("FAIL:"), cli.stderr)
+        self.assertNotIn("RETRY:", cli.stderr)
 
 
 class ABTests(unittest.TestCase):

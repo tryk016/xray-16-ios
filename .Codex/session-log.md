@@ -548,3 +548,24 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   `__debug_info` 513,888,155 bytes; all established gates passed.
 - Local-only: no phone/lease/devicectl/Simulator/sign/install/launch. The first
   physical A/B packet, visual interpretation and dark-frame cause remain open.
+
+## 2026-08-10 — isolated capture-v2 host closeout and runtime blocker
+
+- Five-file Simulator capture-v2 host implementation is locally reviewed: final
+  static PASS, parser 31/31, runner 84/84; final Sol xhigh exactly
+  `APPROVE — brak P0/P1/P2`.
+- Workroot `015703-14748` exposed the over-strict post-T1 loading classification;
+  valid live readiness now retries 75, invariants remain fatal 1, and post-stop
+  retry remains fatal.
+- Workroot `024814-86404` built and reached Zaton sync/after_load: T0 loading
+  seq23, T1 loading seq24, then loading through seq88 under one 600 s deadline.
+  PID 92531 epoch1/frame35 marker was `level_load unresolved/none`, invalid
+  sector, same camera/probe and radius0.
+- `CRender::Calculate` bypasses exact/fallback when saved/current camera are
+  equal; the stationary Simulator therefore enters no-detection. IOS-P0-003
+  remains active; the device-proven fallback remains valid and distinct.
+- Timeout failed closed: both Simulators deleted and no T2 capture/proof/report.
+  The last successful protected-input/source-snapshot guards were pre-launch;
+  post-runtime log/save/staged/protected guards did not run. Scope is Apple
+  Software Renderer only; no phone/lease/devicectl/sign/install/pixel/
+  performance/cause claim and no push.

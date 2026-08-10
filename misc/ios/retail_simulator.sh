@@ -17,6 +17,7 @@ work_base="$DEFAULT_WORK_BASE"
 with_saves=0
 autoload_save=""
 ui_navigation=0
+capture_v2=0
 runtime_label="26.5"
 launch_timeout=120
 poll_interval="${RETAIL_SIMULATOR_POLL_INTERVAL:-1}"
@@ -24,7 +25,7 @@ poll_interval="${RETAIL_SIMULATOR_POLL_INTERVAL:-1}"
 usage() {
     cat >&2 <<'EOF'
 usage: retail_simulator.sh --backup PATH [--manifest PATH] [--work-base PATH]
-                           [--with-saves] [--autoload-save NAME] [--ui-navigation]
+                           [--with-saves] [--autoload-save NAME] [--ui-navigation|--capture-v2]
                            [--runtime 26.5|27.0] [--launch-timeout SECONDS]
 
 Creates a new, external Simulator work root. It never reuses a work root and
@@ -42,6 +43,7 @@ while [ "$#" -gt 0 ]; do
         --with-saves) with_saves=1; shift ;;
         --autoload-save) [ "$#" -ge 2 ] || fail "--autoload-save requires a save name"; autoload_save="$2"; shift 2 ;;
         --ui-navigation) ui_navigation=1; shift ;;
+        --capture-v2) capture_v2=1; shift ;;
         --runtime) [ "$#" -ge 2 ] || fail "--runtime requires 26.5 or 27.0"; runtime_label="$2"; shift 2 ;;
         --launch-timeout) [ "$#" -ge 2 ] || fail "--launch-timeout requires seconds"; launch_timeout="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
@@ -64,6 +66,12 @@ esac
     || fail "--autoload-save requires --with-saves"
 [ "$ui_navigation" = 0 ] || { [ "$with_saves" = 1 ] && [ -n "$autoload_save" ]; } \
     || fail "--ui-navigation requires both --with-saves and --autoload-save"
+[ "$capture_v2" = 0 ] || { [ "$with_saves" = 1 ] && [ -n "$autoload_save" ]; } \
+    || fail "--capture-v2 requires both --with-saves and --autoload-save"
+[ "$ui_navigation" = 0 ] || [ "$capture_v2" = 0 ] \
+    || fail "--capture-v2 conflicts with --ui-navigation"
+[ "$capture_v2" = 0 ] || [ "$runtime_label" = "27.0" ] \
+    || fail "--capture-v2 requires --runtime 27.0"
 if [ -z "$manifest" ]; then
     manifest="${backup%/}.manifest"
 fi
@@ -98,6 +106,7 @@ python3 "$GUARD" work-root --repo "$REPO_ROOT" --backup "$backup" \
     --manifest "$manifest" --work-root "$work_root" || exit 1
 
 report="$work_root/report.txt"
+report_pending="$work_root/.report.pending"
 source_snapshot="$work_root/source"
 prefix_snapshot="$work_root/ios-prefix-iphonesimulator"
 build_root="$work_root/build"
@@ -265,6 +274,7 @@ if [ -n "$autoload_save" ]; then
         --evidence "$work_root/generated-user.ltx" \
         --manifest "$work_root/generated-user.ltx.manifest.tsv")
     [ "$ui_navigation" = 0 ] || autoload_config_args+=(--ios-autoinput)
+    [ "$capture_v2" = 0 ] || autoload_config_args+=(--ios-diagnostics)
     python3 "$GUARD" "${autoload_config_args[@]}" \
         || fail "could not generate isolated Simulator user.ltx"
     selected_save="$documents/_appdata_/savedgames/$autoload_save.scop"
@@ -294,6 +304,12 @@ if [ "$ui_navigation" = 1 ]; then
         --navigation-documents "$documents" \
         --navigation-snapshot "$work_root/ui-navigation-log-snapshot.txt" \
         --navigation-pre-report "$work_root/ui-navigation-pre-termination.json")
+fi
+if [ "$capture_v2" = 1 ]; then
+    capture_root="$work_root/capture-v2"
+    mkdir "$capture_root" || fail "could not create capture-v2 evidence directory"
+    launch_args+=(--capture-v2-parser "$source_snapshot/misc/ios/lighting_ab_evidence.py" \
+        --capture-v2-root "$capture_root")
 fi
 python3 "$GUARD" "${launch_args[@]}" \
     || fail "Simulator launch did not prove its required runtime boundary before timeout"
@@ -337,11 +353,34 @@ python3 "$GUARD" "${compare_args[@]}" \
 guard_protected
 guard_snapshots
 
-xcrun simctl shutdown "$device_uuid" >/dev/null 2>&1 || true
-xcrun simctl delete "$device_uuid" || fail "could not delete dedicated Simulator after successful run"
-simulator_created=0
 [ -s "$work_root/runtime-proof.txt" ] || fail "runtime proof metadata is missing or empty"
+runtime_pid="$(awk -F= '$1 == "pid" {print $2}' "$work_root/runtime-proof.txt")" \
+    || fail "could not read runtime PID"
+case "$runtime_pid" in ''|*[!0-9]*|0) fail "runtime proof PID is invalid" ;; esac
+capture_token=""
+runtime_level=""
+if [ "$capture_v2" = 1 ]; then
+    runtime_level="$(awk -F= '$1 == "level" {print $2}' "$work_root/runtime-proof.txt")" \
+        || fail "could not read capture-v2 runtime level"
+    [ "$runtime_level" = "zaton" ] \
+        || fail "capture-v2 checkpoint requires sync_level exactly zaton"
+    capture_token="$(python3 "$source_snapshot/misc/ios/lighting_ab_evidence.py" \
+        verify-simulator-capture-set \
+        --boundary "$capture_root/boundary-watermark.json" \
+        --baseline "$capture_root/baseline.json" \
+        --metadata "$capture_root/capture.json" \
+        --ppm "$capture_root/capture.ppm" \
+        --proof "$capture_root/capture-proof.json" \
+        --expected-pid "$runtime_pid" --expected-level zaton)" \
+        || fail "capture-v2 evidence failed full post-runtime revalidation"
+    [[ "$capture_token" =~ ^[0-9a-f]{32}:[1-9][0-9]*$ ]] \
+        || fail "capture-v2 verifier returned an invalid token"
+fi
 
+# Prepare every fallible report field before cleanup.  The final report name
+# remains absent until the dedicated Simulator has been deleted successfully.
+[ ! -e "$report" ] && [ ! -L "$report" ] && [ ! -e "$report_pending" ] && [ ! -L "$report_pending" ] \
+    || fail "Simulator report destinations must be new"
 {
     printf 'result=PASS\n'
     printf 'work_root=%s\n' "$work_root"
@@ -367,6 +406,17 @@ simulator_created=0
         printf 'ui_navigation_final_report=%s\n' "$work_root/ui-navigation-post-termination.json"
         printf 'ui_navigation_scope=semantic-ui-navigation-only; CoP eptTasks is the combined tasks/map surface; not pixel, readability, performance, or physical-device proof\n'
     fi
+    if [ "$capture_v2" = 1 ]; then
+        printf 'capture_v2=PASS\n'
+        printf 'capture_runtime_boundary=saved_game_sync_complete\n'
+        printf 'capture_token=%s\n' "$capture_token"
+        printf 'capture_pid=%s\n' "$runtime_pid"
+        printf 'capture_level=%s\n' "$runtime_level"
+        printf 'capture_metadata=%s\n' "$capture_root/capture.json"
+        printf 'capture_ppm=%s\n' "$capture_root/capture.ppm"
+        printf 'capture_proof=%s\n' "$capture_root/capture-proof.json"
+        printf 'capture_scope=iOS-27.0-Simulator-Apple-Software-Renderer-only\n'
+    fi
     printf 'host_stdout=%s\n' "$work_root/host-stdout.log"
     printf 'host_stderr=%s\n' "$work_root/host-stderr.log"
     printf 'xr_boot_log=%s\n' "$work_root/xr_boot.log"
@@ -378,5 +428,12 @@ simulator_created=0
     fi
     printf 'cleanup=deleted\n'
     printf 'protected_inputs=unchanged\n'
-} > "$report" || fail "could not write retail Simulator report"
+} | python3 "$GUARD" prepare-report --destination "$report_pending" >/dev/null \
+    || fail "could not prepare complete retail Simulator report"
+
+xcrun simctl shutdown "$device_uuid" >/dev/null 2>&1 || true
+xcrun simctl delete "$device_uuid" || fail "could not delete dedicated Simulator after successful run"
+simulator_created=0
+python3 "$GUARD" publish-report --source "$report_pending" --destination "$report" >/dev/null \
+    || fail "could not atomically publish retail Simulator report"
 echo "PASS — isolated retail Simulator workflow: $work_root"

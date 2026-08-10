@@ -4286,3 +4286,78 @@ platform IOS, minOS 16.4, forced-off shader cache and dSYM `__debug_info`
 No phone, shared lease, `devicectl`, Simulator, signing, installation, launch,
 runtime capture or push occurred. Physical capture values, image comparison and
 the underlying cause remain open.
+
+## 2026-08-10 — isolated iOS 27 capture-v2 closeout exposes stationary sector gap
+
+This is a subsequent checkpoint, not a rewrite of the preceding capture-state
+v2 entry. The device producer/A-B baseline remains commit `90e9d3c3e`; the new
+locally reviewed host extension adds one isolated Simulator
+single-capture mode across exactly five files:
+`misc/ios/retail_simulator.sh`, `misc/ios/retail_simulator_guard.py`,
+`misc/ios/lighting_ab_evidence.py`, `misc/ios/test_retail_simulator.py` and
+`misc/ios/test_lighting_ab_evidence.py`.
+
+`--capture-v2` requires `--with-saves` plus `--autoload-save`, conflicts with UI
+navigation and is restricted to iOS 27.0. Ordinary normal and UI-navigation
+modes retain diagnostics/autoinput `0/0` and `0/1`; capture-v2 uses `1/0`. The
+runtime guard owns the `saved_game_sync_complete` boundary, exact PID/liveness
+and one original launch deadline. T0 is a stable metadata watermark at that
+boundary or an explicit absent watermark, T1 is the first stable sidecar newer
+than T0, and T2 is a stable metadata-before/PPM/metadata-after pair newer than
+T1 in the same session/PID. The evidence parser is the sole capture grammar and
+secure snapshot owner. Outputs are new-only and proof-last; report publication
+is ordered after Simulator deletion and all final capture/log/save/staged/
+protected-input guards.
+
+Focused static checks pass, parser coverage is 31/31 and runner coverage is
+84/84. The final Sol xhigh verdict is exactly
+`APPROVE — brak P0/P1/P2`. This closes the host implementation only.
+
+The first real isolated workroot was
+`/Users/patryk/openxray-handoff/simulator-work-20260810-015703-14748`.
+Synchronization completed; T0 was a stable `loading` sequence 24, T1 was
+`loading` sequence 25, and the first stable post-T1 candidate was `loading`
+sequence 26. Treating that valid transitional candidate as fatal was too
+strict. The correction makes live `loading`, paused gameplay and gameplay with
+no environment retryable with CLI 75. Malformed/schema-invalid evidence, wrong
+PID/session, dimensions, period, input, menu scene, wrong non-null level,
+epoch 0 and nonadvancing frame/continual time remain fatal with CLI 1. The
+post-stop full-set verifier escalates every retry classification to fatal.
+
+The corrected real workroot was
+`/Users/patryk/openxray-handoff/simulator-work-20260810-024814-86404`.
+Its build succeeded and the retail save reached Zaton synchronization and
+`after_load`. T0 was `loading` sequence 23, T1 was `loading` sequence 24, and
+stable candidates through sequence 88 remained `loading` under the one
+600-second launch deadline. The startup-sector marker was:
+
+```text
+pid=92531 epoch=1 frame=35 level=zaton trigger=level_load
+status=unresolved method=none sector=4294967295
+probe=camera radius=0
+```
+
+Code inspection identifies the uncovered control flow. `CRender::Calculate`
+invokes exact detection and the nearest-floor fallback only when
+`Device.vCameraPositionSaved` differs from `Device.vCameraPosition`. The
+stationary Simulator load has equal positions and enters the no-detection
+branch, which records `unresolved`/`none`; it never attempts the fallback. This
+does not invalidate the existing iPhone evidence: when invoked on the affected
+Zaton spawn, the fallback finds sector 115 at 8 m and restores the world. The
+new fact is that the stationary initial path can bypass that proven mechanism.
+
+The 600-second run timed out fail-closed. Both dedicated Simulators were
+deleted. No T2 `capture.json`, `capture.ppm`, `capture-proof.json`, `report.txt`
+or `.report.pending` exists. The last successful protected-input and
+source-snapshot guards were pre-launch; the timeout prevented the post-runtime
+log, save, staged-data and protected-input guards from running. There was no
+phone, shared lease, `devicectl`, signing or installation.
+
+Evidence scope is exactly
+`iOS-27.0-Simulator-Apple-Software-Renderer-only`. These runs prove the host
+ordering/readiness behavior and the stationary sector-branch gap. They do not
+prove a successful runtime capture, pixels, readability, physical-iPhone
+behavior, performance or a lighting cause. IOS-P0-003 remains active. Its next
+local action is to make the stationary initial epoch attempt exact/fallback
+once without weakening QuickLoad barriers, retained-sector semantics or
+invalid-sector commit protection, then rerun capture-v2 in a fresh workroot.

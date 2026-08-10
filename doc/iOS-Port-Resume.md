@@ -6,9 +6,8 @@
 Read this file completely, then the relevant active task/canonical section; search the Journal by task ID or exact symptom, never in full.
 ## Current checkpoint
 
-The Apple M3 Pro host runs macOS 27.0 beta, Xcode/SDK 27.0 beta and CMake 4.4.0.
-Device and simulator engines build arm64 for iOS 16.4+. Team `RMJWWPF379` signs
-the stable `io.github.tryk016.openxray.RMJWWPF379` identifier, preserving data.
+The M3 Pro host runs macOS/Xcode/SDK 27.0 beta and CMake 4.4.0; device and
+Simulator engines build arm64 for iOS 16.4+. Team `RMJWWPF379` signs the stable `io.github.tryk016.openxray.RMJWWPF379` identifier, preserving data.
 The physical-device baseline renders Call of Pripyat through native OpenGL ES
 3.0 at a real 1864×860 drawable with 1:1 presentation and is playable with a
 Bluetooth controller. The sector fallback and SSAO value-macro fixes resolved
@@ -17,13 +16,16 @@ IOS-P0-003 startup-sector v1 has host-complete `level_load`/`QuickLoad` epoch
 evidence and exact/fallback/retained/unresolved/recovered outcomes. `retained`
 only reuses a prior valid sector after authoritative camera application; JSON
 PASS is structural, never world-frame/pixel proof, and unresolved fails device startup.
-Capture-state v2 binds canonical JSON to each PPM/PNG token; its one-lease A/A+3/A+6 harness is local/Sol-complete, while iPhone A/B and pixel/cause proof remain open.
+Capture-state v2 binds canonical JSON to each PPM/PNG token; its device A/A+3/A+6 harness is local/Sol-complete, while iPhone A/B and pixel/cause proof remain open.
+The separate isolated iOS 27 single-capture host path is locally reviewed: static
+PASS, parser 31/31, runner 84/84 and final Sol `APPROVE — brak P0/P1/P2`.
+Real workroot `simulator-work-20260810-024814-86404` reached Zaton sync/after_load, T0 loading seq23 and T1 loading seq24, but candidates through seq88 stayed loading until the one 600 s deadline expired.
+Its PID 92531 epoch1/frame35 marker was `level_load unresolved/none`, invalid sector, same camera/probe and radius0: stationary equal saved/current camera enters `CRender::Calculate` no-detection, so exact/fallback is not attempted. IOS-P0-003 stays active; both Simulators were deleted and no T2/report was published.
 The simplified main/Video menu and Performance/Optimal/Quality controller are
 device-proven. Diagnostic mode no longer suppresses Low Power/thermal limits.
 Repeated diagnostic launches reached `serious thermal` and about 3.25 GB
 physical footprint, so let the phone cool before a long run.
-The reliability slice retains one PID, the 1864×860 drawable and correct frames
-across four diagnostic background/foreground cycles. LOWMEMORY evicted 47 stale
+The reliability slice retains one PID, the 1864×860 drawable and correct frames across four diagnostic background/foreground cycles. LOWMEMORY evicted 47 stale
 surfaces, released 262,143 KiB and reduced footprint from 3,262,723 to 2,998,051 KiB; held W does not replay. Held touch, lock/app-switch and audio remain unproven.
 The Options crash is fixed and all four tabs plus Video Options 3x are device-proven. Dense-inventory focus has stable fixed-point auto-scroll and exact indented clipping; 32 UI fixtures and both device gates pass, while the overfilled visual is phone-pending.
 The corrected Safari/AVFAudio harness builds locally but needs a phone rerun.
@@ -40,7 +42,7 @@ git status --short
 ./misc/ios/install_device.sh --preflight  # host-only signing/preflight check
 ```
 
-Preserve unrelated work. The capture-v2 checkpoint is commit `90e9d3c3e`; inspect `git status` before every new slice.
+Preserve unrelated work. Device capture-state v2 is commit `90e9d3c3e`; inspect `git status` before every slice.
 
 When the phone is available and the matching FastDevice gate is green:
 
@@ -109,34 +111,25 @@ A real preflight validated the existing profile/keychain and temporary signed co
 
 - Validate Optimal's measured downgrade/upgrade thresholds and frame pacing on
   a repeatable normal-mode path after the phone cools.
-- For each IOS-P0-003 short phone batch, record a completed baseline epoch
-  before the exact expected oracle batch; require resolved sector plus a world frame.
-  Run another outdoor save, indoor/portal, QuickLoad and a level transition.
-- Run a new-directory `lighting_ab_capture.sh` packet; only offline-ready permits manual A/B/C review.
-- Parser validation is 20/20; complete the budget: one PID, at least 1,700 seconds,
-  at least 1,500 samples with no gap over five seconds, at most 3,328 MiB
-  footprint and at most 128 MiB net growth. The 2,560 MiB target remains
-  unprovable until a 6 GB device exists. A 20-second
-  normal-mode trace was stable near 3.20 GB, while repeated diagnostic launches
-  produced `serious thermal` and system compressor pressure.
+- Correct and regression-test the stationary IOS-P0-003 sector branch, then rerun isolated iOS 27 capture-v2 to a gameplay T2 and post-delete report; Apple Software Renderer evidence is not pixel/iPhone/performance proof.
+- For each later phone batch, record a completed baseline epoch and require the exact resolved batch plus world frame. Run the new-directory lighting A/B packet, another outdoor save, indoor/portal, QuickLoad and a transition.
+- Parser validation is 20/20; complete the budget with one PID, at least 1,700 seconds and 1,500 samples, no gap over five seconds, at most 3,328 MiB footprint and 128 MiB net growth. The 2,560 MiB target awaits a 6 GB device; a 20-second normal trace was stable near 3.20 GB, while repeated diagnostics caused `serious thermal` and compressor pressure.
 - Test dense inventory focus/clipping and the PDA faction-war surface. Retail
   fallback ordering is locally fixed but not visually confirmed.
 - Device-prove held touch, lock/app-switch and the selected OpenAL Soft audio
   interruption; corrected XCUITest is local-only.
 - Device-confirm profile reassert after Options discard/config reload.
-- Device-accept the UIScene lifecycle: five Safari foreground cycles plus a
-  separate lock/unlock and audio-interruption cycle, preserving PID, drawable,
-  input, saves and audio.
+- Device-accept the UIScene lifecycle: five Safari foreground cycles plus separate lock/unlock and audio interruption, preserving PID, drawable, input, saves and audio.
 
 ## Next slice
 
 Follow the numbered order in the active Plan:
 
-1. Run the controlled lighting A/B packet, then validate IOS-P0-003 on another
-   outdoor and indoor/portal start with baseline, resolved outcome and a frame.
-2. Device-accept IOS-P1-010 and IOS-P1-002: five Safari app-switch cycles,
+1. Correct the stationary startup-sector branch, extend its deterministic policy/oracle tests, then rerun isolated iOS 27 capture-v2 to complete T2/report publication.
+2. Run the controlled phone lighting A/B packet, then validate another outdoor and indoor/portal start with baseline, resolved outcome and a frame.
+3. Device-accept IOS-P1-010 and IOS-P1-002: five Safari app-switch cycles,
    then separate lock/held-touch and OpenAL Soft interruption cycles.
-3. Measure the same normal-mode path under all profiles.
+4. Measure the same normal-mode path under all profiles.
 
 ## Safety
 

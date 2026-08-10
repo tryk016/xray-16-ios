@@ -14,6 +14,7 @@ import json
 import math
 import os
 import re
+import stat
 import struct
 import sys
 import zlib
@@ -48,8 +49,20 @@ class EvidenceError(ValueError):
     pass
 
 
+class RetryableEvidenceError(EvidenceError):
+    """A live producer was absent or changed during a single read attempt."""
+
+
+class AbsentEvidenceError(EvidenceError):
+    """The source did not exist at the initial, explicit observation point."""
+
+
 def fail(message: str) -> None:
     raise EvidenceError(message)
+
+
+def retry(message: str) -> None:
+    raise RetryableEvidenceError(message)
 
 
 def strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -65,18 +78,22 @@ def reject_constant(value: str) -> None:
     fail(f"non-finite JSON number: {value}")
 
 
+def load_json_bytes(raw: bytes, context: str) -> dict[str, Any]:
+    try:
+        value = json.loads(raw.decode("utf-8"), object_pairs_hook=strict_object, parse_constant=reject_constant)
+    except (UnicodeDecodeError, json.JSONDecodeError, EvidenceError) as error:
+        fail(f"invalid metadata JSON {context}: {error}")
+    if type(value) is not dict:
+        fail("metadata root is not an object")
+    return value
+
+
 def load_json(path: Path) -> dict[str, Any]:
     try:
         raw = path.read_bytes()
     except OSError as error:
         fail(f"cannot read metadata {path}: {error}")
-    try:
-        value = json.loads(raw.decode("utf-8"), object_pairs_hook=strict_object, parse_constant=reject_constant)
-    except (UnicodeDecodeError, json.JSONDecodeError, EvidenceError) as error:
-        fail(f"invalid metadata JSON {path}: {error}")
-    if type(value) is not dict:
-        fail("metadata root is not an object")
-    return value
+    return load_json_bytes(raw, str(path))
 
 
 def exact_fields(value: dict[str, Any], names: Iterable[str], context: str) -> None:
@@ -274,11 +291,7 @@ def validate_capture(value: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
-def parse_ppm(path: Path) -> tuple[int, int, str, bytes]:
-    try:
-        data = path.read_bytes()
-    except OSError as error:
-        fail(f"cannot read PPM {path}: {error}")
+def parse_ppm_bytes(data: bytes) -> tuple[int, int, str, bytes]:
     index = 0
     comments: list[bytes] = []
 
@@ -332,42 +345,393 @@ def parse_ppm(path: Path) -> tuple[int, int, str, bytes]:
     return width, height, tokens[0], data[index:]
 
 
+def parse_ppm(path: Path) -> tuple[int, int, str, bytes]:
+    try:
+        data = path.read_bytes()
+    except OSError as error:
+        fail(f"cannot read PPM {path}: {error}")
+    return parse_ppm_bytes(data)
+
+
 def png_chunk(name: bytes, payload: bytes) -> bytes:
     return struct.pack(">I", len(payload)) + name + payload + struct.pack(">I", zlib.crc32(name + payload) & 0xffffffff)
 
 
-def write_bytes_exclusive(destination: Path, payload: bytes) -> None:
+def _unlink_owned_regular(destination: Path, identity: tuple[int, int]) -> None:
+    """Remove only the exact regular inode created by this attempt."""
+
+    try:
+        details = destination.lstat()
+    except FileNotFoundError:
+        return
+    if (stat.S_ISREG(details.st_mode)
+            and (details.st_dev, details.st_ino) == identity):
+        destination.unlink()
+
+
+def write_bytes_exclusive(destination: Path, payload: bytes) -> tuple[int, int]:
     """Create one complete local evidence file without following or replacing a path."""
     descriptor: int | None = None
-    created = False
+    owned_identity: tuple[int, int] | None = None
     try:
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
         if hasattr(os, "O_NOFOLLOW"):
             flags |= os.O_NOFOLLOW
         descriptor = os.open(destination, flags, 0o600)
-        created = True
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode):
+            fail(f"exclusive output is not a regular file: {destination}")
+        owned_identity = (opened.st_dev, opened.st_ino)
         offset = 0
         while offset < len(payload):
             written = os.write(descriptor, payload[offset:])
             if written <= 0:
                 fail(f"short write creating {destination}")
             offset += written
+        os.fsync(descriptor)
+        details = os.fstat(descriptor)
+        if not stat.S_ISREG(details.st_mode) or details.st_size != len(payload):
+            fail(f"exclusive output is not exact regular content: {destination}")
         os.close(descriptor)
         descriptor = None
+        return owned_identity
     except (OSError, EvidenceError) as error:
         if descriptor is not None:
             try:
                 os.close(descriptor)
             except OSError:
                 pass
-        if created:
+        if owned_identity is not None:
             try:
-                destination.unlink()
+                _unlink_owned_regular(destination, owned_identity)
             except OSError:
                 pass
         if isinstance(error, EvidenceError):
             raise
         fail(f"cannot exclusively create {destination}: {error}")
+
+
+def read_stable_live_regular(path: Path, label: str) -> bytes:
+    """Read one live regular file without following it or accepting a race.
+
+    A missing producer and an ordinary producer rewrite are retryable.  A link,
+    device, directory, or stable malformed payload is an evidence violation.
+    """
+
+    try:
+        initial = path.lstat()
+    except FileNotFoundError:
+        raise AbsentEvidenceError(f"{label} is explicitly absent")
+    if stat.S_ISLNK(initial.st_mode):
+        fail(f"{label} is a symlink")
+    if not stat.S_ISREG(initial.st_mode):
+        fail(f"{label} is not a regular file")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    descriptor: int | None = None
+    try:
+        try:
+            descriptor = os.open(path, flags)
+        except FileNotFoundError:
+            retry(f"{label} disappeared before open")
+        except OSError as error:
+            fail(f"cannot safely open {label}: {error}")
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode):
+            fail(f"{label} is not a regular file")
+        chunks: list[bytes] = []
+        while True:
+            block = os.read(descriptor, 1024 * 1024)
+            if not block:
+                break
+            chunks.append(block)
+        after = os.fstat(descriptor)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+    try:
+        final = path.lstat()
+    except FileNotFoundError:
+        retry(f"{label} disappeared while being read")
+    if stat.S_ISLNK(final.st_mode):
+        fail(f"{label} became a symlink while being read")
+    if not stat.S_ISREG(final.st_mode):
+        fail(f"{label} became non-regular while being read")
+    states = (initial, opened, after, final)
+    if (len({(entry.st_dev, entry.st_ino) for entry in states}) != 1
+            or len({entry.st_size for entry in states}) != 1
+            or len({entry.st_mtime_ns for entry in states}) != 1):
+        retry(f"{label} changed while being read")
+    contents = b"".join(chunks)
+    if len(contents) != initial.st_size:
+        retry(f"{label} read is truncated")
+    return contents
+
+
+def require_new_destination(path: Path, label: str) -> None:
+    if os.path.lexists(path):
+        fail(f"{label} destination already exists: {path}")
+    try:
+        parent = path.parent.lstat()
+    except FileNotFoundError:
+        fail(f"{label} destination parent does not exist: {path.parent}")
+    if stat.S_ISLNK(parent.st_mode) or not stat.S_ISDIR(parent.st_mode):
+        fail(f"{label} destination parent is unsafe: {path.parent}")
+
+
+def verify_observed_metadata(value: dict[str, Any], *, expected_pid: int,
+                             after_token: str | None,
+                             expected_session: str | None) -> None:
+    capture = value["capture"]
+    if capture["pid"] != expected_pid:
+        fail("observed metadata PID does not match the launched app")
+    if expected_session is not None and capture["session"] != expected_session:
+        fail("live capture session does not match the boundary")
+    if after_token is not None:
+        after_session, after_sequence = parse_capture_token(after_token, "after token")
+        if capture["session"] != after_session:
+            fail("live capture session does not match the prior token")
+        if capture["sequence"] <= after_sequence:
+            retry("live capture token is not newer than the prior boundary")
+
+
+def verify_local_capture_invariants(value: dict[str, Any], *, expected_pid: int,
+                                    expected_level: str, after_token: str | None,
+                                    expected_session: str | None,
+                                    baseline: dict[str, Any] | None = None) -> None:
+    """Reject stable invariant breaches before classifying runtime readiness."""
+
+    verify_observed_metadata(value, expected_pid=expected_pid, after_token=after_token,
+                             expected_session=expected_session)
+    capture = value["capture"]
+    world = value["world"]
+    if (capture["width"] != 1864 or capture["height"] != 860
+            or capture["period_ms"] != 5000):
+        fail("live capture dimensions or period violate the Simulator contract")
+    if value["input"] != {"generation": 0, "state": "none", "request_id": None, "key": None,
+                          "scancode": None, "duration_ms": 0, "accepted": None, "released": None}:
+        fail("live capture input is not exactly none")
+    if baseline is not None:
+        previous = baseline["capture"]
+        if capture["session"] != previous["session"] or capture["pid"] != previous["pid"]:
+            fail("live capture session or PID does not match the saved baseline")
+        if capture["sequence"] <= previous["sequence"]:
+            retry("live capture token is not newer than the baseline")
+        if (capture["frame"] <= previous["frame"]
+                or capture["continual_ms"] <= previous["continual_ms"]):
+            fail("newer live capture did not advance frame and continual time")
+    if capture["scene"] == "menu":
+        fail("live capture scene is menu")
+    if capture["scene"] == "gameplay":
+        # validate_capture already rejects gameplay with a null world.  Keep
+        # that schema boundary strict rather than treating it as transitional.
+        assert world is not None
+        if world["level"] != expected_level or world["epoch"] < 1:
+            fail("live capture world violates the Simulator checkpoint contract")
+
+
+def verify_local_capture_readiness(value: dict[str, Any]) -> None:
+    """Classify valid producer states that can naturally advance to gameplay."""
+
+    capture = value["capture"]
+    if capture["scene"] == "loading":
+        retry("live capture is still loading")
+    if capture["paused"]:
+        retry("live gameplay capture is still paused")
+    if value["environment"] is None:
+        retry("live gameplay capture has not published environment state yet")
+
+
+def verify_local_capture_contract(value: dict[str, Any], *, expected_pid: int,
+                                  expected_level: str, after_token: str | None,
+                                  expected_session: str | None,
+                                  baseline: dict[str, Any] | None = None) -> None:
+    verify_local_capture_invariants(
+        value, expected_pid=expected_pid, expected_level=expected_level,
+        after_token=after_token, expected_session=expected_session, baseline=baseline,
+    )
+    verify_local_capture_readiness(value)
+
+
+def _cleanup_created(paths: list[tuple[Path, tuple[int, int]]]) -> None:
+    for path, identity in reversed(paths):
+        _unlink_owned_regular(path, identity)
+
+
+def _capture_proof(value: dict[str, Any], metadata: bytes, ppm: bytes,
+                   boundary_token: str, baseline_token: str) -> bytes:
+    capture = value["capture"]
+    world = value["world"]
+    assert world is not None
+    proof = {
+        "schema": "openxray.simulator-capture-v2-proof.v1",
+        "scope": "iOS-27.0-Simulator-Apple-Software-Renderer-only",
+        "boundary_token": boundary_token, "baseline_token": baseline_token,
+        "capture_token": capture["token"], "token": capture["token"],
+        "session": capture["session"], "pid": capture["pid"],
+        "sequence": capture["sequence"], "frame": capture["frame"],
+        "continual_ms": capture["continual_ms"], "scene": capture["scene"], "paused": capture["paused"],
+        "width": capture["width"], "height": capture["height"], "period_ms": capture["period_ms"],
+        "level": world["level"], "epoch": world["epoch"], "sector": world["sector"],
+        "environment": "present", "input": "none",
+        "metadata_sha256": hashlib.sha256(metadata).hexdigest(), "metadata_bytes": len(metadata),
+        "ppm_sha256": hashlib.sha256(ppm).hexdigest(), "ppm_bytes": len(ppm),
+        "evidence_boundary": "producer/publication/token/runtime-state integration only; no causal, pixel, iPhone, or performance claim",
+    }
+    return (json.dumps(proof, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+
+
+def command_observe_live_metadata(arguments: argparse.Namespace) -> None:
+    require_new_destination(arguments.output, "live metadata")
+    created: list[tuple[Path, tuple[int, int]]] = []
+    try:
+        try:
+            payload = read_stable_live_regular(arguments.metadata, "live metadata")
+        except AbsentEvidenceError:
+            if arguments.allow_absent:
+                print("ABSENT")
+                return
+            retry("live metadata is not published yet")
+        value = validate_capture(load_json_bytes(payload, str(arguments.metadata)))
+        verify_observed_metadata(value, expected_pid=arguments.expected_pid,
+                                 after_token=arguments.after_token,
+                                 expected_session=arguments.expected_session)
+        identity = write_bytes_exclusive(arguments.output, payload)
+        created.append((arguments.output, identity))
+        copied = read_stable_live_regular(arguments.output, "saved live metadata")
+        if copied != payload or validate_capture(load_json_bytes(copied, str(arguments.output))) != value:
+            fail("saved live metadata failed revalidation")
+        print(value["capture"]["token"])
+    except (EvidenceError, OSError):
+        _cleanup_created(created)
+        raise
+
+
+def command_snapshot_live_capture(arguments: argparse.Namespace) -> None:
+    for path, label in ((arguments.metadata_output, "capture metadata"),
+                        (arguments.ppm_output, "capture PPM"), (arguments.proof_output, "capture proof")):
+        require_new_destination(path, label)
+    created: list[tuple[Path, tuple[int, int]]] = []
+    try:
+        try:
+            metadata_before = read_stable_live_regular(arguments.metadata, "live metadata before PPM")
+            baseline_payload = read_stable_live_regular(arguments.baseline, "saved capture baseline")
+            ppm = read_stable_live_regular(arguments.ppm, "live PPM")
+            metadata_after = read_stable_live_regular(arguments.metadata, "live metadata after PPM")
+        except AbsentEvidenceError as error:
+            retry(str(error))
+        if metadata_before != metadata_after:
+            retry("live metadata changed around PPM capture")
+        value = validate_capture(load_json_bytes(metadata_before, str(arguments.metadata)))
+        baseline = validate_capture(load_json_bytes(baseline_payload, str(arguments.baseline)))
+        baseline_token = baseline["capture"]["token"]
+        if baseline_token != arguments.after_token:
+            fail("saved capture baseline token does not equal requested prior token")
+        if arguments.boundary_token != "null":
+            parse_capture_token(arguments.boundary_token, "boundary token")
+        verify_local_capture_invariants(
+            value, expected_pid=arguments.expected_pid, expected_level=arguments.expected_level,
+            after_token=arguments.after_token, expected_session=arguments.expected_session,
+            baseline=baseline,
+        )
+        width, height, token, _ = parse_ppm_bytes(ppm)
+        capture = value["capture"]
+        if token != capture["token"] or (width, height) != (capture["width"], capture["height"]):
+            retry("live PPM does not yet match stable metadata")
+        verify_local_capture_readiness(value)
+        metadata_identity = write_bytes_exclusive(arguments.metadata_output, metadata_before)
+        created.append((arguments.metadata_output, metadata_identity))
+        ppm_identity = write_bytes_exclusive(arguments.ppm_output, ppm)
+        created.append((arguments.ppm_output, ppm_identity))
+        saved_metadata = read_stable_live_regular(arguments.metadata_output, "saved capture metadata")
+        saved_ppm = read_stable_live_regular(arguments.ppm_output, "saved capture PPM")
+        saved_value = validate_capture_pair_bytes(saved_metadata, saved_ppm, str(arguments.metadata_output), str(arguments.ppm_output))
+        if saved_value != value or saved_metadata != metadata_before or saved_ppm != ppm:
+            fail("saved capture artifacts failed revalidation")
+        proof = _capture_proof(value, metadata_before, ppm, arguments.boundary_token, baseline_token)
+        proof_identity = write_bytes_exclusive(arguments.proof_output, proof)
+        created.append((arguments.proof_output, proof_identity))
+        saved_proof = read_stable_live_regular(arguments.proof_output, "saved capture proof")
+        if saved_proof != proof:
+            fail("saved capture proof failed revalidation")
+        try:
+            proof_value = json.loads(saved_proof.decode("utf-8"), object_pairs_hook=strict_object,
+                                     parse_constant=reject_constant)
+        except (UnicodeDecodeError, json.JSONDecodeError, EvidenceError) as error:
+            fail(f"saved capture proof is malformed: {error}")
+        if type(proof_value) is not dict or proof_value.get("token") != capture["token"] \
+                or proof_value.get("metadata_sha256") != hashlib.sha256(metadata_before).hexdigest() \
+                or proof_value.get("ppm_sha256") != hashlib.sha256(ppm).hexdigest():
+            fail("saved capture proof failed hash revalidation")
+        print(capture["token"])
+    except (EvidenceError, OSError):
+        _cleanup_created(created)
+        raise
+
+
+def verify_simulator_capture_set(arguments: argparse.Namespace) -> str:
+    """Revalidate the complete stopped-runtime capture-v2 evidence set.
+
+    T0 and T1 are canonical producer observations only.  The exact gameplay
+    contract belongs exclusively to T2, whose proof must be a byte-exact
+    function of the final metadata and PPM artifacts.
+    """
+
+    try:
+        boundary_payload = read_stable_live_regular(arguments.boundary, "saved T0 boundary")
+        baseline_payload = read_stable_live_regular(arguments.baseline, "saved T1 baseline")
+        metadata = read_stable_live_regular(arguments.metadata, "saved T2 metadata")
+        ppm = read_stable_live_regular(arguments.ppm, "saved T2 PPM")
+        proof = read_stable_live_regular(arguments.proof, "saved T2 proof")
+    except AbsentEvidenceError as error:
+        fail(str(error))
+
+    null_boundary = b'{"schema":"openxray.simulator-capture-v2-boundary.v1","token":null}\n'
+    boundary_token = "null"
+    boundary_value: dict[str, Any] | None = None
+    if boundary_payload != null_boundary:
+        boundary_value = validate_capture(load_json_bytes(boundary_payload, str(arguments.boundary)))
+        verify_observed_metadata(boundary_value, expected_pid=arguments.expected_pid,
+                                 after_token=None, expected_session=None)
+        boundary_token = boundary_value["capture"]["token"]
+
+    baseline = validate_capture(load_json_bytes(baseline_payload, str(arguments.baseline)))
+    verify_observed_metadata(
+        baseline,
+        expected_pid=arguments.expected_pid,
+        after_token=None if boundary_value is None else boundary_token,
+        expected_session=None if boundary_value is None else boundary_value["capture"]["session"],
+    )
+    baseline_capture = baseline["capture"]
+    baseline_token = baseline_capture["token"]
+
+    value = validate_capture_pair_bytes(metadata, ppm, str(arguments.metadata), str(arguments.ppm))
+    verify_local_capture_contract(
+        value,
+        expected_pid=arguments.expected_pid,
+        expected_level=arguments.expected_level,
+        after_token=baseline_token,
+        expected_session=baseline_capture["session"],
+        baseline=baseline,
+    )
+    expected_proof = _capture_proof(value, metadata, ppm, boundary_token, baseline_token)
+    if proof != expected_proof:
+        fail("saved T2 proof does not exactly match the five-artifact capture set")
+    try:
+        proof_value = json.loads(proof.decode("utf-8"), object_pairs_hook=strict_object,
+                                 parse_constant=reject_constant)
+    except (UnicodeDecodeError, json.JSONDecodeError, EvidenceError) as error:
+        fail(f"saved T2 proof is malformed: {error}")
+    if type(proof_value) is not dict or proof_value.get("token") != value["capture"]["token"]:
+        fail("saved T2 proof token is not canonical")
+    return value["capture"]["token"]
+
+
+def command_verify_simulator_capture_set(arguments: argparse.Namespace) -> None:
+    try:
+        token = verify_simulator_capture_set(arguments)
+    except RetryableEvidenceError as error:
+        fail(f"post-stop capture set retained a retryable state: {error}")
+    print(token)
 
 
 def verify_png(path: Path, expected_token: str | None = None, expected_dimensions: tuple[int, int] | None = None) -> tuple[int, int, str]:
@@ -457,6 +821,19 @@ def verify_png(path: Path, expected_token: str | None = None, expected_dimension
 def validate_capture_pair(metadata: Path, ppm: Path) -> dict[str, Any]:
     value = validate_capture(load_json(metadata))
     width, height, token, _ = parse_ppm(ppm)
+    capture = value["capture"]
+    if token != capture["token"] or (width, height) != (capture["width"], capture["height"]):
+        fail("PPM token or dimensions do not match metadata")
+    return value
+
+
+def validate_capture_pair_bytes(metadata: bytes, ppm: bytes, metadata_context: str,
+                                ppm_context: str) -> dict[str, Any]:
+    value = validate_capture(load_json_bytes(metadata, metadata_context))
+    try:
+        width, height, token, _ = parse_ppm_bytes(ppm)
+    except EvidenceError as error:
+        fail(f"invalid PPM {ppm_context}: {error}")
     capture = value["capture"]
     if token != capture["token"] or (width, height) != (capture["width"], capture["height"]):
         fail("PPM token or dimensions do not match metadata")
@@ -816,6 +1193,38 @@ def parser() -> argparse.ArgumentParser:
     copy_file.add_argument("--source", type=Path, required=True)
     copy_file.add_argument("--destination", type=Path, required=True)
     copy_file.set_defaults(function=command_copy_file_exclusive)
+    observe = commands.add_parser("observe-live-metadata")
+    observe.add_argument("--metadata", type=Path, required=True)
+    observe.add_argument("--output", type=Path, required=True)
+    observe.add_argument("--expected-pid", type=int, required=True)
+    observe.add_argument("--after-token")
+    observe.add_argument("--expected-session")
+    observe.add_argument("--allow-absent", action="store_true",
+                         help="emit literal ABSENT only when the first lstat observes ENOENT")
+    observe.set_defaults(function=command_observe_live_metadata)
+    snapshot = commands.add_parser("snapshot-live-capture")
+    snapshot.add_argument("--metadata", type=Path, required=True)
+    snapshot.add_argument("--ppm", type=Path, required=True)
+    snapshot.add_argument("--baseline", type=Path, required=True)
+    snapshot.add_argument("--metadata-output", type=Path, required=True)
+    snapshot.add_argument("--ppm-output", type=Path, required=True)
+    snapshot.add_argument("--proof-output", type=Path, required=True)
+    snapshot.add_argument("--expected-pid", type=int, required=True)
+    snapshot.add_argument("--expected-level", required=True)
+    snapshot.add_argument("--after-token", required=True)
+    snapshot.add_argument("--expected-session", required=True)
+    snapshot.add_argument("--boundary-token", required=True,
+                          help="canonical T0 token or literal null when no sidecar existed at sync")
+    snapshot.set_defaults(function=command_snapshot_live_capture)
+    verify_set = commands.add_parser("verify-simulator-capture-set")
+    verify_set.add_argument("--boundary", type=Path, required=True)
+    verify_set.add_argument("--baseline", type=Path, required=True)
+    verify_set.add_argument("--metadata", type=Path, required=True)
+    verify_set.add_argument("--ppm", type=Path, required=True)
+    verify_set.add_argument("--proof", type=Path, required=True)
+    verify_set.add_argument("--expected-pid", type=int, required=True)
+    verify_set.add_argument("--expected-level", required=True)
+    verify_set.set_defaults(function=command_verify_simulator_capture_set)
     verify = commands.add_parser("verify-ab")
     for name in ("a", "b", "c"):
         verify.add_argument(f"--{name}", type=Path, required=True)
@@ -830,6 +1239,9 @@ def main() -> int:
     arguments = parser().parse_args()
     try:
         arguments.function(arguments)
+    except RetryableEvidenceError as error:
+        print(f"RETRY: {error}", file=sys.stderr)
+        return 75
     except EvidenceError as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1

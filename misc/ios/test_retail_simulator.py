@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import json
 from pathlib import Path
 import os
 import shutil
@@ -12,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 import unittest
 import importlib.util
 from types import SimpleNamespace
@@ -22,6 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNNER = REPO_ROOT / "misc/ios/retail_simulator.sh"
 GUARD = REPO_ROOT / "misc/ios/retail_simulator_guard.py"
 OPENAL_CONTRACT = REPO_ROOT / "misc/ios/openal_provider_contract.py"
+CAPTURE_EVIDENCE = REPO_ROOT / "misc/ios/lighting_ab_evidence.py"
 GUARD_SPEC = importlib.util.spec_from_file_location("retail_simulator_guard", GUARD)
 assert GUARD_SPEC is not None and GUARD_SPEC.loader is not None
 GUARD_MODULE = importlib.util.module_from_spec(GUARD_SPEC)
@@ -75,6 +79,7 @@ class RetailSimulatorTests(unittest.TestCase):
         shutil.copy2(RUNNER, self.repo / "misc/ios/retail_simulator.sh")
         shutil.copy2(GUARD, self.repo / "misc/ios/retail_simulator_guard.py")
         shutil.copy2(OPENAL_CONTRACT, self.repo / "misc/ios/openal_provider_contract.py")
+        shutil.copy2(CAPTURE_EVIDENCE, self.repo / "misc/ios/lighting_ab_evidence.py")
         (self.repo / "cmake/toolchains").mkdir(parents=True)
         (self.repo / "cmake/toolchains/ios.toolchain.cmake").write_text("# fixture\n")
         for path in (
@@ -224,7 +229,7 @@ class RetailSimulatorTests(unittest.TestCase):
                 cache=build/'CMakeCache.txt'; cache.write_text(cache.read_text()+''.join(f'{key}:STRING={value}{chr(10)}' for key,value in openal_cache.items()))
         """))
         self._mock("xcrun", textwrap.dedent("""
-            import os, pathlib, subprocess, sys
+            import os, pathlib, subprocess, sys, time
             log=os.environ['MOCK_LOG']; args=sys.argv[1:]; open(log,'a').write('xcrun '+ ' '.join(args)+'\\n')
             if args[:2] == ['vtool','-show-build']:
                 mode=os.environ.get('MOCK_VTOOL_MODE','normal')
@@ -329,6 +334,7 @@ class RetailSimulatorTests(unittest.TestCase):
                         elif variant == 'missing-save': text=prefix+gameplay.replace(f"* Game {name} is successfully loaded from file ", "* omitted saved-game success from file ")
                         elif variant == 'missing-sync': text=prefix+gameplay.replace('* End of synchronization A[1] R[1]\\n','')
                         elif variant == 'multiple-levels': text=prefix+gameplay.replace('* End of synchronization', r'* Loading HOM: \\private\\tmp\\Documents\\gamedata\\levels\\jupiter\\level.hom'+'\\n* End of synchronization')
+                        elif variant == 'jupiter': text=prefix+gameplay.replace(r'levels\\zaton\\level.hom', r'levels\\jupiter\\level.hom')
                         elif variant == 'missing-memory': text=prefix+gameplay.replace('* iOS memory after_load: resident_current=1 K\\n','')
                         else: text=prefix+gameplay
                     elif mode == 'missing': text='ERROR: system.ltx not found\\n'
@@ -372,6 +378,24 @@ class RetailSimulatorTests(unittest.TestCase):
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True,
                 )
                 state_file.write_text(str(child.pid))
+                if os.environ.get('MOCK_CAPTURE_V2'):
+                    capture_mode=os.environ.get('MOCK_CAPTURE_V2_MODE','normal')
+                    capture_code=(
+                        "import json,os,pathlib,sys,time; root=pathlib.Path(sys.argv[1]); pid=int(sys.argv[2]); mode=sys.argv[3]; "
+                        "session='0123456789abcdef0123456789abcdef';\\n"
+                        "loading_mode=mode in ('loading-t0-t1','persistent-loading')\\n"
+                        "def publish(seq):\\n"
+                        " v={'schema':'openxray.capture.v2','capture':{'token':f'{session}:{seq}','session':session,'sequence':seq,'pid':pid if mode!='wrong-pid' else pid+1,'frame':seq*10,'continual_ms':seq*5000,'width':1864,'height':860,'period_ms':5000,'scene':'gameplay','paused':False},'view':{'position':[0.0,0.0,0.0],'direction':[0.0,0.0,1.0],'fov':67.5},'world':{'level':'zaton','epoch':1,'sector':0},'environment':{'game_time_ms':seq*50000,'day_time_s':43200.0,'time_factor':10.0,'cycle':'default','weather':'default','weather_fx':False,'descriptor0':'12:00:00','descriptor1':'13:00:00','weight':0.1,'ambient':[0.1,0.2,0.3],'hemi':[0.4,0.5,0.6,0.7],'sun':[0.8,0.9,1.0],'sun_direction':[0.0,-1.0,0.0]},'input':{'generation':0,'state':'none','request_id':None,'key':None,'scancode':None,'duration_ms':0,'accepted':None,'released':None}}; "
+                        "\\n if loading_mode and (mode=='persistent-loading' or seq<13): v['capture']['scene']='loading'; v['capture']['paused']=True; v['world']=None; v['environment']=None\\n"
+                        " if mode=='jupiter': v['world']['level']='jupiter'\\n"
+                        " meta=root/'xr_shot_meta.txt'; ppm=root/'xr_shot.ppm'; nl=bytes([10]); data=(b'P6'+nl+b'# openxray-capture-v2 token='+f'{session}:{seq}'.encode()+nl+b'1864 860'+nl+b'255'+nl+bytes(1864*860*3)); ptmp=root/f'.ppm-{seq}'; mtmp=root/f'.meta-{seq}'; ptmp.write_bytes(data); os.replace(ptmp,ppm); mtmp.write_text(json.dumps(v,separators=(',',':'))); os.replace(mtmp,meta)\\n"
+                        "time.sleep(0 if loading_mode else 0.2); publish(10); time.sleep(0.08 if loading_mode else 0.04); publish(11); time.sleep(0.08 if loading_mode else 0.04); publish(12); (time.sleep(0.08),publish(13)) if loading_mode else None"
+                    )
+                    producer=subprocess.Popen([sys.executable, '-c', capture_code, str(root), str(child.pid), capture_mode],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True)
+                    if capture_mode in ('loading-t0-t1','persistent-loading'):
+                        deadline=time.monotonic()+1
+                        while not (root/'xr_shot_meta.txt').exists() and time.monotonic()<deadline: time.sleep(0.001)
                 if not autoload and not os.environ.get('MOCK_NO_BOOT_LOG'):
                     marker_mode=os.environ.get('MOCK_MENU_MARKER_MODE','normal')
                     lifecycle_seq=int(os.environ.get('MOCK_INITIAL_LIFECYCLE_SEQ','1'))
@@ -389,6 +413,7 @@ class RetailSimulatorTests(unittest.TestCase):
                 output=os.environ.get('MOCK_LAUNCH_OUTPUT', f'{args[-1]}: {child.pid}')
                 print(output)
             elif args[1] == 'io' and args[3] == 'screenshot':
+                if os.environ.get('MOCK_HANG_SCREENSHOT'): time.sleep(2)
                 empty = (os.environ.get('MOCK_EMPTY_SCREENSHOT')
                          or (os.environ.get('MOCK_EMPTY_RECOVERY_SCREENSHOT')
                              and 'after-foreground' in args[4]))
@@ -399,6 +424,12 @@ class RetailSimulatorTests(unittest.TestCase):
                     import time
                     time.sleep(0.05)
             elif args[1] == 'terminate':
+                mutation=os.environ.get('MOCK_POST_CAPTURE_MUTATION','')
+                if mutation:
+                    capture_root=next(pathlib.Path(os.environ['MOCK_WORK_BASE']).glob('simulator-work-*/capture-v2'))
+                    if mutation == 'ppm': (capture_root/'capture.ppm').open('ab').write(b'mutated')
+                    elif mutation == 'proof': (capture_root/'capture-proof.json').write_text('{}\\n')
+                    else: sys.exit(2)
                 mode=os.environ.get('MOCK_POST_LAUNCH_LOG_MODE','')
                 if mode:
                     pid=int(pathlib.Path(os.environ['MOCK_LAUNCH_PID_FILE']).read_text())
@@ -493,6 +524,7 @@ class RetailSimulatorTests(unittest.TestCase):
         environment = os.environ.copy()
         environment.update({"PATH": f"{self.mocks}:{environment['PATH']}", "MOCK_LOG": str(self.commands),
                             "MOCK_SIM_DATA": str(self.sim_data), "MOCK_REPO": str(self.repo),
+                            "MOCK_WORK_BASE": str(self.work_base),
                             "MOCK_OUTSIDE": str(self.root / "outside-container"), "HOME": str(self.mock_home),
                             "PYTHONDONTWRITEBYTECODE": "1"})
         environment["RETAIL_SIMULATOR_POLL_INTERVAL"] = "0.01"
@@ -515,6 +547,9 @@ class RetailSimulatorTests(unittest.TestCase):
                    empty_recovery_screenshot: bool = False,
                    boot_log_mode: str | None = None,
                    initial_lifecycle_seq: int | None = None,
+                   capture_v2_mode: str | None = None,
+                   post_capture_mutation: str | None = None,
+                   hang_screenshot: bool = False,
                    launch_timeout: str = "0.1") -> subprocess.CompletedProcess[str]:
         environment = self.runner_environment()
         Path(environment["MOCK_APP_PID_STATE"]).unlink(missing_ok=True)
@@ -559,6 +594,13 @@ class RetailSimulatorTests(unittest.TestCase):
             environment["MOCK_BOOT_LOG_MODE"] = boot_log_mode
         if initial_lifecycle_seq is not None:
             environment["MOCK_INITIAL_LIFECYCLE_SEQ"] = str(initial_lifecycle_seq)
+        if capture_v2_mode is not None:
+            environment["MOCK_CAPTURE_V2"] = "1"
+            environment["MOCK_CAPTURE_V2_MODE"] = capture_v2_mode
+        if post_capture_mutation is not None:
+            environment["MOCK_POST_CAPTURE_MUTATION"] = post_capture_mutation
+        if hang_screenshot:
+            environment["MOCK_HANG_SCREENSHOT"] = "1"
         return subprocess.run(("bash", str(self.repo / "misc/ios/retail_simulator.sh"), "--backup", str(self.backup),
                                "--manifest", str(self.manifest), "--work-base", str(self.work_base),
                                "--launch-timeout", launch_timeout, *extra),
@@ -583,7 +625,8 @@ class RetailSimulatorTests(unittest.TestCase):
                          snapshot_output_mode: str | None = None,
                          menu_marker_mode: str | None = None,
                          foreground_cycle: bool = False,
-                         preexisting_recovery_screenshot: bool = False) -> subprocess.CompletedProcess[str]:
+                         preexisting_recovery_screenshot: bool = False,
+                         hang_screenshot: bool = False) -> subprocess.CompletedProcess[str]:
         environment = self.runner_environment()
         Path(environment["MOCK_APP_PID_STATE"]).unlink(missing_ok=True)
         environment["MOCK_BOOT_LOG_MODE"] = mode
@@ -595,6 +638,8 @@ class RetailSimulatorTests(unittest.TestCase):
             environment["MOCK_LAUNCH_OUTPUT"] = launch_output
         if empty_screenshot:
             environment["MOCK_EMPTY_SCREENSHOT"] = "1"
+        if hang_screenshot:
+            environment["MOCK_HANG_SCREENSHOT"] = "1"
         pid_file = self.root / "mock-launch.pid"
         environment["MOCK_LAUNCH_PID_FILE"] = str(pid_file)
         if crash_during_screenshot:
@@ -1053,6 +1098,201 @@ class RetailSimulatorTests(unittest.TestCase):
         staged = (work / "staged-files.tsv").read_text()
         self.assertNotIn("_appdata_/user.ltx", staged)
         self.assertEqual((self.backup / "_appdata_/user.ltx").read_bytes(), b"must-not-copy")
+
+    def test_capture_v2_requires_autoload_conflicts_with_navigation_and_uses_exact_config(self) -> None:
+        for arguments in (("--capture-v2",), ("--with-saves", "--capture-v2")):
+            with self.subTest(arguments=arguments):
+                result = self.run_runner(*arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("--capture-v2 requires both --with-saves and --autoload-save", result.stderr)
+        conflict = self.run_runner("--with-saves", "--autoload-save", "save", "--ui-navigation", "--capture-v2")
+        self.assertNotEqual(conflict.returncode, 0)
+        self.assertIn("conflicts", conflict.stderr)
+        runtime = self.run_runner("--with-saves", "--autoload-save", "save", "--capture-v2")
+        self.assertNotEqual(runtime.returncode, 0)
+        self.assertIn("requires --runtime 27.0", runtime.stderr)
+
+        documents, _ = self.stage_runtime_fixture(with_saves=True)
+        evidence = self.root / "capture-generated-user.ltx"
+        manifest = self.root / "capture-generated-user.tsv"
+        result = self.run_guard(
+            "autoload-config", "--documents", str(documents), "--name", "save",
+            "--evidence", str(evidence), "--manifest", str(manifest), "--ios-diagnostics",
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(evidence.read_bytes(), (
+            "keypress_on_start 0\n"
+            "ios_diagnostics 1\n"
+            "ios_autoinput 0\n"
+            "start server(save/single/alife/load) client(localhost)\n"
+        ).encode())
+
+    def test_capture_v2_happy_path_keeps_capture_extras_outside_staged_retail_and_reports_after_cleanup(self) -> None:
+        result = self.run_runner(
+            "--with-saves", "--autoload-save", "save", "--capture-v2", "--runtime", "27.0",
+            autoload_mode="normal", capture_v2_mode="normal", launch_timeout="1.0",
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        work = next(self.work_base.glob("simulator-work-*"))
+        capture = work / "capture-v2"
+        self.assertTrue((capture / "boundary-watermark.json").is_file())
+        self.assertEqual((capture / "boundary-watermark.json").read_bytes(),
+            b'{"schema":"openxray.simulator-capture-v2-boundary.v1","token":null}\n')
+        self.assertTrue((capture / "baseline.json").is_file())
+        self.assertTrue((capture / "capture.json").is_file())
+        self.assertTrue((capture / "capture.ppm").is_file())
+        proof = json.loads((capture / "capture-proof.json").read_text())
+        self.assertEqual(proof["scope"], "iOS-27.0-Simulator-Apple-Software-Renderer-only")
+        self.assertEqual(proof["level"], "zaton")
+        self.assertEqual(proof["sector"], 0)
+        report = (work / "report.txt").read_text()
+        self.assertIn("capture_v2=PASS", report)
+        self.assertIn("capture_runtime_boundary=saved_game_sync_complete", report)
+        self.assertIn("capture_scope=iOS-27.0-Simulator-Apple-Software-Renderer-only", report)
+        self.assertNotIn("xr_shot", (work / "staged-files.tsv").read_text())
+        commands = self.commands.read_text().splitlines()
+        delete = max(index for index, line in enumerate(commands) if line.startswith("xcrun simctl delete "))
+        self.assertTrue((work / "report.txt").is_file())
+        self.assertGreaterEqual(delete, 0)
+        self.assertIn("ios_diagnostics 1\n", (work / "generated-user.ltx").read_text())
+        self.assertIn("ios_autoinput 0\n", (work / "generated-user.ltx").read_text())
+
+    def test_capture_v2_accepts_loading_t0_and_loading_t1_before_exact_gameplay_t2(self) -> None:
+        result = self.run_runner(
+            "--with-saves", "--autoload-save", "save", "--capture-v2", "--runtime", "27.0",
+            autoload_mode="normal", capture_v2_mode="loading-t0-t1", launch_timeout="1.5",
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        work = next(self.work_base.glob("simulator-work-*"))
+        boundary = json.loads((work / "capture-v2/boundary-watermark.json").read_text())
+        baseline = json.loads((work / "capture-v2/baseline.json").read_text())
+        capture_value = json.loads((work / "capture-v2/capture.json").read_text())
+        self.assertTrue(boundary["capture"]["token"].endswith(":10"))
+        self.assertEqual(boundary["capture"]["scene"], "loading")
+        self.assertIsNone(boundary["world"])
+        self.assertTrue(baseline["capture"]["token"].endswith(":11"))
+        self.assertEqual(baseline["capture"]["scene"], "loading")
+        self.assertIsNone(baseline["environment"])
+        self.assertTrue(capture_value["capture"]["token"].endswith(":13"))
+        self.assertEqual(capture_value["capture"]["scene"], "gameplay")
+        self.assertEqual(capture_value["world"]["level"], "zaton")
+        self.assertIn("RETRY: live capture is still loading", (work / "host-stderr.log").read_text())
+
+    def test_capture_v2_persistent_loading_uses_original_timeout_without_proof_or_report(self) -> None:
+        result = self.run_runner(
+            "--with-saves", "--autoload-save", "save", "--capture-v2", "--runtime", "27.0",
+            autoload_mode="normal", capture_v2_mode="persistent-loading", launch_timeout="0.5",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        work = next(self.work_base.glob("simulator-work-*"))
+        capture_root = work / "capture-v2"
+        self.assertTrue((capture_root / "boundary-watermark.json").is_file())
+        self.assertTrue((capture_root / "baseline.json").is_file())
+        self.assertFalse((capture_root / "capture.json").exists())
+        self.assertFalse((capture_root / "capture.ppm").exists())
+        self.assertFalse((capture_root / "capture-proof.json").exists())
+        self.assertFalse((work / "report.txt").exists())
+        self.assertRegex(result.stderr,
+            r"(?:T2 parser exceeded the original launch deadline|"
+            r"Simulator launch timed out before capture-v2 T2 snapshot)")
+        self.assertIn("RETRY: live capture is still loading", (work / "host-stderr.log").read_text())
+        commands = self.commands.read_text()
+        self.assertEqual(commands.count("simctl launch --stdout="), 1)
+        self.assertIn("xcrun simctl delete", commands)
+
+    def test_capture_v2_rejects_a_coherent_jupiter_checkpoint_without_report(self) -> None:
+        result = self.run_runner(
+            "--with-saves", "--autoload-save", "save", "--capture-v2", "--runtime", "27.0",
+            autoload_mode="jupiter", capture_v2_mode="jupiter", launch_timeout="1.0",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        work = next(self.work_base.glob("simulator-work-*"))
+        self.assertFalse((work / "report.txt").exists())
+        self.assertIn("sync_level exactly zaton", result.stderr)
+
+    def test_capture_v2_post_launch_ppm_or_proof_mutation_never_publishes_report(self) -> None:
+        for mutation in ("ppm", "proof"):
+            with self.subTest(mutation=mutation):
+                for work in self.work_base.glob("simulator-work-*"):
+                    shutil.rmtree(work)
+                result = self.run_runner(
+                    "--with-saves", "--autoload-save", "save", "--capture-v2", "--runtime", "27.0",
+                    autoload_mode="normal", capture_v2_mode="normal",
+                    post_capture_mutation=mutation, launch_timeout="1.0",
+                )
+                self.assertNotEqual(result.returncode, 0)
+                work = next(self.work_base.glob("simulator-work-*"))
+                self.assertFalse((work / "report.txt").exists())
+                self.assertIn("full post-runtime revalidation", result.stderr)
+
+    def test_capture_v2_rejects_wrong_pid_without_pass_report_and_cleans_simulator(self) -> None:
+        result = self.run_runner(
+            "--with-saves", "--autoload-save", "save", "--capture-v2", "--runtime", "27.0",
+            autoload_mode="normal", capture_v2_mode="wrong-pid", launch_timeout="1.0",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        work = next(self.work_base.glob("simulator-work-*"))
+        self.assertFalse((work / "report.txt").exists())
+        self.assertIn("capture-v2", result.stderr)
+        self.assertIn("xcrun simctl delete", self.commands.read_text())
+
+    def test_report_candidate_and_atomic_publish_fail_closed_without_partial_report(self) -> None:
+        candidate = self.root / "report.pending"
+        report = self.root / "report.txt"
+        with self.assertRaises(GUARD_MODULE.GuardError):
+            GUARD_MODULE.prepare_report(candidate, b"result=FAIL\n")
+        self.assertFalse(candidate.exists())
+        GUARD_MODULE.prepare_report(candidate, b"result=PASS\nfield=value\n")
+
+        with mock.patch.object(GUARD_MODULE.os, "link", side_effect=OSError("injected link failure")):
+            with self.assertRaises(GUARD_MODULE.GuardError):
+                GUARD_MODULE.publish_report(candidate, report)
+        self.assertFalse(report.exists())
+
+        GUARD_MODULE.publish_report(candidate, report)
+        self.assertFalse(candidate.exists())
+        self.assertEqual(report.read_bytes(), b"result=PASS\nfield=value\n")
+        with self.assertRaises(GUARD_MODULE.GuardError):
+            GUARD_MODULE.publish_report(candidate, report)
+        self.assertEqual(report.read_bytes(), b"result=PASS\nfield=value\n")
+
+    def test_capture_t0_retries_race_and_writes_null_only_for_explicit_absent(self) -> None:
+        parser = self.root / "capture-parser.py"
+        parser.write_text("# fixture\n", encoding="utf-8")
+        documents = self.root / "capture-documents"
+        documents.mkdir()
+        capture_root = self.root / "capture-root"
+        capture_root.mkdir()
+        calls = 0
+
+        def parser_result(*args: object, **kwargs: object) -> str | None:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                self.assertFalse((capture_root / "boundary-watermark.json").exists())
+                return None
+            return ("ABSENT", f"{'0' * 32}:10", f"{'0' * 32}:11")[calls - 2]
+
+        with mock.patch.object(GUARD_MODULE, "require_live_app_pid"), \
+                mock.patch.object(GUARD_MODULE, "run_capture_parser", side_effect=parser_result):
+            GUARD_MODULE.capture_v2_after_sync(
+                parser, capture_root, documents, 42, "zaton",
+                time.monotonic() + 1.0, io.BytesIO(), 0.001,
+            )
+        self.assertGreaterEqual(calls, 4)
+        self.assertEqual((capture_root / "boundary-watermark.json").read_bytes(),
+            b'{"schema":"openxray.simulator-capture-v2-boundary.v1","token":null}\n')
+
+        timeout_root = self.root / "capture-timeout"
+        timeout_root.mkdir()
+        with mock.patch.object(GUARD_MODULE, "require_live_app_pid"), \
+                mock.patch.object(GUARD_MODULE, "run_capture_parser", return_value=None):
+            with self.assertRaisesRegex(GUARD_MODULE.GuardError, "T0 boundary"):
+                GUARD_MODULE.capture_v2_after_sync(
+                    parser, timeout_root, documents, 42, "zaton",
+                    time.monotonic() + 0.01, io.BytesIO(), 0.001,
+                )
+        self.assertFalse((timeout_root / "boundary-watermark.json").exists())
 
     def test_ui_navigation_requires_save_and_autoload_and_enables_autoinput_only_there(self) -> None:
         for arguments in (("--ui-navigation",), ("--with-saves", "--ui-navigation")):
@@ -1572,6 +1812,12 @@ class RetailSimulatorTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("screenshot is missing, empty, or non-regular", result.stderr)
 
+    def test_hanging_screenshot_is_bounded_by_original_launch_deadline(self) -> None:
+        result = self.run_launch_proof(hang_screenshot=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("screenshot exceeded the original launch deadline", result.stderr)
+        self.assertFalse((self.last_evidence / "runtime-log-snapshot.txt").exists())
+
     def test_crash_during_screenshot_fails_stability_check(self) -> None:
         # The mock ends the app naturally once the screenshot command starts;
         # the guard itself never signals it.
@@ -1627,6 +1873,9 @@ class RetailSimulatorTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn("PASS — isolated retail Simulator workflow", result.stdout)
         self.assertIn("could not delete dedicated Simulator", result.stderr)
+        work = next(self.work_base.glob("simulator-work-*"))
+        self.assertFalse((work / "report.txt").exists())
+        self.assertTrue((work / ".report.pending").is_file())
 
     def test_failure_cleanup_records_delete_failure_without_masking_status(self) -> None:
         result = self.run_runner(no_boot_log=True, delete_failure=True)
@@ -1727,10 +1976,16 @@ class RetailSimulatorTests(unittest.TestCase):
     || fail "could not write dedicated Simulator UUID"''',
             source,
         )
-        self.assertIn(
-            '''} > "$report" || fail "could not write retail Simulator report"''',
-            source,
+        prepare = source.index(
+            '} | python3 "$GUARD" prepare-report --destination "$report_pending" >/dev/null'
         )
+        delete = source.index('xcrun simctl delete "$device_uuid" || fail')
+        publish = source.index(
+            'python3 "$GUARD" publish-report --source "$report_pending" --destination "$report"'
+        )
+        self.assertLess(prepare, delete)
+        self.assertLess(delete, publish)
+        self.assertNotIn('> "$report"', source)
 
 
 if __name__ == "__main__":

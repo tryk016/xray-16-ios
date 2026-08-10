@@ -2,10 +2,11 @@
 
 Canonical specification for the OpenXRay iOS project.
 
-**Last synchronized:** 2026-08-09
+**Last synchronized:** 2026-08-10
 
-**Status:** playable development build; startup-sector and known SSAO defects
-fixed, later movement-correlated dark-frame observation still under investigation
+**Status:** playable development build; affected-iPhone startup-sector and known
+SSAO defects fixed; stationary Simulator sector coverage and the later
+movement-correlated dark-frame observation remain under investigation
 
 **Target game:** S.T.A.L.K.E.R.: Call of Pripyat 1.6.02
 
@@ -33,6 +34,9 @@ The port is past initial bring-up. On a physical iPhone it can:
 
 It is not release-ready. The startup geometry defect and proven SSAO macro
 defect are fixed, but a later dark-frame smoke remains causally unresolved.
+The isolated iOS 27 Simulator capture-v2 tooling is host-complete, but its first
+real publication is blocked by a stationary startup-sector coverage gap tracked
+under IOS-P0-003.
 Diagnostic lifecycle recovery, LOWMEMORY handling and
 decoded-texture lazy reload are device-proven; normal lock/audio cycles,
 multi-level validation, memory budgets and a repeatable performance baseline
@@ -314,6 +318,70 @@ evolution; nonlinear `hemi.a`, sun color and sun direction remain explicitly
 reported as non-gating observations. `READY_FOR_DEVICE_VISUAL_COMPARISON` means
 only that correlation controls passed; pixel correctness and a movement,
 streaming or lighting cause remain device/manual-review pending.
+
+### Isolated Simulator capture-v2 checkpoint
+
+The opt-in iOS 27 Simulator single-capture path is implemented in exactly five
+host files: `retail_simulator.sh`, `retail_simulator_guard.py`,
+`lighting_ab_evidence.py`, `test_retail_simulator.py` and
+`test_lighting_ab_evidence.py`. `--capture-v2` requires saved-game autoload,
+conflicts with UI navigation and leaves ordinary modes unchanged. Normal launch
+uses diagnostics/autoinput `0/0`, UI navigation `0/1`, and capture-v2 `1/0`.
+The runtime guard owns `saved_game_sync_complete`, the exact live PID and one
+original launch deadline; the evidence parser remains the sole owner of secure
+capture grammar, snapshots and publication.
+
+The temporal contract is T0, the stable metadata watermark at synchronization
+or an explicit null watermark; T1, the first stable sidecar newer than T0; and
+T2, a stable metadata/PPM/metadata pair newer than T1 in the same session and
+PID. T2 requires advancing sequence, frame and continual time, unpaused Zaton
+gameplay at 1864x860, period 5000, epoch at least one, populated world and
+environment, and exactly no diagnostic input. Valid live transitional states
+(`loading`, paused gameplay, or gameplay without environment) retry with CLI
+75. Stable schema or invariant violations fail with CLI 1, and the stopped-
+runtime verifier escalates every retry classification to fatal. Publication is
+new-only and proof-last. The successful set under `work_root/capture-v2` is
+exactly `boundary-watermark.json`, `baseline.json`, `capture.json`,
+`capture.ppm` and `capture-proof.json`; final reporting occurs only after
+Simulator deletion and complete post-stop evidence, log, save, staged and
+protected-input guards.
+
+The host implementation is locally reviewed: final focused static checks pass,
+parser tests are 31/31, runner tests are 84/84, and the final Sol xhigh verdict
+is exactly `APPROVE — brak P0/P1/P2`. This is tooling acceptance, not a
+successful real capture publication.
+
+The first isolated run,
+`/Users/patryk/openxray-handoff/simulator-work-20260810-015703-14748`, reached
+the saved-game boundary with T0=`loading` sequence 24 and T1=`loading` sequence
+25. Its first stable post-T1 candidate, sequence 26, was also `loading` and
+exposed an over-strict fatal readiness classification. The correction above
+makes only valid live readiness states retryable while preserving fatal
+invariants and fatal post-stop verification.
+
+The corrected real run,
+`/Users/patryk/openxray-handoff/simulator-work-20260810-024814-86404`, built
+successfully and reached Zaton synchronization plus `after_load`. T0 was
+`loading` sequence 23, T1 was `loading` sequence 24, and every candidate through
+sequence 88 remained `loading` under the single 600-second deadline. Its startup
+marker was PID 92531, epoch 1, frame 35, level `zaton`, trigger `level_load`,
+status `unresolved`, method `none`, sector `4294967295`, with identical camera
+and probe positions and radius 0.
+
+`CRender::Calculate` currently invokes exact/fallback detection only when the
+saved and current camera positions differ. A stationary Simulator start with
+equal positions instead takes the no-detection branch, so the proven fallback
+is never attempted. This is a new stationary Simulator coverage gap, not a
+refutation of the device-proven fallback. IOS-P0-003 remains active until that
+branch is corrected and a fresh isolated run publishes the complete T2 set.
+
+The second run timed out fail-closed. Both dedicated Simulators were deleted;
+no T2 `capture.json`, `capture.ppm`, `capture-proof.json`, `report.txt` or
+`.report.pending` was published. The last successful protected-input and
+source-snapshot guards were pre-launch; the timeout prevented the post-runtime
+log, save, staged-data and protected-input guards from running. The evidence scope is exactly
+`iOS-27.0-Simulator-Apple-Software-Renderer-only`: it proves no pixels,
+readability, iPhone behavior, performance or lighting cause.
 
 The static shader contract now covers all five numeric zero-default macros:
 `SUN_QUALITY`, `SSR_QUALITY`, `SSAO_QUALITY`, `SSAO_OPT_DATA` and
@@ -775,7 +843,7 @@ device identifier above.
 
 | Priority | Area | Current requirement |
 |---|---|---|
-| P0 | Validation | Verify startup-sector fallback across saves/levels and complete a memory-safe soak |
+| P0 | Validation | Correct stationary initial sector detection, pass isolated capture-v2, then verify the fallback across saves/levels and complete a memory-safe soak |
 | P1 | Memory | Device-prove current/peak telemetry and bounded LOWMEMORY eviction, then set budgets |
 | P1 | Lifecycle | Device-prove atomic frame gating, context restore, persistence and audio recovery |
 | P1 | CI | Run a deliberate negative shader/varying canary in Actions and monitor the verified dSYM artifact on the first remote run |

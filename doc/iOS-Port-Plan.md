@@ -14,7 +14,9 @@ pinning/cache contract is complete and has returned to the Backlog pending two
 remote runs. IOS-P2-006's behavior-preserving BC codec contract is also locally
 complete and backlogged pending a color-space decision plus iPhone reference
 frames. The UIKit scene-lifecycle migration is locally and Simulator-complete;
-its physical-device acceptance remains IOS-P1-010 and IOS-P1-002.
+its physical-device acceptance remains IOS-P1-010 and IOS-P1-002. IOS-P0-003
+now starts with the stationary Simulator sector-branch gap exposed by the real
+iOS 27 capture-v2 run; this local correction precedes further phone evidence.
 
 This file intentionally contains no more than five active tasks. Historical
 evidence belongs in [iOS-Port-Journal.md](iOS-Port-Journal.md). Work not listed
@@ -44,7 +46,27 @@ starts, QuickLoad, transitions and device visual proof remain untested.
 Capture-state v2 and the stationary-vs-forward A/B harness are locally complete
 (evidence parser 16/16, host-tool mocks 8/8, producer mutation contract 2/2,
 strict/sanitized C++ PASS, post-commit full Release and Sol xhigh approval), but
-have not yet produced a physical-device A/B packet.
+have not yet produced a physical-device A/B packet. The separate isolated iOS
+27 single-capture host extension is also locally reviewed (final static PASS,
+parser 31/31, runner 84/84 and final Sol xhigh
+`APPROVE — brak P0/P1/P2`), but no real T2 publication has passed.
+
+Real workroot `simulator-work-20260810-015703-14748` exposed and corrected an
+over-strict live-readiness classification: a valid post-T1 `loading` candidate
+must retry with CLI 75 while invariant breaches remain fatal with CLI 1 and any
+post-stop retry is fatal. Corrected workroot
+`simulator-work-20260810-024814-86404` built and reached Zaton sync/`after_load`,
+then recorded T0 `loading` sequence 23, T1 `loading` sequence 24 and candidates
+through sequence 88 still `loading` under one 600-second deadline. The startup
+marker was PID 92531, epoch 1, frame 35, `level_load`, `unresolved`/`none`,
+invalid sector `4294967295`, identical camera/probe and radius 0. Both dedicated
+Simulators were deleted and publication failed closed without T2/report output.
+
+The current code invokes exact/fallback detection only when saved and current
+camera positions differ. The unchanged stationary Simulator camera therefore
+takes the no-detection branch and never attempts the device-proven fallback.
+This new coverage gap is active IOS-P0-003 work; it does not invalidate the
+fallback mechanism already proven on iPhone.
 
 The exact vertical query misses the affected spawn floor. The iOS-only
 nearest-floor fallback finds sector 115 at 8 m and renders the complete static
@@ -63,20 +85,28 @@ device-untested.
 
 **Next actions:**
 
-1. Before every short phone batch, record its completed baseline epoch, then
-   require the exact expected marker batch with the expected PID and trigger.
-2. On the next outdoor batch, run `lighting_ab_capture.sh` into a new evidence
-   directory. Accept only its exact A/A+3/A+6 token chain and offline
-   `READY_FOR_DEVICE_VISUAL_COMPARISON`; inspect all three images manually and
-   do not infer a cause from that correlation packet alone.
-3. Load one additional outdoor save and one indoor/portal location; separately
-   require resolved classification and an objective world frame.
-4. Exercise QuickLoad/save-reload and one level transition with the same
-   baseline-plus-exact-batch discipline.
-5. Record current and peak physical footprint during a 30-minute controller run.
+1. Correct the iOS startup-sector trigger so an active stationary `level_load`
+   epoch with an invalid sector performs exact/fallback detection once after the
+   authoritative camera state, without weakening QuickLoad barriers, valid
+   retained-sector semantics or invalid-sector commit protection.
+2. Add deterministic policy/oracle coverage for equal saved/current camera,
+   one-shot detection, no repeated fallback and the existing movement path.
+3. Rerun isolated iOS 27 `--capture-v2` in a new workroot. Require Zaton sync,
+   T0/T1 ordering, a same-PID/session gameplay T2 with advancing sequence/frame/
+   continual time, and complete post-stop five-artifact/report publication.
+4. Then run `lighting_ab_capture.sh` on the next outdoor phone batch into a new
+   evidence directory; accept only its A/A+3/A+6 controls and keep manual pixel
+   interpretation separate from sector and cause claims.
+5. Continue one additional outdoor save, one indoor/portal start, QuickLoad and
+   one level transition with baseline-plus-exact-batch evidence; record the
+   30-minute controller-run memory footprint separately.
 
 **Acceptance:**
 
+- A stationary isolated iOS 27 Zaton load records a resolved exact/fallback
+  startup outcome without movement and publishes the revalidated T0/T1/T2 set
+  plus report only after Simulator deletion and all guards pass. This is Apple
+  Software Renderer control-flow evidence, not iPhone or pixel proof.
 - Three cold launches and two save/level combinations record the baseline epoch,
   exact expected batch, resolved classification and objective complete-world
   frame without a movement workaround.

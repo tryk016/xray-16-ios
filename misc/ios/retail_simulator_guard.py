@@ -62,6 +62,8 @@ NAVIGATION_SUBPROCESS_TIMEOUT_SECONDS = (
     NAVIGATION_STEP_TIMEOUT_SECONDS * NAVIGATION_STEP_COUNT
     + NAVIGATION_SUBPROCESS_OVERHEAD_SECONDS
 )
+CAPTURE_PARSER_TIMEOUT_SECONDS = 5.0
+CAPTURE_TOKEN = re.compile(r"^[0-9a-f]{32}:[1-9][0-9]*$")
 
 
 class GuardError(RuntimeError):
@@ -425,17 +427,29 @@ def require_save_file(documents: Path, name: str) -> Path:
     return candidate
 
 
-def autoload_config(name: str, *, ios_autoinput: bool = False) -> bytes:
+def autoload_config(name: str, *, ios_diagnostics: bool = False,
+                    ios_autoinput: bool = False) -> bytes:
     validate_autoload_name(name)
     return (
         "keypress_on_start 0\n"
-        "ios_diagnostics 0\n"
+        f"ios_diagnostics {1 if ios_diagnostics else 0}\n"
         f"ios_autoinput {1 if ios_autoinput else 0}\n"
         f"start server({name}/single/alife/load) client(localhost)\n"
     ).encode("ascii")
 
 
-def write_new_regular(path: Path, data: bytes) -> None:
+def unlink_owned_regular(path: Path, identity: tuple[int, int]) -> None:
+    """Remove only the exact regular inode created by this process."""
+
+    try:
+        details = path.lstat()
+    except FileNotFoundError:
+        return
+    if stat.S_ISREG(details.st_mode) and (details.st_dev, details.st_ino) == identity:
+        path.unlink()
+
+
+def write_new_regular(path: Path, data: bytes) -> tuple[int, int]:
     """Write a new 0600 file without following its final component."""
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -452,22 +466,102 @@ def write_new_regular(path: Path, data: bytes) -> None:
             kind = "non-regular path"
         fail(f"new regular-file destination already exists as a {kind}: {path}")
     nofollow = getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow, 0o600)
+    descriptor: int | None = None
+    owned_identity: tuple[int, int] | None = None
     try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow, 0o600)
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode):
+            fail(f"generated file is not regular: {path}")
+        owned_identity = (opened.st_dev, opened.st_ino)
         view = memoryview(data)
         while view:
             written = os.write(descriptor, view)
+            if written <= 0:
+                fail(f"short write creating generated file: {path}")
             view = view[written:]
         os.fsync(descriptor)
         details = os.fstat(descriptor)
         if not stat.S_ISREG(details.st_mode) or details.st_size != len(data):
             fail(f"generated file is not exact regular content: {path}")
-    finally:
         os.close(descriptor)
+        descriptor = None
+        return owned_identity
+    except (OSError, GuardError):
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        if owned_identity is not None:
+            try:
+                unlink_owned_regular(path, owned_identity)
+            except OSError:
+                pass
+        raise
+
+
+def prepare_report(path: Path, data: bytes) -> None:
+    """Create a complete private report candidate before cleanup can begin."""
+
+    if len(data) > CHUNK:
+        fail("Simulator report exceeds the bounded size")
+    try:
+        text = data.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as error:
+        fail(f"Simulator report is not UTF-8: {error}")
+    lines = text.splitlines()
+    if not lines or lines[0] != "result=PASS" or sum(line.startswith("result=") for line in lines) != 1:
+        fail("Simulator report candidate has an invalid result marker")
+    if "\x00" in text:
+        fail("Simulator report candidate contains NUL")
+    require_real_directory(path.parent)
+    write_new_regular(path, data)
+
+
+def publish_report(source: Path, destination: Path) -> None:
+    """Publish a complete report atomically through a new hard-link name."""
+
+    identity, data = read_stable_regular_nofollow(source, "prepared Simulator report")
+    prepare_lines = data.decode("utf-8", errors="strict").splitlines()
+    if (not prepare_lines or prepare_lines[0] != "result=PASS"
+            or sum(line.startswith("result=") for line in prepare_lines) != 1):
+        fail("prepared Simulator report has an invalid result marker")
+    require_real_directory(destination.parent)
+    if os.path.lexists(destination):
+        fail("published Simulator report destination already exists")
+    try:
+        os.link(source, destination, follow_symlinks=False)
+    except OSError as error:
+        fail(f"cannot atomically publish Simulator report: {error}")
+    try:
+        published = destination.lstat()
+        if (not stat.S_ISREG(published.st_mode)
+                or (published.st_dev, published.st_ino) != identity):
+            fail("published Simulator report does not retain prepared identity")
+        published_identity, published_data = read_stable_regular_nofollow(
+            destination, "published Simulator report",
+        )
+        if published_identity != identity or published_data != data:
+            fail("published Simulator report failed exact revalidation")
+        source_details = source.lstat()
+        if (not stat.S_ISREG(source_details.st_mode)
+                or (source_details.st_dev, source_details.st_ino) != identity):
+            fail("prepared Simulator report changed during publication")
+        source.unlink()
+    except (OSError, GuardError):
+        try:
+            current = destination.lstat()
+            linked_identity = (current.st_dev, current.st_ino)
+            if stat.S_ISREG(current.st_mode) and linked_identity == identity:
+                destination.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def write_autoload_config(documents: Path, name: str, evidence: Path, manifest: Path,
-                          *, ios_autoinput: bool = False) -> None:
+                          *, ios_diagnostics: bool = False, ios_autoinput: bool = False) -> None:
     """Generate the only non-retail config inside a staged Simulator container."""
 
     require_save_file(documents, name)
@@ -479,7 +573,10 @@ def write_autoload_config(documents: Path, name: str, evidence: Path, manifest: 
         fail("autoload evidence destination must not already exist")
     require_real_directory(evidence.parent)
     require_real_directory(manifest.parent)
-    contents = autoload_config(name, ios_autoinput=ios_autoinput)
+    if ios_diagnostics and ios_autoinput:
+        fail("autoload config cannot enable diagnostics and automatic input together")
+    contents = autoload_config(name, ios_diagnostics=ios_diagnostics,
+                               ios_autoinput=ios_autoinput)
     write_new_regular(target, contents)
     write_new_regular(evidence, contents)
     if target.read_bytes() != contents or evidence.read_bytes() != contents:
@@ -976,6 +1073,124 @@ def run_simctl(command: tuple[str, ...], stderr, failure: str) -> subprocess.Com
     return result
 
 
+def run_capture_parser(parser_path: Path, arguments: tuple[str, ...], deadline: float,
+                       stderr, label: str, *, allow_absent: bool = False) -> str | None:
+    """Run the source-snapshot capture grammar once without extending deadline.
+
+    Exit 75 is the parser's documented transient producer race.  Everything
+    else is an invariant breach; each successful command must emit one token.
+    """
+
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return None
+    try:
+        result = subprocess.run(
+            (sys.executable, str(parser_path), *arguments), stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, check=False,
+            timeout=min(CAPTURE_PARSER_TIMEOUT_SECONDS, remaining),
+        )
+    except subprocess.TimeoutExpired:
+        fail(f"capture-v2 {label} parser exceeded the original launch deadline")
+    stderr.write(result.stderr)
+    stderr.flush()
+    if result.returncode == 75:
+        return None
+    if result.returncode != 0:
+        fail(f"capture-v2 {label} parser rejected the live artifact")
+    try:
+        token = result.stdout.decode("ascii", errors="strict").strip()
+    except UnicodeDecodeError as error:
+        fail(f"capture-v2 {label} parser emitted non-ASCII output: {error}")
+    if token == "ABSENT" and allow_absent:
+        return token
+    if not CAPTURE_TOKEN.fullmatch(token):
+        fail(f"capture-v2 {label} parser did not emit one canonical token")
+    return token
+
+
+def write_null_capture_boundary(path: Path) -> None:
+    """Record that no capture sidecar existed at sync completion."""
+
+    contents = b'{"schema":"openxray.simulator-capture-v2-boundary.v1","token":null}\n'
+    write_new_regular(path, contents)
+
+
+def capture_v2_after_sync(parser_path: Path, root: Path, documents: Path, pid: int,
+                          level: str, deadline: float, stderr, poll: float) -> None:
+    """Prove T0 -> T1 -> T2 after the single saved-game sync boundary.
+
+    The guard owns temporal/runtime identity.  The source snapshot parser owns
+    capture grammar, nofollow reads and atomic artifact publication.
+    """
+
+    if level != "zaton":
+        fail("capture-v2 checkpoint requires sync_level exactly zaton")
+    if parser_path.is_symlink() or not parser_path.is_file():
+        fail("capture-v2 parser must be a regular non-symlink source-snapshot file")
+    require_real_directory(root)
+    metadata = documents / "xr_shot_meta.txt"
+    ppm = documents / "xr_shot.ppm"
+    boundary = root / "boundary-watermark.json"
+    baseline = root / "baseline.json"
+    capture_json = root / "capture.json"
+    capture_ppm = root / "capture.ppm"
+    proof = root / "capture-proof.json"
+    if any(os.path.lexists(path) for path in (boundary, baseline, capture_json, capture_ppm, proof)):
+        fail("capture-v2 work-root destinations must be new")
+
+    boundary_token: str | None = None
+    while time.monotonic() < deadline:
+        require_live_app_pid(pid, "before capture-v2 boundary watermark")
+        boundary_result = run_capture_parser(
+            parser_path,
+            ("observe-live-metadata", "--metadata", str(metadata), "--output", str(boundary),
+             "--expected-pid", str(pid), "--allow-absent"),
+            deadline, stderr, "T0", allow_absent=True,
+        )
+        if boundary_result is None:
+            time.sleep(min(poll, max(0.0, deadline - time.monotonic())))
+            continue
+        if boundary_result == "ABSENT":
+            write_null_capture_boundary(boundary)
+        else:
+            boundary_token = boundary_result
+        break
+    else:
+        fail("Simulator launch timed out before capture-v2 T0 boundary watermark")
+    require_live_app_pid(pid, "after capture-v2 boundary watermark")
+
+    baseline_token: str | None = None
+    while time.monotonic() < deadline:
+        require_live_app_pid(pid, "during capture-v2 sidecar polling")
+        if baseline_token is None:
+            arguments = ["observe-live-metadata", "--metadata", str(metadata), "--output", str(baseline),
+                         "--expected-pid", str(pid)]
+            if boundary_token is not None:
+                arguments.extend(("--after-token", boundary_token, "--expected-session", boundary_token.split(":", 1)[0]))
+            baseline_token = run_capture_parser(parser_path, tuple(arguments), deadline, stderr, "T1")
+            if baseline_token is None:
+                time.sleep(min(poll, max(0.0, deadline - time.monotonic())))
+                continue
+            require_live_app_pid(pid, "after capture-v2 baseline")
+            continue
+        token = run_capture_parser(
+            parser_path,
+            ("snapshot-live-capture", "--metadata", str(metadata), "--ppm", str(ppm),
+             "--baseline", str(baseline), "--metadata-output", str(capture_json),
+             "--ppm-output", str(capture_ppm), "--proof-output", str(proof),
+             "--expected-pid", str(pid), "--expected-level", level,
+             "--after-token", baseline_token, "--expected-session", baseline_token.split(":", 1)[0],
+             "--boundary-token", boundary_token if boundary_token is not None else "null"),
+            deadline, stderr, "T2",
+        )
+        if token is not None:
+            require_live_app_pid(pid, "after capture-v2 snapshot")
+            return
+        time.sleep(min(poll, max(0.0, deadline - time.monotonic())))
+    fail("Simulator launch timed out before capture-v2 T2 snapshot")
+
+
 def prove_foreground_cycle(timeout: float, poll: float, stderr, stdout_path: Path,
                            source_log: Path, copied_log: Path,
                            pre_cycle_snapshot: tuple[tuple[int, int], bytes],
@@ -1077,7 +1292,9 @@ def prove_launch(timeout: float, poll: float, stdout_path: Path, stderr_path: Pa
                  snapshot_manifest: Path, navigation_script: Path | None,
                  navigation_documents: Path | None, navigation_snapshot: Path | None,
                  navigation_pre_report: Path | None, initial_pid_path: Path | None = None,
-                 recovery_screenshot: Path | None = None) -> None:
+                 recovery_screenshot: Path | None = None,
+                 capture_v2_parser: Path | None = None,
+                 capture_v2_root: Path | None = None) -> None:
     navigation_values = (navigation_script, navigation_documents, navigation_snapshot, navigation_pre_report)
     navigation_requested = any(value is not None for value in navigation_values)
     if navigation_requested and any(value is None for value in navigation_values):
@@ -1089,6 +1306,12 @@ def prove_launch(timeout: float, poll: float, stdout_path: Path, stderr_path: Pa
         script_details = navigation_script.lstat()
         if stat.S_ISLNK(script_details.st_mode) or not stat.S_ISREG(script_details.st_mode):
             fail("UI navigation controller must be a regular non-symlink script")
+    capture_values = (capture_v2_parser, capture_v2_root)
+    capture_requested = any(value is not None for value in capture_values)
+    if capture_requested and any(value is None for value in capture_values):
+        fail("capture-v2 launch-proof arguments must be supplied as one complete set")
+    if capture_requested and (autoload_save is None or navigation_requested):
+        fail("capture-v2 requires autoload mode and conflicts with UI navigation")
     foreground_values = (initial_pid_path, recovery_screenshot)
     foreground_requested = any(value is not None for value in foreground_values)
     if foreground_requested and any(value is None for value in foreground_values):
@@ -1122,6 +1345,7 @@ def prove_launch(timeout: float, poll: float, stdout_path: Path, stderr_path: Pa
     stability_window = min(1.0, max(0.1, poll))
     sync_complete_since: float | None = None
     sync_level: str | None = None
+    capture_completed = False
     log_snapshot: tuple[tuple[int, int], bytes] | None = None
     with stderr_path.open("ab") as stderr:
         while time.monotonic() < deadline:
@@ -1140,6 +1364,18 @@ def prove_launch(timeout: float, poll: float, stdout_path: Path, stderr_path: Pa
                 if runtime_ready:
                     if autoload_save is not None and sync_complete_since is None:
                         sync_complete_since = time.monotonic()
+                    if capture_requested and not capture_completed:
+                        assert capture_v2_parser is not None
+                        assert capture_v2_root is not None
+                        if sync_level is None:
+                            fail("capture-v2 sync boundary did not identify a level")
+                        if sync_level != "zaton":
+                            fail("capture-v2 checkpoint requires sync_level exactly zaton")
+                        capture_v2_after_sync(
+                            capture_v2_parser, capture_v2_root, source_log.parent, pid,
+                            sync_level, deadline, stderr, poll,
+                        )
+                        capture_completed = True
                     if sync_complete_since is not None:
                         dwell_remaining = 0.250 - (time.monotonic() - sync_complete_since)
                         if dwell_remaining > 0:
@@ -1175,12 +1411,19 @@ def prove_launch(timeout: float, poll: float, stdout_path: Path, stderr_path: Pa
                             )
                         require_live_app_pid(pid, "after semantic UI navigation")
                     require_live_app_pid(pid, "before screenshot")
-                    shot = subprocess.run(
-                        ("xcrun", "simctl", "io", udid, "screenshot", str(screenshot)),
-                        stdout=stderr,
-                        stderr=stderr,
-                        check=False,
-                    )
+                    screenshot_remaining = deadline - time.monotonic()
+                    if screenshot_remaining <= 0:
+                        fail("Simulator launch deadline expired before screenshot")
+                    try:
+                        shot = subprocess.run(
+                            ("xcrun", "simctl", "io", udid, "screenshot", str(screenshot)),
+                            stdout=stderr,
+                            stderr=stderr,
+                            check=False,
+                            timeout=screenshot_remaining,
+                        )
+                    except subprocess.TimeoutExpired:
+                        fail("Simulator screenshot exceeded the original launch deadline")
                     if shot.returncode != 0:
                         fail("Simulator screenshot is missing, empty, or non-regular PNG")
                     verify_png(screenshot)
@@ -1526,6 +1769,8 @@ def parser() -> argparse.ArgumentParser:
     launch.add_argument("--navigation-pre-report")
     launch.add_argument("--initial-pid")
     launch.add_argument("--recovery-screenshot")
+    launch.add_argument("--capture-v2-parser")
+    launch.add_argument("--capture-v2-root")
     finalize = commands.add_parser("finalize-log")
     finalize.add_argument("--source-log", required=True)
     finalize.add_argument("--copied-log", required=True)
@@ -1556,6 +1801,8 @@ def parser() -> argparse.ArgumentParser:
     generated.add_argument("--manifest", required=True)
     generated.add_argument("--ios-autoinput", action="store_true",
                            help="write ios_autoinput 1 for the explicit Simulator UI workflow")
+    generated.add_argument("--ios-diagnostics", action="store_true",
+                           help="write ios_diagnostics 1 for the explicit capture-v2 workflow")
     state = commands.add_parser("selected-save-state")
     state.add_argument("--file", required=True)
     state.add_argument("--output", required=True)
@@ -1564,6 +1811,11 @@ def parser() -> argparse.ArgumentParser:
     mutation.add_argument("--before", required=True)
     mutation.add_argument("--after", required=True)
     mutation.add_argument("--report", required=True)
+    report_prepare = commands.add_parser("prepare-report")
+    report_prepare.add_argument("--destination", required=True)
+    report_publish = commands.add_parser("publish-report")
+    report_publish.add_argument("--source", required=True)
+    report_publish.add_argument("--destination", required=True)
     paths = commands.add_parser("paths")
     paths.add_argument("--repo", required=True)
     paths.add_argument("--backup", required=True)
@@ -1629,6 +1881,8 @@ def main() -> int:
                 (absolute_unresolved(args.navigation_pre_report) if args.navigation_pre_report else None),
                 (absolute_unresolved(args.initial_pid) if args.initial_pid else None),
                 (absolute_unresolved(args.recovery_screenshot) if args.recovery_screenshot else None),
+                (absolute_unresolved(args.capture_v2_parser) if args.capture_v2_parser else None),
+                (absolute_unresolved(args.capture_v2_root) if args.capture_v2_root else None),
             )
         elif args.command == "finalize-log":
             autoload_save = validate_autoload_name(args.autoload_save) if args.autoload_save else None
@@ -1658,6 +1912,7 @@ def main() -> int:
             evidence = Path(args.evidence).expanduser()
             manifest = Path(args.manifest).expanduser()
             write_autoload_config(documents, args.name, evidence, manifest,
+                                  ios_diagnostics=args.ios_diagnostics,
                                   ios_autoinput=args.ios_autoinput)
         elif args.command == "selected-save-state":
             write_selected_save_state(resolved(args.file), Path(args.output).expanduser())
@@ -1665,6 +1920,13 @@ def main() -> int:
             compare_selected_save_state(
                 resolved(args.file), resolved(args.before), Path(args.after).expanduser(),
                 Path(args.report).expanduser(),
+            )
+        elif args.command == "prepare-report":
+            payload = sys.stdin.buffer.read(CHUNK + 1)
+            prepare_report(absolute_unresolved(args.destination), payload)
+        elif args.command == "publish-report":
+            publish_report(
+                absolute_unresolved(args.source), absolute_unresolved(args.destination),
             )
         elif args.command == "paths":
             repo, backup, manifest, base = map(resolved, (args.repo, args.backup, args.manifest, args.work_base))
