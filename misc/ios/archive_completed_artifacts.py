@@ -223,6 +223,12 @@ HISTORICAL_COMPLETED_STAGE_SHA256 = (
      "8da8e9c44f41b595c943c6ef550cc90afae596ff1d7ecaf7aa39b7ffbcff5bb6"),
 )
 HISTORICAL_COMPLETED_GATE_PROOFS = (
+    ("gate-1786541795853451000-5335-0.json",
+     "723355598ddbb043d1c37e09f7b5dd8a332a20e7483780522a61538a5f3e29fb",
+     1786542482.8174772,
+     "d2d39c2693b8d9ed810a1d90ab70a3649c14d7c3bedac0eb78b52b5cb293b830",
+     "c633b0cd5c7c199d6dafe1927bc1e71b0a8958c00316dfa2df9ec8c148b1a098",
+     "54ad2d9662230750bb000c07451b2a576013e1ce123fd9f73dd4ffdc08a689d8"),
     ("gate-1786553042910942000-1324-0.json",
      "6098d6509d7049354736a17e01284f792544cc7e0eb71b28ffd95d35cd7b87ff",
      1786553786.230761,
@@ -243,7 +249,7 @@ HISTORICAL_COMPLETED_GATE_PROOFS = (
      "16f14682fce0287d842108347fbddc8f28b2708dba59eaebf2ff2242ba0b2894"),
 )
 HISTORICAL_COMPLETED_POLICY_AUTHORIZATION_SHA256 = \
-    "0eade64181f67118258f1a9482bc826aebe2a68619ebbb6c25f9c108a6fd3c9a"
+    "26e50fc0f283ab489d5a2f7d3351f26cafee388e793da8a75335eea705d9c512"
 HISTORICAL_PREPARED_OVERLAY_POLICY_VERSION = 1
 HISTORICAL_PREPARED_OVERLAY_OLD_MANIFEST_SHA256 = \
     "1f38846d7a9a50d9e9ea567bb304bedb7d3da6fb6bf5675121d85b8a61363db8"
@@ -270,7 +276,7 @@ HISTORICAL_PREPARED_OVERLAY_UNCHANGED_RECORDS_SHA256 = \
 # metadata-only historical exception below to the independently authorized
 # completed-retirement capability; it is not a mutation authorization.
 HISTORICAL_PREPARED_OVERLAY_AUTHORIZATION_SHA256 = \
-    "fc8da6571273dfe9e2158a483551db6df95e3071315981b28e62842e3fa608ca"
+    "6b721efc3c0d409871caf2c50d40ffb5ebae8c03501ed610d734b17f828cd595"
 _NO_BYTECODE_IMPORT_LOCK = threading.RLock()
 REPO_ROOT = Path(__file__).resolve().parents[2]
 QUEUE_ROOT = Path("/Users/patryk/openxray-handoff/archive-queue")
@@ -7876,6 +7882,24 @@ class ArchiveService:
         visit(value)
         return found
 
+    def validate_historical_gate_proof_inventory(
+            self, values: list[dict[str, Any]],
+            policy: HistoricalCompletedRetirementPolicy) -> None:
+        """Require the exact reviewed proof set; no subset or wildcard match."""
+        found: dict[bytes, dict[str, Any]] = {}
+        for value in values:
+            found.update(self.historical_gate_proofs_in(value))
+        expected = {
+            canonical_json(self.historical_gate_proof_from_row(row)):
+                self.historical_gate_proof_from_row(row)
+            for row in policy.historical_gate_proofs
+        }
+        if set(found) != set(expected):
+            raise ArchiveError(
+                "historical completed gate proof inventory differs")
+        for proof in expected.values():
+            self.validate_reviewed_historical_gate_proof(proof)
+
     def verify_historical_completed_state_bound(
             self, queue_fd: int, transaction_fd: int, record: dict[str, Any],
             volume: VolumeBinding, roots: ExternalRoots,
@@ -8084,18 +8108,8 @@ class ArchiveService:
 
         historical_values = [*stages.values(), external_manifest,
                              external_second, external_receipt]
-        found: dict[bytes, dict[str, Any]] = {}
-        for value in historical_values:
-            found.update(self.historical_gate_proofs_in(value))
-        expected = {
-            canonical_json(self.historical_gate_proof_from_row(row)):
-                self.historical_gate_proof_from_row(row)
-            for row in policy.historical_gate_proofs
-        }
-        if set(found) != set(expected):
-            raise ArchiveError("historical completed gate proof inventory differs")
-        for proof in expected.values():
-            self.validate_reviewed_historical_gate_proof(proof)
+        self.validate_historical_gate_proof_inventory(
+            historical_values, policy)
 
         current_gate = self.matching_clean_full_gate_receipt()
         if current_gate.get("receipt_name") in {

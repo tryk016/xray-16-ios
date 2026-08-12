@@ -816,3 +816,9 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   load is now serialized/no-bytecode with exact state restoration; a real
   empty-cache success/error test proves zero loader cache writes. Archive stays
   131/131 PASS; final Sol xhigh re-review: `APPROVE — brak P0/P1/P2`.
+- Clean `ba2e07e05` full PASS; real read-only verify advanced and failed closed
+  on 4 found versus 3 expected historical gate proofs. The missing policy row
+  is the exact strict-valid original transfer-stage receipt `1786541795…5335`.
+  Sol approved exact inclusion only; fixtures/mutations and coupled digests now
+  require all four. Archive 131/131; final Sol xhigh `APPROVE — brak P0/P1/P2`;
+  commit/new full/real PASS pending.

@@ -4960,3 +4960,30 @@ boolean states and an import failure. The archive suite remains 131/131 PASS.
 Normal test-module bytecode generated while importing the test harness is not a
 historical-verifier write and is kept outside this acceptance oracle. Final
 Sol xhigh re-review returned exactly `APPROVE — brak P0/P1/P2`.
+
+## 2026-08-12 — exact fourth historical gate proof
+
+The next clean full gate for commit
+`ba2e07e0585be8110d8b00c8b4d886989b11be63` also passed before the real
+read-only verifier was retried. That retry advanced beyond prepared-cache
+verification and failed closed on `historical completed gate proof inventory
+differs`. Read-only comparison found four proofs in immutable records versus
+three in policy. The omitted proof is the exact original transfer-stage gate
+embedded in the external main manifest:
+`gate-1786541795853451000-5335-0.json`, receipt SHA-256
+`723355598ddbb043d1c37e09f7b5dd8a332a20e7483780522a61538a5f3e29fb`,
+source `d2d39c2693b8d9ed810a1d90ab70a3649c14d7c3bedac0eb78b52b5cb293b830`,
+stamp `c633b0cd5c7c199d6dafe1927bc1e71b0a8958c00316dfa2df9ec8c148b1a098`
+and log SHA-256
+`54ad2d9662230750bb000c07451b2a576013e1ce123fd9f73dd4ffdc08a689d8`.
+The persisted receipt/log bytes exist and pass the same strict historical proof
+validator as the other three.
+
+Sol xhigh approved adding only this complete exact row. The policy now requires
+all four and still rejects any missing, extra or mutated proof; both policy
+authorization digests were recomputed and fixture coverage now mirrors the
+transfer manifest plus 008/009a/009b locations. Archive tests remain 131/131.
+Final Sol xhigh review returned exactly `APPROVE — brak P0/P1/P2`; commit,
+another clean full gate and real `HISTORICAL_PASS` remain pending. The failed
+verifier attempts were read-only and did not alter CWD, bytecode, prepared
+retail or DevArchive.

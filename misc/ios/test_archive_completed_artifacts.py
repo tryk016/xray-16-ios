@@ -720,9 +720,6 @@ class ArchivePolicyTests(unittest.TestCase):
                     (root / name).read_text(encoding="ascii"))
                 for name in stage_names
             }
-            stage_sha = tuple(
-                (name, ARC.sha256_bytes((root / name).read_bytes()))
-                for name in stage_names)
             published = stages[ARC.RECORD_NAMES["published"]]
             second_stage = stages[ARC.RECORD_NAMES["second-copy-proof"]]
             retired = stages[ARC.RECORD_NAMES["source-deleted"]]
@@ -738,6 +735,142 @@ class ArchivePolicyTests(unittest.TestCase):
             external_receipt = ARC.strict_json_loads(
                 (manifests_root / receipt["external_receipt"]
                  ).read_text(encoding="ascii"))
+
+            def historical_proof(slot: int) -> dict[str, object]:
+                name = f"gate-1999998{slot:03d}000000000-9{slot:02d}-0.json"
+                source_hash = f"{slot + 1:x}" * 64
+                receipt_path = self.write_gate_receipt(
+                    source_hash=source_hash,
+                    ended=self.platform.clock - 1000 - slot,
+                    receipt_name=name)
+                raw = receipt_path.read_bytes()
+                gate_receipt = ARC.strict_json_loads(raw.decode("ascii"))
+                return {
+                    "schema": "openxray.archive-gate-proof.v1",
+                    "review_policy_version": ARC.REVIEW_POLICY_VERSION,
+                    "receipt_name": name,
+                    "receipt_sha256": ARC.sha256_bytes(raw),
+                    "gate": "full",
+                    "gate_ended_unix": gate_receipt["ended_unix"],
+                    "gate_source_sha256": source_hash,
+                    "gate_stamp_sha256":
+                        gate_receipt["underlying_stamp"]["sha256"],
+                    "gate_log_sha256": gate_receipt["log_sha256"],
+                }
+
+            transfer_gate = copy.deepcopy(external_manifest["gate_proof"])
+            gate_a, gate_b, gate_c = tuple(
+                historical_proof(slot) for slot in range(1, 4))
+
+            def write_stage(name: str) -> str:
+                path = root / name
+                path.write_bytes(ARC.canonical_json(stages[name]))
+                os.chmod(path, 0o600)
+                return ARC.sha256_bytes(path.read_bytes())
+
+            def source_root_gates(
+                    payload: dict[str, object], immutable: dict[str, object],
+                    current: dict[str, object]) -> None:
+                payload["source_root_overlay_gate_proof"] = immutable
+                payload["source_root_overlay_gate_proof_sha256"] = \
+                    ARC.sha256_bytes(ARC.canonical_json(immutable))
+                payload["source_root_overlay_current_gate_proof"] = current
+                payload["source_root_overlay_current_gate_proof_sha256"] = \
+                    ARC.sha256_bytes(ARC.canonical_json(current))
+
+            external_manifest_path = (
+                manifests_root / stages[ARC.RECORD_NAMES[
+                    "manifest-published"]]["external_manifest"])
+
+            quarantined_name = ARC.RECORD_NAMES["source-quarantined"]
+            stages[quarantined_name]["gate_proof"] = gate_a
+            stages[quarantined_name]["gate_proof_sha256"] = \
+                ARC.sha256_bytes(ARC.canonical_json(gate_a))
+            quarantined_sha = write_stage(quarantined_name)
+
+            retirement_name = ARC.RECORD_NAMES["retirement-started"]
+            source_root_gates(stages[retirement_name], gate_a, gate_b)
+            stages[retirement_name]["source_quarantined_stage_sha256"] = \
+                quarantined_sha
+            retirement_sha = write_stage(retirement_name)
+
+            baseline_name = ARC.RETIREMENT_OVERLAY_BASELINE_RECORD
+            stages[baseline_name]["immutable_008_gate_proof"] = gate_a
+            stages[baseline_name]["immutable_008_gate_proof_sha256"] = \
+                ARC.sha256_bytes(ARC.canonical_json(gate_a))
+            stages[baseline_name]["current_009a_gate_proof"] = gate_b
+            stages[baseline_name]["current_009a_gate_proof_sha256"] = \
+                ARC.sha256_bytes(ARC.canonical_json(gate_b))
+            stages[baseline_name]["source_quarantined_stage_sha256"] = \
+                quarantined_sha
+            stages[baseline_name]["retirement_started_stage_sha256"] = \
+                retirement_sha
+            baseline_sha = write_stage(baseline_name)
+
+            pretruncate_name = ARC.RETIREMENT_PRETRUNCATE_OPEN_RECORD
+            stages[pretruncate_name]["historical_009a_gate_proof"] = gate_b
+            stages[pretruncate_name]["historical_009a_gate_proof_sha256"] = \
+                ARC.sha256_bytes(ARC.canonical_json(gate_b))
+            stages[pretruncate_name]["current_009b_gate_proof"] = gate_c
+            stages[pretruncate_name]["current_009b_gate_proof_sha256"] = \
+                ARC.sha256_bytes(ARC.canonical_json(gate_c))
+            stages[pretruncate_name]["source_quarantined_stage_sha256"] = \
+                quarantined_sha
+            stages[pretruncate_name]["retirement_started_stage_sha256"] = \
+                retirement_sha
+            stages[pretruncate_name][
+                "retirement_overlay_baseline_stage_sha256"] = baseline_sha
+            pretruncate_sha = write_stage(pretruncate_name)
+
+            retired_name = ARC.RECORD_NAMES["source-deleted"]
+            source_root_gates(stages[retired_name], gate_a, gate_c)
+            stages[retired_name]["source_quarantined_stage_sha256"] = \
+                quarantined_sha
+            stages[retired_name]["retirement_started_stage_sha256"] = \
+                retirement_sha
+            stages[retired_name][
+                "retirement_overlay_baseline_stage_sha256"] = baseline_sha
+            stages[retired_name][
+                "retirement_pretruncate_open_stage_sha256"] = pretruncate_sha
+            retired_sha = write_stage(retired_name)
+
+            source_root_gates(external_receipt, gate_a, gate_c)
+            external_receipt["source_quarantined_stage_sha256"] = \
+                quarantined_sha
+            external_receipt["retirement_started_stage_sha256"] = \
+                retirement_sha
+            external_receipt[
+                "retirement_overlay_baseline_stage_sha256"] = baseline_sha
+            external_receipt[
+                "retirement_pretruncate_open_stage_sha256"] = pretruncate_sha
+            external_receipt["source_deleted_stage_sha256"] = retired_sha
+            external_receipt_path = manifests_root / receipt["external_receipt"]
+            external_receipt_path.write_bytes(
+                ARC.canonical_json(external_receipt))
+            os.chmod(external_receipt_path, 0o600)
+            external_receipt_sha = ARC.sha256_bytes(
+                external_receipt_path.read_bytes())
+
+            receipt_name = ARC.RECORD_NAMES["deletion-receipt"]
+            source_root_gates(stages[receipt_name], gate_a, gate_c)
+            stages[receipt_name]["source_quarantined_stage_sha256"] = \
+                quarantined_sha
+            stages[receipt_name]["retirement_started_stage_sha256"] = \
+                retirement_sha
+            stages[receipt_name][
+                "retirement_overlay_baseline_stage_sha256"] = baseline_sha
+            stages[receipt_name][
+                "retirement_pretruncate_open_stage_sha256"] = pretruncate_sha
+            stages[receipt_name]["source_deleted_stage_sha256"] = retired_sha
+            stages[receipt_name]["external_receipt_sha256"] = \
+                external_receipt_sha
+            write_stage(receipt_name)
+
+            retired = stages[retired_name]
+            receipt = stages[receipt_name]
+            stage_sha = tuple(
+                (name, ARC.sha256_bytes((root / name).read_bytes()))
+                for name in stage_names)
             found: dict[bytes, dict[str, object]] = {}
             for payload in (*stages.values(), external_manifest,
                             external_second, external_receipt):
@@ -865,8 +998,11 @@ class ArchivePolicyTests(unittest.TestCase):
                     "retail_verifier_calls": retail_verifier_calls,
                     "historical_stages": stages,
                     "external_manifest": external_manifest,
+                    "external_manifest_path": external_manifest_path,
                     "external_second": external_second,
                     "external_receipt": external_receipt,
+                    "historical_gate_proofs": (
+                        transfer_gate, gate_a, gate_b, gate_c),
                     "current_receipt": current_receipt,
                     "destination_path": (
                         self.mount / ARC.ARCHIVE_ROOT /
@@ -4313,6 +4449,15 @@ class ArchivePolicyTests(unittest.TestCase):
     # HST-01..06 — exact read-only completed-retirement verification
     def hst_01(self) -> None:
         """The dedicated command returns only its non-authorizing status."""
+        self.assertEqual(len(ARC.HISTORICAL_COMPLETED_GATE_PROOFS), 4)
+        self.assertEqual(
+            ARC.HISTORICAL_COMPLETED_GATE_PROOFS[0],
+            ("gate-1786541795853451000-5335-0.json",
+             "723355598ddbb043d1c37e09f7b5dd8a332a20e7483780522a61538a5f3e29fb",
+             1786542482.8174772,
+             "d2d39c2693b8d9ed810a1d90ab70a3649c14d7c3bedac0eb78b52b5cb293b830",
+             "c633b0cd5c7c199d6dafe1927bc1e71b0a8958c00316dfa2df9ec8c148b1a098",
+             "54ad2d9662230750bb000c07451b2a576013e1ce123fd9f73dd4ffdc08a689d8"))
         self.assertEqual(
             ARC.historical_completed_policy_authorization_sha256(
                 ARC.PRODUCTION_HISTORICAL_COMPLETED),
@@ -4330,6 +4475,28 @@ class ArchivePolicyTests(unittest.TestCase):
                 ["verify-historical-production-state"]).command,
             "verify-historical-production-state")
         with self.historical_completed_transaction("positive") as fixture:
+            proofs = fixture["historical_gate_proofs"]
+            self.assertEqual(len(proofs), 4)
+            self.assertEqual(
+                fixture["historical_policy"].historical_gate_proofs,
+                tuple(sorted((
+                    (proof["receipt_name"], proof["receipt_sha256"],
+                     proof["gate_ended_unix"], proof["gate_source_sha256"],
+                     proof["gate_stamp_sha256"], proof["gate_log_sha256"])
+                    for proof in proofs), key=lambda row: row[0])))
+            self.assertEqual(
+                fixture["external_manifest"]["gate_proof"], proofs[0])
+            self.assertEqual(
+                fixture["historical_stages"][ARC.RECORD_NAMES[
+                    "source-quarantined"]]["gate_proof"], proofs[1])
+            self.assertEqual(
+                fixture["historical_stages"][
+                    ARC.RETIREMENT_OVERLAY_BASELINE_RECORD][
+                        "current_009a_gate_proof"], proofs[2])
+            self.assertEqual(
+                fixture["historical_stages"][
+                    ARC.RETIREMENT_PRETRUNCATE_OPEN_RECORD][
+                        "current_009b_gate_proof"], proofs[3])
             before = self.historical_readonly_snapshot()
             cwd_before = ARC.identity(os.stat("."))
             result = self.service.verify_historical_production_state()
@@ -4419,10 +4586,12 @@ class ArchivePolicyTests(unittest.TestCase):
                         "generic path used historical prepared overlay")) \
                     as historical_overlay:
                 with self.assertRaisesRegex(
-                        ARC.ArchiveError, "semantically equivalent"):
+                        ARC.ArchiveError,
+                        "semantically equivalent|009a tuple differs"):
                     self.service.verify_production_state(fixture["transaction"])
                 with self.assertRaisesRegex(
-                        ARC.ArchiveError, "semantically equivalent"):
+                        ARC.ArchiveError,
+                        "semantically equivalent|009a tuple differs"):
                     self.service.verify_published(fixture["transaction"])
                 historical_overlay.assert_not_called()
             result = self.service.verify_historical_production_state()
@@ -4458,7 +4627,7 @@ class ArchivePolicyTests(unittest.TestCase):
                                 as strict_api:
                             with self.assertRaisesRegex(
                                     ARC.ArchiveError,
-                                    "semantically equivalent"):
+                                    "semantically equivalent|009a tuple differs"):
                                 self.service.ensure_sibling_dependency_proof(
                                     queue_fd, transaction_fd, sibling_record,
                                     volume, roots)
@@ -4567,6 +4736,40 @@ class ArchivePolicyTests(unittest.TestCase):
         """Historical evidence, external state, tombstone and prepared proof bind."""
         with self.historical_completed_transaction("physical") as fixture:
             policy = fixture["historical_policy"]
+            values = [*fixture["historical_stages"].values(),
+                      fixture["external_manifest"],
+                      fixture["external_second"],
+                      fixture["external_receipt"]]
+            self.service.validate_historical_gate_proof_inventory(
+                values, policy)
+
+            without_transfer_manifest = [
+                *fixture["historical_stages"].values(),
+                fixture["external_second"], fixture["external_receipt"]]
+            with self.assertRaisesRegex(
+                    ARC.ArchiveError, "proof inventory differs"):
+                self.service.validate_historical_gate_proof_inventory(
+                    without_transfer_manifest, policy)
+
+            extra_proof = copy.deepcopy(
+                fixture["historical_gate_proofs"][0])
+            extra_proof["receipt_name"] = \
+                "gate-1999998999000000000-999-0.json"
+            with self.assertRaisesRegex(
+                    ARC.ArchiveError, "proof inventory differs"):
+                self.service.validate_historical_gate_proof_inventory(
+                    [*values, {"gate_proof": extra_proof}], policy)
+
+            mutated_transfer = copy.deepcopy(fixture["external_manifest"])
+            mutated_transfer["gate_proof"] = copy.deepcopy(
+                mutated_transfer["gate_proof"])
+            mutated_transfer["gate_proof"]["gate_source_sha256"] = "0" * 64
+            with self.assertRaisesRegex(
+                    ARC.ArchiveError, "proof inventory differs"):
+                self.service.validate_historical_gate_proof_inventory(
+                    [*fixture["historical_stages"].values(),
+                     mutated_transfer, fixture["external_second"],
+                     fixture["external_receipt"]], policy)
 
             receipt_name = policy.historical_gate_proofs[0][0]
             historical_receipt = self.settings.gate_log_root / receipt_name
