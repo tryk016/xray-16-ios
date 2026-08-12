@@ -745,6 +745,25 @@ read-only historical verifier reports only `HISTORICAL_PASS` with
 recovery, publication, install or push. A fresh post-commit full gate remains
 required for the final current tree.
 
+Commit `8b265b07b489f1633e6be17f57fd1578adb11092` received its own clean full
+PASS in `gate-1786570175187364000-15196-0.log` (SHA-256
+`fd07567c73d2d4e2fbdd5a8c9178d40e0e6db008337e691bafa49332a5895e71`).
+The 102-case retail Simulator stage took 656.256 s; archive 131/131 and all
+established shader/link contracts passed, with 68 rebuilt TUs. Source was
+`d8b2fc5d…f394`, UUID `574CACAC-E835-3E81-9919-60F8B93343DE`, bundle
+`c6dbaa33…9a0c` and stamp SHA-256 `54c54c5c…b59a5`.
+
+The first real read-only historical verification then failed closed because
+the immutable prepared proof captured Finder's `.DS_Store`, while the reviewed
+prepared cache later removed exactly that 6,148-byte metadata file to restore
+the importer contract. The 13 selected retail files still pass
+`retail_import.py verify`. The historical path now has an exact non-authorizing
+metadata-overlay policy binding both complete manifests, the sole removed file,
+root inode/metadata, unchanged records and the importer verifier. No generic
+prepared/production path is relaxed. These overlay changes make the `8b265b07b`
+gate historical; they require final review, commit, a new clean full gate and a
+real `HISTORICAL_PASS` before push.
+
 ### Historical code-artifact full-gate stamp (stale)
 
 The prior clean post-commit `e967a4c36dfbecf13f3934fee1cf018d618dd776` stamp

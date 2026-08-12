@@ -210,6 +210,65 @@ class ArchivePolicyTests(unittest.TestCase):
         path.write_bytes(contents)
         return path
 
+    def real_retail_loader_fixture(
+            self, name: str) -> tuple[Path, Path, Path]:
+        """Copy the real nested loader modules and make a valid tiny cache."""
+        root = self.base / name
+        modules = root / "modules"
+        prepared = root / "prepared"
+        documents = prepared / "Documents"
+        manifests = prepared / "manifest"
+        modules.mkdir(mode=0o700, parents=True)
+        (modules / "__pycache__").mkdir(mode=0o700)
+        source_modules = Path(ARC.__file__).resolve().parent
+        for module_name in (
+                "retail_import.py", "retail_simulator_guard.py",
+                "openal_provider_contract.py"):
+            shutil.copyfile(source_modules / module_name,
+                            modules / module_name)
+
+        required = tuple(
+            [f"resources/resources.db{index}" for index in range(5)]
+            + [f"levels/levels.db{index}" for index in range(2)])
+        rows: list[tuple[str, int, str]] = []
+        for index, relative in enumerate(required):
+            data = f"retail-loader-{index}\n".encode("ascii")
+            path = self.write_tree_file(documents, relative, data)
+            rows.append((relative, len(data), ARC.sha256_bytes(data)))
+            os.chmod(path, 0o600)
+        manifests.mkdir(mode=0o700, parents=True)
+        files_tsv = ("bytes\tpath\n" + "".join(
+            f"{size}\t{relative}\n" for relative, size, _ in rows
+        )).encode("ascii")
+        required_tsv = ("bytes\tsha256\tpath\tstatus\n" + "".join(
+            f"{size}\t{digest}\t{relative}\tPASS\n"
+            for relative, size, digest in rows)).encode("ascii")
+        large_tsv = ("sha256\tbytes\tpath\n" + "".join(
+            f"{digest}\t{size}\t{relative}\n"
+            for relative, size, digest in rows)).encode("ascii")
+        prepared_tsv = ("sha256\tbytes\tpath\n" + "".join(
+            f"{digest}\t{size}\t{relative}\n"
+            for relative, size, digest in rows)).encode("ascii")
+        manifest_payloads = {
+            "files.tsv": files_tsv,
+            "required-archives.tsv": required_tsv,
+            "large-files-sha256.tsv": large_tsv,
+            "prepared-files.tsv": prepared_tsv,
+        }
+        inventory = ("sha256\tbytes\tpath\n" + "".join(
+            f"{ARC.sha256_bytes(data)}\t{len(data)}\t{item}\n"
+            for item, data in sorted(manifest_payloads.items()))).encode("ascii")
+        manifest_payloads["prepared-manifest-files.tsv"] = inventory
+        for item, data in manifest_payloads.items():
+            path = manifests / item
+            path.write_bytes(data)
+            os.chmod(path, 0o600)
+        for current, directories, _ in os.walk(prepared):
+            os.chmod(current, 0o700)
+            for directory in directories:
+                os.chmod(Path(current) / directory, 0o700)
+        return modules / "retail_import.py", prepared, modules / "__pycache__"
+
     @staticmethod
     def tree_snapshot(root: Path) -> dict[str, object]:
         descriptor = ARC.open_absolute_directory(root, "metadata-exact test snapshot")
@@ -691,6 +750,17 @@ class ArchivePolicyTests(unittest.TestCase):
             destination = published["destination_manifest"]
             tombstone = retired["tombstone_manifest"]
             prepared = external_second["prepared_manifest"]
+            prepared_ds_store = self.settings.retail_prepared_root / ".DS_Store"
+            self.assertTrue(prepared_ds_store.is_file())
+            prepared_ds_store_bytes = prepared_ds_store.read_bytes()
+            prepared_ds_store.unlink()
+            prepared_fd = ARC.open_absolute_directory(
+                self.settings.retail_prepared_root,
+                "test historical prepared overlay")
+            try:
+                prepared_current = ARC.manifest_bound(prepared_fd, "directory")
+            finally:
+                os.close(prepared_fd)
             record = stages[ARC.RECORD_NAMES["candidate"]]
             policy = ARC.HistoricalCompletedRetirementPolicy(
                 901, transaction, record["candidate_id"], record["source"],
@@ -723,8 +793,56 @@ class ArchivePolicyTests(unittest.TestCase):
                 tombstone["directories"], tombstone["symlinks"],
                 tombstone["logical_bytes"], tombstone["allocated_bytes"],
                 ARC.REVIEWED_ALLOWLIST_AUTHORIZATION_SHA256)
+            old_rows = {row["path"]: row for row in prepared["entries"]}
+            current_rows = {
+                row["path"]: row for row in prepared_current["entries"]}
+            removed = old_rows[".DS_Store"]
+            unchanged_paths = sorted(set(current_rows) - {"."})
+            prepared_overlay = ARC.HistoricalPreparedMetadataOverlayPolicy(
+                902, transaction, record["candidate_id"],
+                second_stage["external_proof"],
+                second_stage["external_proof_sha256"],
+                tuple(external_second["prepared_root_identity"]),
+                ARC.manifest_canonical_sha256(prepared),
+                prepared["tree_sha256"],
+                ARC.manifest_canonical_sha256(prepared_current),
+                prepared_current["tree_sha256"], ".DS_Store",
+                ARC.sha256_bytes(ARC.canonical_json(removed)),
+                removed["sha256"], removed["logical_bytes"],
+                removed["allocated_bytes"], removed["flags"],
+                tuple(sorted(removed["xattrs"].items())),
+                ARC.sha256_bytes(ARC.canonical_json(old_rows["."])),
+                ARC.sha256_bytes(ARC.canonical_json(current_rows["."])),
+                ARC.sha256_bytes(ARC.canonical_json(
+                    [old_rows[path] for path in unchanged_paths])),
+                prepared["files"], prepared_current["files"],
+                prepared["directories"], prepared["symlinks"],
+                prepared_current["logical_bytes"] - prepared["logical_bytes"],
+                prepared_current["allocated_bytes"]
+                - prepared["allocated_bytes"],
+                ARC.historical_completed_policy_authorization_sha256(policy))
             original_policy = self.service.historical_completed_policy
+            original_prepared_policy = \
+                self.service.historical_prepared_overlay_policy
+            original_retail_verifier = \
+                self.service.retail_import_prepared_verifier
             self.service.historical_completed_policy = lambda: policy
+            self.service.historical_prepared_overlay_policy = \
+                lambda completed: prepared_overlay
+            retail_verifier_calls: list[tuple[int, int]] = []
+
+            def hermetic_retail_verifier(descriptor: int) -> None:
+                retail_verifier_calls.append(ARC.identity(os.fstat(descriptor)))
+                self.assertEqual(
+                    ARC.identity(os.fstat(descriptor)),
+                    prepared_overlay.prepared_root_identity)
+                self.assertEqual(
+                    sorted(os.listdir(descriptor)), ["Documents", "manifest"])
+                # Exercise the archive wrapper's unconditional cwd restoration.
+                os.fchdir(descriptor)
+
+            self.service.retail_import_prepared_verifier = \
+                lambda: hermetic_retail_verifier
             self.platform.gate_hash = "f" * 64
             empty = ARC.sha256_bytes(b"")
             self.platform.current_gate_state = {
@@ -738,6 +856,13 @@ class ArchivePolicyTests(unittest.TestCase):
             try:
                 yield {
                     **fixture, "historical_policy": policy,
+                    "historical_prepared_policy": prepared_overlay,
+                    "historical_prepared_old": prepared,
+                    "historical_prepared_current": prepared_current,
+                    "historical_prepared_removed": removed,
+                    "historical_prepared_removed_bytes":
+                        prepared_ds_store_bytes,
+                    "retail_verifier_calls": retail_verifier_calls,
                     "historical_stages": stages,
                     "external_manifest": external_manifest,
                     "external_second": external_second,
@@ -755,6 +880,10 @@ class ArchivePolicyTests(unittest.TestCase):
                 }
             finally:
                 self.service.historical_completed_policy = original_policy
+                self.service.historical_prepared_overlay_policy = \
+                    original_prepared_policy
+                self.service.retail_import_prepared_verifier = \
+                    original_retail_verifier
 
     def historical_readonly_snapshot(self) -> dict[str, bytes]:
         roots = {
@@ -4189,11 +4318,20 @@ class ArchivePolicyTests(unittest.TestCase):
                 ARC.PRODUCTION_HISTORICAL_COMPLETED),
             ARC.HISTORICAL_COMPLETED_POLICY_AUTHORIZATION_SHA256)
         self.assertEqual(
+            ARC.historical_prepared_overlay_authorization_sha256(
+                ARC.PRODUCTION_HISTORICAL_PREPARED_OVERLAY),
+            ARC.HISTORICAL_PREPARED_OVERLAY_AUTHORIZATION_SHA256)
+        self.assertEqual(
+            ARC.PRODUCTION_HISTORICAL_PREPARED_OVERLAY
+                .historical_policy_authorization_sha256,
+            ARC.HISTORICAL_COMPLETED_POLICY_AUTHORIZATION_SHA256)
+        self.assertEqual(
             ARC.parser().parse_args(
                 ["verify-historical-production-state"]).command,
             "verify-historical-production-state")
-        with self.historical_completed_transaction("positive"):
+        with self.historical_completed_transaction("positive") as fixture:
             before = self.historical_readonly_snapshot()
+            cwd_before = ARC.identity(os.stat("."))
             result = self.service.verify_historical_production_state()
             after = self.historical_readonly_snapshot()
             self.assertEqual(result, {
@@ -4202,16 +4340,91 @@ class ArchivePolicyTests(unittest.TestCase):
             })
             self.assertNotIn("PASS", result.values())
             self.assertEqual(before, after)
+            self.assertEqual(ARC.identity(os.stat(".")), cwd_before)
+            self.assertEqual(
+                fixture["retail_verifier_calls"],
+                [fixture["historical_prepared_policy"].prepared_root_identity])
+
+        module_path, prepared_root, cache = \
+            self.real_retail_loader_fixture("real-loader-success")
+
+        def module_snapshot(root: Path) -> dict[str, tuple[object, ...]]:
+            result: dict[str, tuple[object, ...]] = {}
+            for path in sorted(root.rglob("*")):
+                relative = path.relative_to(root).as_posix()
+                info = path.lstat()
+                if stat.S_ISREG(info.st_mode):
+                    result[relative] = (
+                        "regular", info.st_size, info.st_mtime_ns,
+                        ARC.sha256_file(path))
+                elif stat.S_ISDIR(info.st_mode):
+                    result[relative] = ("directory", info.st_mtime_ns)
+                else:
+                    result[relative] = ("other", stat.S_IFMT(info.st_mode))
+            return result
+
+        module_root = module_path.parent
+        before_modules = module_snapshot(module_root)
+        self.assertEqual(list(cache.iterdir()), [])
+        original_bytecode = sys.dont_write_bytecode
+        try:
+            verifier = None
+            for prior in (False, True):
+                sys.dont_write_bytecode = prior
+                loaded = ARC.load_retail_import_prepared_verifier(module_path)
+                self.assertTrue(callable(loaded))
+                self.assertIs(sys.dont_write_bytecode, prior)
+                verifier = loaded
+            assert verifier is not None
+            prepared_fd = ARC.open_absolute_directory(
+                prepared_root, "real retail loader prepared fixture")
+            cwd_before = ARC.identity(os.stat("."))
+            try:
+                verified = verifier(prepared_fd)
+            finally:
+                os.close(prepared_fd)
+            self.assertEqual(ARC.identity(os.stat(".")), cwd_before)
+            self.assertEqual(len(verified["documents"]), 7)
+            self.assertEqual(len(verified["manifest"]), 5)
+
+            broken_root = self.base / "real-loader-exception"
+            broken_modules = broken_root / "modules"
+            broken_modules.mkdir(mode=0o700, parents=True)
+            broken_cache = broken_modules / "__pycache__"
+            broken_cache.mkdir(mode=0o700)
+            for name in ("retail_import.py", "retail_simulator_guard.py"):
+                shutil.copyfile(module_root / name, broken_modules / name)
+            before_broken = module_snapshot(broken_modules)
+            for prior in (False, True):
+                sys.dont_write_bytecode = prior
+                with self.assertRaisesRegex(
+                        ARC.ArchiveError, "dependency chain cannot be loaded"):
+                    ARC.load_retail_import_prepared_verifier(
+                        broken_modules / "retail_import.py")
+                self.assertIs(sys.dont_write_bytecode, prior)
+            self.assertEqual(module_snapshot(broken_modules), before_broken)
+            self.assertEqual(list(broken_cache.iterdir()), [])
+        finally:
+            sys.dont_write_bytecode = original_bytecode
+        self.assertEqual(module_snapshot(module_root), before_modules)
+        self.assertEqual(list(cache.iterdir()), [])
+        self.assertEqual(list(module_root.rglob("*.pyc")), [])
 
     def hst_02(self) -> None:
         """The actual sibling path rejects HST and keeps strict equivalence."""
         with self.historical_completed_transaction("strict-existing") as fixture:
-            with self.assertRaisesRegex(
-                    ARC.ArchiveError, "semantically equivalent"):
-                self.service.verify_production_state(fixture["transaction"])
-            with self.assertRaisesRegex(
-                    ARC.ArchiveError, "semantically equivalent"):
-                self.service.verify_published(fixture["transaction"])
+            with mock.patch.object(
+                    self.service, "verify_historical_prepared_overlay",
+                    side_effect=AssertionError(
+                        "generic path used historical prepared overlay")) \
+                    as historical_overlay:
+                with self.assertRaisesRegex(
+                        ARC.ArchiveError, "semantically equivalent"):
+                    self.service.verify_production_state(fixture["transaction"])
+                with self.assertRaisesRegex(
+                        ARC.ArchiveError, "semantically equivalent"):
+                    self.service.verify_published(fixture["transaction"])
+                historical_overlay.assert_not_called()
             result = self.service.verify_historical_production_state()
             self.assertEqual(set(result), {"status", "mutation_authorization"})
             self.assertFalse(any(key.startswith("main_") for key in result))
@@ -4321,6 +4534,35 @@ class ArchivePolicyTests(unittest.TestCase):
                 self.assertRaisesRegex(ARC.ArchiveError, "not authorized"):
             production.historical_completed_policy()
 
+        overlay = ARC.PRODUCTION_HISTORICAL_PREPARED_OVERLAY
+        baseline_digest = ARC.historical_prepared_overlay_authorization_sha256(
+            overlay)
+        self.assertEqual(
+            baseline_digest,
+            ARC.HISTORICAL_PREPARED_OVERLAY_AUTHORIZATION_SHA256)
+        for field_name in overlay.__dataclass_fields__:
+            value = getattr(overlay, field_name)
+            if isinstance(value, int):
+                replacement_value = value + 1
+            elif isinstance(value, str):
+                replacement_value = value + "-changed"
+            elif isinstance(value, tuple):
+                replacement_value = value + (("foreign", "0" * 64),)
+            else:  # pragma: no cover - the immutable policy has no other type
+                self.fail(f"unhandled overlay policy field: {field_name}")
+            replacement = replace(
+                overlay, **{field_name: replacement_value})
+            self.assertNotEqual(
+                ARC.historical_prepared_overlay_authorization_sha256(
+                    replacement), baseline_digest, field_name)
+            with self.subTest(prepared_overlay_field=field_name), \
+                    mock.patch.object(
+                        ARC, "PRODUCTION_HISTORICAL_PREPARED_OVERLAY",
+                        replacement), self.assertRaisesRegex(
+                            ARC.ArchiveError, "not authorized"):
+                production.historical_prepared_overlay_policy(
+                    ARC.PRODUCTION_HISTORICAL_COMPLETED)
+
     def hst_04(self) -> None:
         """Historical evidence, external state, tombstone and prepared proof bind."""
         with self.historical_completed_transaction("physical") as fixture:
@@ -4404,6 +4646,168 @@ class ArchivePolicyTests(unittest.TestCase):
                 os.chmod(prepared_path, stat.S_IMODE(prepared_info.st_mode))
                 os.utime(prepared_path, ns=(prepared_info.st_atime_ns,
                                             prepared_info.st_mtime_ns))
+
+            prepared_root = self.settings.retail_prepared_root
+            root_info = prepared_root.stat()
+
+            def restore_root_mtime() -> None:
+                os.utime(prepared_root, ns=(root_info.st_atime_ns,
+                                            root_info.st_mtime_ns))
+
+            # Restoring the reviewed Finder file is not an allowed current
+            # state: the exception is exactly its removal, not optionality.
+            restored_ds = prepared_root / ".DS_Store"
+            restored_ds.write_bytes(
+                fixture["historical_prepared_removed_bytes"])
+            try:
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                restored_ds.unlink()
+                restore_root_mtime()
+
+            extra_file = prepared_root / "foreign.txt"
+            extra_file.write_bytes(b"foreign\n")
+            try:
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                extra_file.unlink()
+                restore_root_mtime()
+
+            extra_directory = prepared_root / "foreign-directory"
+            extra_directory.mkdir(mode=0o700)
+            try:
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                extra_directory.rmdir()
+                restore_root_mtime()
+
+            existing_metadata = prepared_root / sorted(
+                ARC.PREPARED_METADATA_PATHS)[0]
+            hidden_metadata = existing_metadata.with_name(
+                existing_metadata.name + ".temporarily-missing")
+            metadata_parent_info = existing_metadata.parent.stat()
+            existing_metadata.rename(hidden_metadata)
+            try:
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                hidden_metadata.rename(existing_metadata)
+                os.utime(existing_metadata.parent,
+                         ns=(metadata_parent_info.st_atime_ns,
+                             metadata_parent_info.st_mtime_ns))
+
+            mapped = prepared_root / ARC.SECOND_COPY_MAPPINGS[1][1]
+            mapped_info = mapped.stat()
+            os.chmod(mapped, stat.S_IMODE(mapped_info.st_mode) ^ 0o100)
+            try:
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                os.chmod(mapped, stat.S_IMODE(mapped_info.st_mode))
+
+            mapped_fd = os.open(mapped, os.O_RDONLY | ARC.O_NOFOLLOW)
+            mapped_xattrs = ARC.xattrs_fd(mapped_fd)
+            try:
+                changed_xattrs = dict(mapped_xattrs)
+                changed_xattrs["com.openxray.historical-test"] = \
+                    ARC.base64.b64encode(b"foreign").decode("ascii")
+                ARC.restore_xattrs_fd(mapped_fd, changed_xattrs)
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                ARC.restore_xattrs_fd(mapped_fd, mapped_xattrs)
+                os.close(mapped_fd)
+
+            if sys.platform == "darwin":
+                mapped_fd = os.open(mapped, os.O_RDONLY | ARC.O_NOFOLLOW)
+                original_flags = ARC.bsd_flags(os.fstat(mapped_fd))
+                try:
+                    ARC.restore_bsd_flags_fd(
+                        mapped_fd, original_flags ^ 0x8000)
+                    with self.assertRaises(ARC.ArchiveError):
+                        self.service.verify_historical_production_state()
+                finally:
+                    ARC.restore_bsd_flags_fd(mapped_fd, original_flags)
+                    os.close(mapped_fd)
+
+            os.utime(mapped, ns=(mapped_info.st_atime_ns,
+                                 mapped_info.st_mtime_ns + 1_000_000))
+            try:
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                os.utime(mapped, ns=(mapped_info.st_atime_ns,
+                                     mapped_info.st_mtime_ns))
+
+            documents = prepared_root / "Documents"
+            documents_mode = stat.S_IMODE(documents.stat().st_mode)
+            os.chmod(documents, 0o755 if documents_mode == 0o700 else 0o700)
+            try:
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                os.chmod(documents, documents_mode)
+
+            documents_fd = os.open(
+                documents, ARC.directory_open_flags())
+            documents_xattrs = ARC.xattrs_fd(documents_fd)
+            try:
+                changed_xattrs = dict(documents_xattrs)
+                changed_xattrs["com.openxray.historical-directory-test"] = \
+                    ARC.base64.b64encode(b"foreign").decode("ascii")
+                ARC.restore_xattrs_fd(documents_fd, changed_xattrs)
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                ARC.restore_xattrs_fd(documents_fd, documents_xattrs)
+                os.close(documents_fd)
+
+            os.utime(prepared_root, ns=(root_info.st_atime_ns,
+                                        root_info.st_mtime_ns + 1_000_000))
+            try:
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                restore_root_mtime()
+
+            changed_count = copy.deepcopy(
+                fixture["historical_prepared_current"])
+            changed_count["files"] += 1
+            with self.assertRaises(ARC.ArchiveError):
+                self.service.validate_historical_prepared_metadata_overlay(
+                    fixture["historical_prepared_old"], changed_count,
+                    fixture["historical_prepared_policy"])
+
+            changed_mapping = copy.deepcopy(fixture["external_second"])
+            changed_mapping["mappings"][0]["prepared_path"] = \
+                "Documents/foreign-mapping.db"
+            changed_mapping.pop("proof_hash", None)
+            changed_mapping["proof_hash"] = \
+                self.service.second_copy_payload_hash(changed_mapping)
+            with self.assertRaises(ARC.ArchiveError):
+                self.service.verify_historical_prepared_overlay(
+                    changed_mapping, policy)
+
+            cwd_identity = ARC.identity(os.stat("."))
+
+            def failing_retail_verifier(descriptor: int) -> None:
+                os.fchdir(descriptor)
+                raise RuntimeError("injected retail verifier failure")
+
+            with mock.patch.object(
+                    self.service, "retail_import_prepared_verifier",
+                    return_value=failing_retail_verifier), \
+                    self.assertRaisesRegex(
+                        ARC.ArchiveError, "retail importer rejected"):
+                self.service.verify_historical_production_state()
+            self.assertEqual(ARC.identity(os.stat(".")), cwd_identity)
+
+            self.assertEqual(
+                self.service.verify_historical_production_state()["status"],
+                "HISTORICAL_PASS")
 
     def hst_05(self) -> None:
         """Only a fresh exact clean current full gate is independently accepted."""

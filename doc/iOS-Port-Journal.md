@@ -4913,3 +4913,50 @@ commit/full gate remains pending. After correction of the current DevArchive
 contract count from 125/125 to 131/131, final complete-diff Sol xhigh review
 returned exactly `APPROVE — brak P0/P1/P2`. No phone, Simulator, install or
 DevArchive mutation occurred.
+
+## 2026-08-12 — exact prepared metadata-overlay follow-up
+
+Commit `8b265b07b489f1633e6be17f57fd1578adb11092` received a clean post-commit
+full PASS in `gate-1786570175187364000-15196-0.log`: log SHA-256
+`fd07567c73d2d4e2fbdd5a8c9178d40e0e6db008337e691bafa49332a5895e71`,
+source `d8b2fc5d4b421c01cdf0d656d1cc02794dea49d6f8410389511f22199239f394`,
+UUID `574CACAC-E835-3E81-9919-60F8B93343DE`, bundle SHA-256
+`c6dbaa33fe9101403b68969264521461160f2f43c3007ef8151f1b43a83e9a0c` and
+stamp SHA-256
+`54c54c5c972ef34a4852189a57b2d012eeef6be6ea3634af3bb94c8b5dbb59a5`.
+Before/after were the exact clean commit. Archive 131/131, retail Simulator
+102/102, established shader/link contracts and 68 rebuilt TUs passed; the
+retail stage took 656.256 s.
+
+The first real `verify-historical-production-state` was read-only and failed
+closed at `prepared retail manifest changed after proof`. Exact comparison
+proved the only path delta: the historical prepared proof captured Finder's
+`.DS_Store` (6,148 logical/8,192 allocated bytes, SHA-256
+`bc04efaeb5796541b3b2c140daffe12da95facc5d65d08911504c49da7c7d463`),
+which was later intentionally removed; only the root mtime also changed. No
+game archive, save or selected mapping changed, and the actual 13-file
+`retail_import.py verify` remains PASS.
+
+Sol xhigh approved only a separate exact prepared metadata overlay. It binds
+old/current complete manifest and tree hashes, exact removed/root records, the
+unchanged-record digest, file/directory/byte deltas, the same root inode, exact
+transaction/external proof and the independently authorized historical policy.
+It invokes `retail_import.verify_prepared` through the same pinned descriptor,
+re-manifests afterward and restores CWD. Generic prepared verification,
+production equivalence, sibling, drain, recovery and publication remain
+unchanged. Focused archive tests remain 131/131 and include alternate
+path/record/metadata/mapping/CWD/no-write rejection. Review, commit, a new clean
+full gate and real `HISTORICAL_PASS` remain pending; no phone, Simulator,
+DevArchive mutation, install or push occurred.
+
+Final review found one P1 in the real importer-loader boundary: Python's
+dynamic `exec_module` could publish `.pyc`, despite making no change to retail
+or archive data. The loader now serializes cooperating loads, forces
+`sys.dont_write_bytecode=True` across the complete nested three-module import
+and restores the exact prior process value after success or exception. A real
+loader test starts with an empty cache, executes the copied dependency chain,
+verifies a prepared fixture and proves no `.pyc`/cache mutation for both prior
+boolean states and an import failure. The archive suite remains 131/131 PASS.
+Normal test-module bytecode generated while importing the test harness is not a
+historical-verifier write and is kept outside this acceptance oracle. Final
+Sol xhigh re-review returned exactly `APPROVE — brak P0/P1/P2`.

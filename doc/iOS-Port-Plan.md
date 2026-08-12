@@ -59,16 +59,14 @@ PASS. The earlier clean `e967a4c...` install stamp is historical/stale. The
 later source `aea7d8fb0fe4ffac1f1c002205cc9762b61ded35b241861c54ddebe5d85161b3`
 and stamp `c198b069433c092e0148ba7ecf02f1a8479e4bab25b17f909253750ef3f8e92d`
 are also historical/stale. Commit
-`a355fab834e0e4e1bd06128e65c9d0335306c463` received a clean post-commit full
-gate with source
-`b2bcf20bee60a93011404fb0d5803b6c359ab490f4c92f360bff216209b751e1`, UUID
-`122A97AB-39E3-31F3-86BD-3B795F208140`, bundle
-`626c874e30c6872aa5fbb426e493e691573f63130ae9e086675a7df136b608c4` and stamp
-`bf95fcfd75a867fcc34f28d520b0e90250ba8ea0148c91e23e0d75ac0540658f`.
-It is historical after the verifier and active-gate changes; no full receipt
-currently authorizes install or push until the final post-commit full gate
-passes. The exact historical verifier is non-authorizing and does not relax
-production gate equivalence.
+`8b265b07b489f1633e6be17f57fd1578adb11092` received a clean full gate with
+source `d8b2fc5d4b421c01cdf0d656d1cc02794dea49d6f8410389511f22199239f394`,
+UUID `574CACAC-E835-3E81-9919-60F8B93343DE`, bundle
+`c6dbaa33fe9101403b68969264521461160f2f43c3007ef8151f1b43a83e9a0c` and stamp
+`54c54c5c972ef34a4852189a57b2d012eeef6be6ea3634af3bb94c8b5dbb59a5`.
+It is historical after adding the exact prepared `.DS_Store` removal overlay;
+no full receipt currently authorizes install or push. Production equivalence
+remains strict, and the historical verifier remains read-only/non-authorizing.
 
 Real workroot `simulator-work-20260810-015703-14748` exposed and corrected an
 over-strict live-readiness classification: a valid post-T1 `loading` candidate

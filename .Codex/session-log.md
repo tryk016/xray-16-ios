@@ -798,3 +798,21 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   before push. Final complete-diff review after correcting the current
   DevArchive count to 131/131: `APPROVE — brak P0/P1/P2`. No phone/Simulator/
   archive mutation.
+
+## 2026-08-12 — prepared metadata-overlay follow-up
+
+- Clean `8b265b07b` full PASS: gate `1786570175187364000-15196-0`, log
+  `fd07567c…95e71`, source `d8b2fc5d…f394`, UUID
+  `574CACAC-E835-3E81-9919-60F8B93343DE`, stamp `54c54c5c…b59a5`; archive
+  131/131, retail 102/102 and graphics/link contracts PASS, 68 TUs.
+- Real read-only historical verify failed closed only because its immutable
+  proof contains Finder `.DS_Store` 6,148 B removed later from prepared cache;
+  importer verification of the 13 selected files remains PASS.
+- Sol xhigh approved an exact non-authorizing overlay bound to both manifests,
+  sole removed/root records, unchanged entries, inode, mappings and importer
+  verifier. Focused archive remains 131/131. Review/commit/new full/real
+  `HISTORICAL_PASS` remain pending; no phone/Simulator/archive mutation/push.
+- Final review P1: dynamic importer loading could write `.pyc`. The full nested
+  load is now serialized/no-bytecode with exact state restoration; a real
+  empty-cache success/error test proves zero loader cache writes. Archive stays
+  131/131 PASS; final Sol xhigh re-review: `APPROVE — brak P0/P1/P2`.

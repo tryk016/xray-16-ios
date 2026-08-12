@@ -10,7 +10,9 @@ descriptor-bound OS lock serializes cooperating OpenXRay archive tools across
 source binding, quarantine, retirement and durable receipts.  This boundary
 does not claim protection from arbitrary same-UID or root processes that
 deliberately ignore the lock.  Tests inject private roots without touching the
-real DevArchive.
+real DevArchive.  The separate historical command has one independently
+digested, read-only prepared-cache exception for the reviewed removal of the
+root ``.DS_Store``; no mutation-capable verifier shares that exception.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ import errno
 import fcntl
 import hashlib
 import hmac
+import importlib.util
 import json
 import math
 import os
@@ -32,6 +35,7 @@ import re
 import stat
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from typing import Any, Callable
@@ -240,6 +244,34 @@ HISTORICAL_COMPLETED_GATE_PROOFS = (
 )
 HISTORICAL_COMPLETED_POLICY_AUTHORIZATION_SHA256 = \
     "0eade64181f67118258f1a9482bc826aebe2a68619ebbb6c25f9c108a6fd3c9a"
+HISTORICAL_PREPARED_OVERLAY_POLICY_VERSION = 1
+HISTORICAL_PREPARED_OVERLAY_OLD_MANIFEST_SHA256 = \
+    "1f38846d7a9a50d9e9ea567bb304bedb7d3da6fb6bf5675121d85b8a61363db8"
+HISTORICAL_PREPARED_OVERLAY_OLD_TREE_SHA256 = \
+    "9b4eacff01f6e0c7f528c0252e208641388fe35124ebea69c90c4cc8219b2db8"
+HISTORICAL_PREPARED_OVERLAY_NEW_MANIFEST_SHA256 = \
+    "d394d33081c27952f48f0104dd45bb620df39d00cab8eec0ed5d2af8fa492d33"
+HISTORICAL_PREPARED_OVERLAY_NEW_TREE_SHA256 = \
+    "a1ad94aba8b7b661e1ac06d81bb7e6f97578c29962c9c0d933b7d5476693f6c4"
+HISTORICAL_PREPARED_OVERLAY_REMOVED_PATH = ".DS_Store"
+HISTORICAL_PREPARED_OVERLAY_REMOVED_RECORD_SHA256 = \
+    "b9fd2b91c14faf8fd177203ed08ca8712aebf27dafc76eaf05b04eb23ffc6fcf"
+HISTORICAL_PREPARED_OVERLAY_REMOVED_CONTENT_SHA256 = \
+    "bc04efaeb5796541b3b2c140daffe12da95facc5d65d08911504c49da7c7d463"
+HISTORICAL_PREPARED_OVERLAY_REMOVED_FINDERINFO = \
+    "ICAgICAgICBAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+HISTORICAL_PREPARED_OVERLAY_OLD_ROOT_RECORD_SHA256 = \
+    "2e95424962edee2e14582cd362aab57fdcbc02c074d9e90b639dd579797cd65f"
+HISTORICAL_PREPARED_OVERLAY_NEW_ROOT_RECORD_SHA256 = \
+    "1ab74e4f4875987069a15f66135199935f0a1bab99ea055a6bbac9e1cf4cb39f"
+HISTORICAL_PREPARED_OVERLAY_UNCHANGED_RECORDS_SHA256 = \
+    "0e3c8d4cefc811cbc2be15115967c64d72062b9a7ba18ca07673d9bf2f6263c9"
+# Filled only by an explicit Sol-reviewed policy update.  It binds the exact
+# metadata-only historical exception below to the independently authorized
+# completed-retirement capability; it is not a mutation authorization.
+HISTORICAL_PREPARED_OVERLAY_AUTHORIZATION_SHA256 = \
+    "fc8da6571273dfe9e2158a483551db6df95e3071315981b28e62842e3fa608ca"
+_NO_BYTECODE_IMPORT_LOCK = threading.RLock()
 REPO_ROOT = Path(__file__).resolve().parents[2]
 QUEUE_ROOT = Path("/Users/patryk/openxray-handoff/archive-queue")
 GATE_LOG_ROOT = Path("/Users/patryk/openxray-handoff/gate-logs")
@@ -481,6 +513,39 @@ class HistoricalCompletedRetirementPolicy:
     tombstone_logical_bytes: int
     tombstone_allocated_bytes: int
     production_authorization_sha256: str
+
+
+@dataclass(frozen=True)
+class HistoricalPreparedMetadataOverlayPolicy:
+    """One read-only metadata overlay for the reviewed prepared cache."""
+
+    version: int
+    transaction_id: str
+    candidate_id: str
+    external_second_copy_name: str
+    external_second_copy_sha256: str
+    prepared_root_identity: tuple[int, int]
+    old_manifest_sha256: str
+    old_tree_sha256: str
+    new_manifest_sha256: str
+    new_tree_sha256: str
+    removed_path: str
+    removed_record_sha256: str
+    removed_content_sha256: str
+    removed_logical_bytes: int
+    removed_allocated_bytes: int
+    removed_flags: int
+    removed_xattrs: tuple[tuple[str, str], ...]
+    old_root_record_sha256: str
+    new_root_record_sha256: str
+    unchanged_records_sha256: str
+    old_file_count: int
+    new_file_count: int
+    directory_count: int
+    symlink_count: int
+    logical_bytes_delta: int
+    allocated_bytes_delta: int
+    historical_policy_authorization_sha256: str
 
 
 PRODUCTION_SOURCE_ROOT_OVERLAY = SourceRootOverlayPolicy(
@@ -760,6 +825,31 @@ PRODUCTION_HISTORICAL_COMPLETED = HistoricalCompletedRetirementPolicy(
     REVIEWED_ALLOWLIST_AUTHORIZATION_SHA256,
 )
 
+PRODUCTION_HISTORICAL_PREPARED_OVERLAY = \
+    HistoricalPreparedMetadataOverlayPolicy(
+        HISTORICAL_PREPARED_OVERLAY_POLICY_VERSION,
+        SOURCE_ROOT_OVERLAY_TRANSACTION_ID,
+        SOURCE_ROOT_OVERLAY_CANDIDATE_ID,
+        "5beca2ef4f034286be6299d6d9a2bdba-second-copy-proof.json",
+        "86c0de066dd45c51e1250a078de171ecbf5f3df101d79a4cd2f21872bf45799a",
+        (16777234, 23449127),
+        HISTORICAL_PREPARED_OVERLAY_OLD_MANIFEST_SHA256,
+        HISTORICAL_PREPARED_OVERLAY_OLD_TREE_SHA256,
+        HISTORICAL_PREPARED_OVERLAY_NEW_MANIFEST_SHA256,
+        HISTORICAL_PREPARED_OVERLAY_NEW_TREE_SHA256,
+        HISTORICAL_PREPARED_OVERLAY_REMOVED_PATH,
+        HISTORICAL_PREPARED_OVERLAY_REMOVED_RECORD_SHA256,
+        HISTORICAL_PREPARED_OVERLAY_REMOVED_CONTENT_SHA256,
+        6148, 8192, 0x8000,
+        (("com.apple.FinderInfo",
+          HISTORICAL_PREPARED_OVERLAY_REMOVED_FINDERINFO),),
+        HISTORICAL_PREPARED_OVERLAY_OLD_ROOT_RECORD_SHA256,
+        HISTORICAL_PREPARED_OVERLAY_NEW_ROOT_RECORD_SHA256,
+        HISTORICAL_PREPARED_OVERLAY_UNCHANGED_RECORDS_SHA256,
+        21, 20, 9, 0, -6148, -8192,
+        HISTORICAL_COMPLETED_POLICY_AUTHORIZATION_SHA256,
+    )
+
 
 def historical_completed_policy_authorization_payload(
         policy: HistoricalCompletedRetirementPolicy) -> tuple[Any, ...]:
@@ -774,6 +864,25 @@ def historical_completed_policy_authorization_sha256(
         policy: HistoricalCompletedRetirementPolicy) -> str:
     encoded = (json.dumps(
         historical_completed_policy_authorization_payload(policy),
+        ensure_ascii=True, separators=(",", ":"), allow_nan=False
+    ) + "\n").encode("ascii")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def historical_prepared_overlay_authorization_payload(
+        policy: HistoricalPreparedMetadataOverlayPolicy) -> tuple[Any, ...]:
+    return (
+        "openxray.historical-prepared-metadata-overlay-readonly.v1",
+        policy.historical_policy_authorization_sha256,
+        tuple(getattr(policy, field_name)
+              for field_name in policy.__dataclass_fields__),
+    )
+
+
+def historical_prepared_overlay_authorization_sha256(
+        policy: HistoricalPreparedMetadataOverlayPolicy) -> str:
+    encoded = (json.dumps(
+        historical_prepared_overlay_authorization_payload(policy),
         ensure_ascii=True, separators=(",", ":"), allow_nan=False
     ) + "\n").encode("ascii")
     return hashlib.sha256(encoded).hexdigest()
@@ -1046,6 +1155,43 @@ def strict_json_loads(value: str) -> Any:
     # parse_constant does not see that path, so reject it recursively as well.
     reject_nonfinite_json_numbers(parsed)
     return parsed
+
+
+def load_retail_import_prepared_verifier(
+        path: Path) -> Callable[[int], Any]:
+    """Load retail_import's complete local dependency chain without bytecode.
+
+    ``retail_import.py`` dynamically executes ``retail_simulator_guard.py``,
+    which in turn dynamically executes ``openal_provider_contract.py``.  The
+    historical verifier is a read-only capability, so even implicit ``.pyc``
+    publication is forbidden.  Serialize cooperating loads, force CPython's
+    process-global bytecode switch for the entire nested execution, and restore
+    the exact prior value after success or any import exception.
+    """
+    if not path.is_absolute():
+        raise ArchiveError("retail importer module path must be absolute")
+    with _NO_BYTECODE_IMPORT_LOCK:
+        previous = sys.dont_write_bytecode
+        sys.dont_write_bytecode = True
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "openxray_retail_import_historical_verify", path)
+            if spec is None or spec.loader is None:
+                raise ArchiveError("retail importer verifier cannot be loaded")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            verifier = getattr(module, "verify_prepared", None)
+            if not callable(verifier):
+                raise ArchiveError("retail importer prepared verifier is absent")
+            return verifier
+        except ArchiveError:
+            raise
+        except Exception as error:
+            raise ArchiveError(
+                f"retail importer dependency chain cannot be loaded: {error}") \
+                from error
+        finally:
+            sys.dont_write_bytecode = previous
 
 
 def finite_timestamp(value: Any) -> bool:
@@ -2512,6 +2658,31 @@ class ArchiveService:
                     HISTORICAL_COMPLETED_POLICY_AUTHORIZATION_SHA256)):
             raise ArchiveError(
                 "historical completed-retirement policy is not authorized")
+        return policy
+
+    def historical_prepared_overlay_policy(
+            self, completed: HistoricalCompletedRetirementPolicy
+            ) -> HistoricalPreparedMetadataOverlayPolicy:
+        """Select the sole reviewed read-only prepared-cache exception."""
+        policy = PRODUCTION_HISTORICAL_PREPARED_OVERLAY
+        if (not self.settings.production
+                or type(self.platform) is not DarwinPlatform
+                or completed != PRODUCTION_HISTORICAL_COMPLETED
+                or completed.transaction_id != policy.transaction_id
+                or completed.candidate_id != policy.candidate_id
+                or completed.external_second_copy_name
+                != policy.external_second_copy_name
+                or completed.external_second_copy_sha256
+                != policy.external_second_copy_sha256
+                or completed.prepared_root_identity
+                != policy.prepared_root_identity
+                or policy.historical_policy_authorization_sha256
+                != HISTORICAL_COMPLETED_POLICY_AUTHORIZATION_SHA256
+                or not hmac.compare_digest(
+                    historical_prepared_overlay_authorization_sha256(policy),
+                    HISTORICAL_PREPARED_OVERLAY_AUTHORIZATION_SHA256)):
+            raise ArchiveError(
+                "historical prepared metadata-overlay policy is not authorized")
         return policy
 
     def __post_init__(self) -> None:
@@ -6094,6 +6265,184 @@ class ArchiveService:
         finally:
             os.close(prepared_fd)
 
+    @staticmethod
+    def validate_historical_prepared_metadata_overlay(
+            old: dict[str, Any], current: dict[str, Any],
+            policy: HistoricalPreparedMetadataOverlayPolicy) -> None:
+        """Accept exactly the reviewed removal of prepared-root .DS_Store."""
+        if (manifest_canonical_sha256(old) != policy.old_manifest_sha256
+                or old.get("tree_sha256") != policy.old_tree_sha256
+                or manifest_canonical_sha256(current)
+                != policy.new_manifest_sha256
+                or current.get("tree_sha256") != policy.new_tree_sha256):
+            raise ArchiveError("historical prepared overlay manifest differs")
+        old_entries = old.get("entries")
+        current_entries = current.get("entries")
+        if not isinstance(old_entries, list) or not isinstance(current_entries, list):
+            raise ArchiveError("historical prepared overlay inventory is invalid")
+        old_rows = {row.get("path"): row for row in old_entries
+                    if isinstance(row, dict)}
+        current_rows = {row.get("path"): row for row in current_entries
+                        if isinstance(row, dict)}
+        if (len(old_rows) != len(old_entries)
+                or len(current_rows) != len(current_entries)
+                or set(old_rows) - set(current_rows) != {policy.removed_path}
+                or set(current_rows) - set(old_rows)):
+            raise ArchiveError("historical prepared overlay path delta differs")
+        removed = old_rows.get(policy.removed_path)
+        old_root = old_rows.get(".")
+        current_root = current_rows.get(".")
+        if not all(isinstance(row, dict)
+                   for row in (removed, old_root, current_root)):
+            raise ArchiveError("historical prepared overlay reviewed records are absent")
+        assert isinstance(removed, dict)
+        assert isinstance(old_root, dict)
+        assert isinstance(current_root, dict)
+        removed_xattrs = dict(policy.removed_xattrs)
+        if (sha256_bytes(canonical_json(removed))
+                != policy.removed_record_sha256
+                or removed.get("kind") != "regular"
+                or removed.get("sha256") != policy.removed_content_sha256
+                or removed.get("logical_bytes") != policy.removed_logical_bytes
+                or removed.get("allocated_bytes")
+                != policy.removed_allocated_bytes
+                or removed.get("flags") != policy.removed_flags
+                or removed.get("xattrs") != removed_xattrs
+                or sha256_bytes(canonical_json(old_root))
+                != policy.old_root_record_sha256
+                or sha256_bytes(canonical_json(current_root))
+                != policy.new_root_record_sha256
+                or tuple(old_root.get("local_identity", ()))
+                != policy.prepared_root_identity
+                or tuple(current_root.get("local_identity", ()))
+                != policy.prepared_root_identity):
+            raise ArchiveError("historical prepared overlay record differs")
+        old_root_stable = {key: value for key, value in old_root.items()
+                           if key != "mtime_ns"}
+        current_root_stable = {key: value for key, value in current_root.items()
+                               if key != "mtime_ns"}
+        if old_root_stable != current_root_stable:
+            raise ArchiveError(
+                "historical prepared overlay root changed beyond mtime")
+        unchanged_paths = sorted(set(current_rows) - {"."})
+        unchanged = [old_rows[path] for path in unchanged_paths]
+        if (any(old_rows[path] != current_rows[path]
+                for path in unchanged_paths)
+                or sha256_bytes(canonical_json(unchanged))
+                != policy.unchanged_records_sha256):
+            raise ArchiveError("historical prepared overlay common records differ")
+        if ((old.get("files"), current.get("files"))
+                != (policy.old_file_count, policy.new_file_count)
+                or old.get("directories") != policy.directory_count
+                or current.get("directories") != policy.directory_count
+                or old.get("symlinks") != policy.symlink_count
+                or current.get("symlinks") != policy.symlink_count
+                or current.get("logical_bytes", 0) - old.get("logical_bytes", 0)
+                != policy.logical_bytes_delta
+                or current.get("allocated_bytes", 0)
+                - old.get("allocated_bytes", 0)
+                != policy.allocated_bytes_delta):
+            raise ArchiveError("historical prepared overlay totals differ")
+
+    @staticmethod
+    def retail_import_prepared_verifier() -> Callable[[int], Any]:
+        return load_retail_import_prepared_verifier(
+            Path(__file__).with_name("retail_import.py"))
+
+    def verify_retail_import_prepared_fd(self, prepared_fd: int) -> None:
+        """Run retail_import's read-only verifier on the already pinned root."""
+        previous_fd = os.open(".", directory_open_flags())
+        previous_identity = identity(os.fstat(previous_fd))
+        try:
+            try:
+                self.retail_import_prepared_verifier()(prepared_fd)
+            except Exception as error:
+                raise ArchiveError(
+                    f"retail importer rejected historical prepared cache: {error}") \
+                    from error
+        finally:
+            try:
+                os.fchdir(previous_fd)
+                if identity(os.stat(".")) != previous_identity:
+                    raise ArchiveError(
+                        "current directory identity changed during retail verification")
+            finally:
+                os.close(previous_fd)
+
+    def verify_historical_prepared_overlay(
+            self, proof: dict[str, Any],
+            completed: HistoricalCompletedRetirementPolicy) -> None:
+        """Verify the exact metadata-only cache evolution without authorizing writes."""
+        policy = self.historical_prepared_overlay_policy(completed)
+        if (completed.transaction_id != policy.transaction_id
+                or completed.candidate_id != policy.candidate_id
+                or completed.external_second_copy_name
+                != policy.external_second_copy_name
+                or completed.external_second_copy_sha256
+                != policy.external_second_copy_sha256
+                or completed.prepared_root_identity
+                != policy.prepared_root_identity
+                or policy.historical_policy_authorization_sha256
+                != historical_completed_policy_authorization_sha256(completed)
+                or proof.get("transaction_id") != policy.transaction_id
+                or proof.get("candidate_id") != policy.candidate_id
+                or proof.get("prepared_root")
+                != str(self.settings.retail_prepared_root)
+                or tuple(proof.get("prepared_root_identity", ()))
+                != policy.prepared_root_identity
+                or self.second_copy_payload_hash(proof) != proof.get("proof_hash")):
+            raise ArchiveError("historical prepared overlay tuple differs")
+        old = proof.get("prepared_manifest")
+        mappings = proof.get("mappings")
+        if not isinstance(old, dict) or not isinstance(mappings, list) \
+                or len(mappings) != len(SECOND_COPY_MAPPINGS):
+            raise ArchiveError("historical prepared overlay proof is incomplete")
+        by_path = {item.get("prepared_path"): item for item in mappings
+                   if isinstance(item, dict)}
+        if (set(by_path) != MAPPED_PREPARED_PATHS
+                or {(item.get("source_path"), item.get("prepared_path"))
+                    for item in mappings if isinstance(item, dict)}
+                != set(SECOND_COPY_MAPPINGS)):
+            raise ArchiveError("historical prepared overlay mappings differ")
+
+        prepared_fd = self.bind_owned_tree(
+            self.settings.retail_prepared_root,
+            "historical fixed prepared retail root")
+        try:
+            root_identity = identity(os.fstat(prepared_fd))
+            if root_identity != policy.prepared_root_identity:
+                raise ArchiveError("historical prepared root identity differs")
+            current = manifest_bound(prepared_fd, "directory")
+            self.validate_historical_prepared_metadata_overlay(
+                old, current, policy)
+            self.validate_prepared_manifest(current)
+            for _, prepared_path in SECOND_COPY_MAPPINGS:
+                binding = self.bind_relative_regular(
+                    prepared_fd, prepared_path,
+                    "historical prepared recovery mapping")
+                try:
+                    fingerprint = self.stable_file_fingerprint(
+                        binding, "historical prepared recovery mapping")
+                finally:
+                    binding.close()
+                expected = by_path[prepared_path]
+                if (fingerprint["identity"] != expected.get("prepared_identity")
+                        or fingerprint["size"] != expected.get("size")
+                        or fingerprint["sha256"] != expected.get("sha256")):
+                    raise ArchiveError(
+                        f"historical prepared mapping differs: {prepared_path}")
+            self.verify_retail_import_prepared_fd(prepared_fd)
+            if identity(os.fstat(prepared_fd)) != root_identity:
+                raise ArchiveError(
+                    "historical prepared root changed during retail verification")
+            after = manifest_bound(prepared_fd, "directory")
+            if canonical_json(after) != canonical_json(current):
+                raise ArchiveError(
+                    "historical prepared cache changed during retail verification")
+            self.validate_historical_prepared_metadata_overlay(old, after, policy)
+        finally:
+            os.close(prepared_fd)
+
     def verify_bound_payload(self, parent_fd: int, name: str, expected: tuple[int, int],
                              record: dict[str, Any], label: str, *,
                              transaction_fd: int | None = None,
@@ -7687,7 +8036,7 @@ class ArchiveService:
                 or len(external_second.get("mappings", ())) != 13):
             raise ArchiveError("historical completed prepared proof differs")
         try:
-            self.verify_prepared_against_immutable_proof(external_second)
+            self.verify_historical_prepared_overlay(external_second, policy)
         except OSError as error:
             raise ArchiveError(
                 "historical completed prepared proof cannot be read") from error

@@ -48,15 +48,17 @@ immutable. Eight completed archive retirements reclaimed 5,750,628,350 logical
 bytes; the prepared cache remains local and verifier PASS. No phone, Simulator
 or installed app container was touched.
 
-Commit `a355fab834e0e4e1bd06128e65c9d0335306c463` received a clean post-commit
-full PASS in `gate-1786565992761388000-42873-0.log` (SHA `37c3e0a6…dbc9`):
-archive 125/125, Simulator 102/102, macros 30/30, resources 13/13, SSAO 6/6,
-SSR 9/9, links 137/137 and 0 TUs. Source is `b2bcf20b…b751e1`, UUID
-`122A97AB-39E3-31F3-86BD-3B795F208140`, bundle `626c874e…08c4` and stamp
-`bf95fcfd…050658f`. It is historical after the current verifier/active-gate
-fixes. Production equivalence remains strict; the separate historical command
-is read-only and returns no mutation authorization. The final current commit
-still needs its own clean full gate before push or install.
+Commit `8b265b07b489f1633e6be17f57fd1578adb11092` received a clean full PASS:
+`gate-1786570175187364000-15196-0`, log `fd07567c…95e71`, source
+`d8b2fc5d…f394`, UUID `574CACAC-E835-3E81-9919-60F8B93343DE`, bundle
+`c6dbaa33…9a0c`, stamp `54c54c5c…b59a5`; archive 131/131, Simulator 102/102
+and established graphics/link contracts passed. Real read-only historical
+verify then failed closed only on the documented removal of Finder's 6,148-byte
+`.DS_Store`; the selected 13-file importer verification remains PASS. An exact
+non-authorizing metadata overlay now binds old/new manifests, sole deletion,
+root inode/metadata and unchanged entries without relaxing production paths.
+Its changes still need review, commit, a fresh clean full gate and real
+`HISTORICAL_PASS` before push or install.
 
 The earlier M6-local importer review returned `APPROVE — brak P0/P1/P2`; it did
 not pre-approve the later DevArchive retirement or this documentation closeout.
