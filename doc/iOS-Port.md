@@ -729,6 +729,22 @@ The current documentation changes invalidate its install/push authorization.
 A new post-commit full gate is required before either action. This artifact has
 not been installed on a phone.
 
+Commit `a355fab834e0e4e1bd06128e65c9d0335306c463` then received a clean
+post-commit full PASS in `gate-1786565992761388000-42873-0.log` (SHA-256
+`37c3e0a6828eb1668facdfb4fc9c845c868b4953878387bfeac189f8a285dbc9`).
+Before/after were the exact clean commit with no untracked files. The resulting
+source was `b2bcf20b…b751e1`, UUID `122A97AB-39E3-31F3-86BD-3B795F208140`,
+bundle `626c874e…08c4` and stamp SHA-256 `bf95fcfd…050658f`; established
+retail, archive, shader and link contracts passed with zero rebuilt TUs.
+
+That proof is deliberately historical after the subsequent verifier and
+active-gate fixes. The production archive verifier continues to reject the
+dirty-retirement/clean-commit source and stamp mismatch. A separate exact,
+read-only historical verifier reports only `HISTORICAL_PASS` with
+`mutation_authorization: NONE`; it cannot authorize sibling retirement,
+recovery, publication, install or push. A fresh post-commit full gate remains
+required for the final current tree.
+
 ### Historical code-artifact full-gate stamp (stale)
 
 The prior clean post-commit `e967a4c36dfbecf13f3934fee1cf018d618dd776` stamp

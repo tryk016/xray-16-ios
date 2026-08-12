@@ -58,13 +58,17 @@ correction, its real successful T2 publication and its post-commit full Release
 PASS. The earlier clean `e967a4c...` install stamp is historical/stale. The
 later source `aea7d8fb0fe4ffac1f1c002205cc9762b61ded35b241861c54ddebe5d85161b3`
 and stamp `c198b069433c092e0148ba7ecf02f1a8479e4bab25b17f909253750ef3f8e92d`
-are also historical/stale. The latest pre-document full gate used source
-`f8727806510005248fb9b92e2c7075fd5c91f66a82af451adfe8baa2d37e587f`, UUID
-`36095C34-3BB5-379F-8ECE-321F937A9043`, bundle
-`e15e8300a4b1fe87dd4752417d77fcce16e783a6f04a34b32b2074cd5e889ff6` and stamp
-`d9cfba1057e29a05fa10937c48da0c43bc7cb896a0b315af44634521d4cc0906`.
-It is historical after the documentation update; no full receipt currently
-authorizes install or push until the required post-commit full gate passes.
+are also historical/stale. Commit
+`a355fab834e0e4e1bd06128e65c9d0335306c463` received a clean post-commit full
+gate with source
+`b2bcf20bee60a93011404fb0d5803b6c359ab490f4c92f360bff216209b751e1`, UUID
+`122A97AB-39E3-31F3-86BD-3B795F208140`, bundle
+`626c874e30c6872aa5fbb426e493e691573f63130ae9e086675a7df136b608c4` and stamp
+`bf95fcfd75a867fcc34f28d520b0e90250ba8ea0148c91e23e0d75ac0540658f`.
+It is historical after the verifier and active-gate changes; no full receipt
+currently authorizes install or push until the final post-commit full gate
+passes. The exact historical verifier is non-authorizing and does not relax
+production gate equivalence.
 
 Real workroot `simulator-work-20260810-015703-14748` exposed and corrected an
 over-strict live-readiness classification: a valid post-T1 `loading` candidate

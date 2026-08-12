@@ -48,14 +48,15 @@ immutable. Eight completed archive retirements reclaimed 5,750,628,350 logical
 bytes; the prepared cache remains local and verifier PASS. No phone, Simulator
 or installed app container was touched.
 
-Fresh pre-document full PASS is `gate-1786563440297027000-96172-0.log` (SHA
-`16f14682fce0287d842108347fbddc8f28b2708dba59eaebf2ff2242ba0b2894`):
+Commit `a355fab834e0e4e1bd06128e65c9d0335306c463` received a clean post-commit
+full PASS in `gate-1786565992761388000-42873-0.log` (SHA `37c3e0a6…dbc9`):
 archive 125/125, Simulator 102/102, macros 30/30, resources 13/13, SSAO 6/6,
-SSR 9/9, links 137/137 and 0 TUs. Source is `f8727806…e587f`, UUID
-`36095C34-3BB5-379F-8ECE-321F937A9043`, bundle `e15e8300…9ff6`, full stamp
-`d9cfba10…0906`; IOS/minOS 16.4, cache forced-off, OpenAL unchanged and dSYM
-513889238 B. Documentation changes require the normal final post-commit full
-gate before install or push.
+SSR 9/9, links 137/137 and 0 TUs. Source is `b2bcf20b…b751e1`, UUID
+`122A97AB-39E3-31F3-86BD-3B795F208140`, bundle `626c874e…08c4` and stamp
+`bf95fcfd…050658f`. It is historical after the current verifier/active-gate
+fixes. Production equivalence remains strict; the separate historical command
+is read-only and returns no mutation authorization. The final current commit
+still needs its own clean full gate before push or install.
 
 The earlier M6-local importer review returned `APPROVE — brak P0/P1/P2`; it did
 not pre-approve the later DevArchive retirement or this documentation closeout.
@@ -106,7 +107,7 @@ phone for this host-only M6 evidence.
 |---|---|
 | Retail importer | mutation/recovery 21/21 |
 | Retail Simulator | 102/102 |
-| DevArchive policy | 125/125 |
+| DevArchive policy | 131/131 |
 | Shader stages | 279/279 |
 | Variants | low 2/2; SSAO 6/6; SSR 9/9; numeric macros 30/30, debt 0+0 |
 | Shader resources | CPU→allocation/downsample/water/SSR 13/13 |

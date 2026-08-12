@@ -207,6 +207,15 @@ def journal_match(text: str, task: str, title: str) -> str:
     start = next((i for i in range(hit, -1, -1) if lines[i].startswith("## ")), max(0, hit - 2))
     end = next((i for i in range(hit + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
     return clip("".join(lines[start:end]), 4_500)
+def completion_scope(text: str) -> str:
+    """Keep the canonical open obligations and completion bar in every capsule."""
+    sections: list[str] = []
+    for heading, maximum in (("Known open work", 2_500), ("Definition of done", 1_500)):
+        selected = section(text, rf"^## {re.escape(heading)}\s*$", maximum)
+        if selected == "[no matching bounded section]\n":
+            raise fail(f"canonical section missing: ## {heading}")
+        sections.append(selected.rstrip())
+    return "\n\n".join(sections) + "\n"
 def resume(text: str) -> str:
     return clip("".join(text.splitlines(keepends=True)[:72]) + "\n" + section(text, r"^## Still pending\s*$", 1_800) + section(text, r"^## Next slice\s*$", 1_800) + section(text, r"^## Safety\s*$", 1_800), 11_000)
 
@@ -218,19 +227,21 @@ def render(root: Path, output: tuple[str, ...], manifest: tuple[str, ...], limit
     raw = {path: secure_read(root, path) for path in SOURCES}
     docs = {path: raw[path].decode("utf-8") for path in SOURCES}
     task, title, task_text = active(docs["doc/iOS-Port-Plan.md"])
+    current_facts = match(docs["doc/iOS-Port.md"], task, title, 5_000, r"^## Current product state\s*$")
+    completion = completion_scope(docs["doc/iOS-Port.md"])
     selected = {"resume": resume(docs["doc/iOS-Port-Resume.md"]), "plan_focus": focus(docs["doc/iOS-Port-Plan.md"]),
-                "active_task": task_text, "current_facts": match(docs["doc/iOS-Port.md"], task, title, 5_000, r"^## Current product state\s*$"),
+                "active_task": task_text, "current_facts": current_facts, "completion_scope": completion,
                 "journal": journal_match(docs["doc/iOS-Port-Journal.md"], task, title),
                 "session_tail": tail_clip(docs[".Codex/session-log.md"], 2_500),
                 "gate_contracts": section(docs["doc/iOS-Port-Resume.md"], r"^## Validation contracts\s*$", 2_500)}
     source_map = {"resume":"doc/iOS-Port-Resume.md", "plan":"doc/iOS-Port-Plan.md", "canonical":"doc/iOS-Port.md", "journal":"doc/iOS-Port-Journal.md", "session":".Codex/session-log.md"}
-    select_map = {"resume":selected["resume"], "plan":selected["plan_focus"]+selected["active_task"], "canonical":selected["current_facts"], "journal":selected["journal"], "session":selected["session_tail"]}
+    select_map = {"resume":selected["resume"], "plan":selected["plan_focus"]+selected["active_task"], "canonical":current_facts+completion, "journal":selected["journal"], "session":selected["session_tail"]}
     source_manifest = [{"path": source_map[key], "source_sha256": digest(raw[source_map[key]]), "selected_sha256":digest(select_map[key].encode()), "selected_bytes":len(select_map[key].encode())} for key in ("resume","plan","canonical","journal","session")]
     fresh = freshness(root)
     if fresh != fresh_before: raise fail("repository changed while taking source snapshot")
     source_digest = digest(stable(source_manifest))
     body = ["# OpenXRay iOS active gate capsule", "", "Deterministic cache; run `active_gate.py check` before relying on it.", "", "## Identity", f"- Active task: `{task}` — {title}", f"- Branch: `{fresh['branch']}`", f"- HEAD: `{fresh['head']}`", f"- Source manifest SHA-256: `{source_digest}`", "", "## Dirty scope", *([f"- `{line}`" for line in fresh["dirty_scope"]] or ["- clean"]), ""]
-    for label, key in (("Resume selection","resume"),("Plan current focus","plan_focus"),("Active task","active_task"),("Matching current facts","current_facts"),("Matching Journal evidence","journal"),("Session-log tail","session_tail"),("Gate contracts","gate_contracts")):
+    for label, key in (("Resume selection","resume"),("Plan current focus","plan_focus"),("Active task","active_task"),("Matching current facts","current_facts"),("Canonical completion scope","completion_scope"),("Matching Journal evidence","journal"),("Session-log tail","session_tail"),("Gate contracts","gate_contracts")):
         body += [f"## {label}", selected[key].rstrip(), ""]
     body += ["## Evidence boundary", "- Local gates establish only their named host/static contract.", "- Simulator evidence is not iPhone, pixel, or performance proof.", "- Rendering correctness requires an on-device frame or numeric probe; never install after a stale matching gate.", "", "## Next step", "- Follow the first unresolved next action in the active Plan and preserve its phone/lease boundary.", ""]
     rendered = "\n".join(body).encode(); tokens = estimate(rendered)

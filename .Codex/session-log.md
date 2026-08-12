@@ -780,3 +780,21 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   its strict `Documents`+`manifest` contract. No phone/Simulator/install/push.
 - Final corrected complete-diff Sol xhigh: `APPROVE — brak P0/P1/P2`.
   Post-commit full gate and production verifier remain required before push.
+
+## 2026-08-12 — clean proof and historical verification boundary
+
+- Commit `a355fab834e0e4e1bd06128e65c9d0335306c463` clean full PASS:
+  `gate-1786565992761388000-42873-0`, log `37c3e0a6…dbc9`, source
+  `b2bcf20b…b751e1`, UUID `122A97AB-39E3-31F3-86BD-3B795F208140`, stamp
+  `bf95fcfd…050658f`; archive 125/125, Simulator 102/102 and established
+  graphics/link contracts PASS at 0 TUs.
+- Normal production verification correctly rejects dirty-retirement versus
+  clean-commit source/stamp mismatch. Separate exact historical verification is
+  read-only: `HISTORICAL_PASS`, `mutation_authorization: NONE`; it cannot feed
+  sibling or mutation paths. Sibling now validates the exact authorizing proof
+  shape/name/hash before writes. Focused archive 131/131 and active-gate 12/12
+  PASS.
+- Current tracked fixes/docs still require commit and final clean full gate
+  before push. Final complete-diff review after correcting the current
+  DevArchive count to 131/131: `APPROVE — brak P0/P1/P2`. No phone/Simulator/
+  archive mutation.

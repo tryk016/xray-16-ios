@@ -49,7 +49,13 @@ class ActiveGateTests(unittest.TestCase):
             "# Plan\n**Current focus:** prove the active task.\n## 1. IOS-P0-123: validate capsule evidence\n"
             "**Priority:** P0.\n**Acceptance:** deterministic output.\n**Next actions:**\n1. Run host test.\n" + task_padding +
             "## 2. IOS-P1-999: later\n", encoding="utf-8")
-        (self.repo / "doc/iOS-Port.md").write_text("# Canonical\n## Current product state\nCurrent local evidence only.\n## Other\nignored\n", encoding="utf-8")
+        (self.repo / "doc/iOS-Port.md").write_text(
+            "# Canonical\n## Current product state\nCurrent local evidence only.\n"
+            "## Known open work\n- Validate the active task on its required platform.\n"
+            "- Preserve the source and stale-cache boundary for every checkpoint.\n"
+            "## Definition of done\n1. Required evidence is recorded and independently reviewed.\n"
+            "2. The active acceptance criterion is proven without broadening scope.\n"
+            "## Other\nignored\n", encoding="utf-8")
         (self.repo / "doc/iOS-Port-Journal.md").write_text("# Journal\n## Today\nIOS-P0-123 capsule evidence passed locally.\n" + journal_padding, encoding="utf-8")
         (self.repo / ".Codex/session-log.md").write_text("recent operational fact\n", encoding="utf-8")
 
@@ -71,6 +77,70 @@ class ActiveGateTests(unittest.TestCase):
         self.assertEqual(manifest["output_sha256"], hashlib.sha256(before).hexdigest())
         self.assertEqual(manifest["source_manifest_sha256"], hashlib.sha256(
             json.dumps(manifest["source_manifest"], sort_keys=True, separators=(",", ":")).encode() + b"\n").hexdigest())
+
+    def test_clean_and_dirty_capsules_keep_bounds_and_exact_canonical_selection(self) -> None:
+        clean = self.run_tool("generate")
+        self.assertEqual(clean.returncode, 0, clean.stderr)
+        capsule = self.repo / ".Codex/runtime/active-gate.md"
+        manifest_path = capsule.with_suffix(".manifest.json")
+        clean_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(clean_manifest["freshness"]["dirty_scope"], [])
+        self.assertGreaterEqual(clean_manifest["estimated_tokens"], MODULE.MIN_ESTIMATED_TOKENS)
+        self.assertLessEqual(clean_manifest["estimated_tokens"], MODULE.MAX_ESTIMATED_TOKENS)
+
+        canonical_text = (self.repo / "doc/iOS-Port.md").read_text(encoding="utf-8")
+        plan_text = (self.repo / "doc/iOS-Port-Plan.md").read_text(encoding="utf-8")
+        task, title, _ = MODULE.active(plan_text)
+        current = MODULE.match(canonical_text, task, title, 5_000, r"^## Current product state\s*$")
+        completion = MODULE.completion_scope(canonical_text)
+        canonical_record = next(item for item in clean_manifest["source_manifest"] if item["path"] == "doc/iOS-Port.md")
+        self.assertEqual([item["path"] for item in clean_manifest["source_manifest"]], list(MODULE.SOURCES))
+        self.assertEqual(canonical_record["source_sha256"], hashlib.sha256(canonical_text.encode()).hexdigest())
+        self.assertEqual(canonical_record["selected_sha256"], hashlib.sha256((current + completion).encode()).hexdigest())
+        self.assertEqual(canonical_record["selected_bytes"], len((current + completion).encode()))
+        rendered = capsule.read_text(encoding="utf-8")
+        self.assertIn("## Matching current facts", rendered)
+        self.assertIn("## Canonical completion scope", rendered)
+        self.assertIn("## Known open work", rendered)
+        self.assertIn("## Definition of done", rendered)
+
+        (self.repo / "doc/iOS-Port-Plan.md").write_text(plan_text + "\nLocal dirty scope proof.\n", encoding="utf-8")
+        stale = self.run_tool("check")
+        self.assertNotEqual(stale.returncode, 0)
+        dirty = self.run_tool("generate")
+        self.assertEqual(dirty.returncode, 0, dirty.stderr)
+        dirty_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertTrue(dirty_manifest["freshness"]["dirty_scope"])
+        self.assertGreaterEqual(dirty_manifest["estimated_tokens"], MODULE.MIN_ESTIMATED_TOKENS)
+        self.assertLessEqual(dirty_manifest["estimated_tokens"], MODULE.MAX_ESTIMATED_TOKENS)
+        self.assertEqual(self.run_tool("check").returncode, 0)
+
+    def test_generate_fails_closed_when_required_canonical_section_is_missing(self) -> None:
+        canonical = self.repo / "doc/iOS-Port.md"
+        original = canonical.read_text(encoding="utf-8")
+        for heading in ("Known open work", "Definition of done"):
+            with self.subTest(heading=heading):
+                renamed = original.replace(f"## {heading}\n", f"## Missing {heading}\n", 1)
+                self.assertEqual(len(renamed), len(original) + len("Missing "))
+                canonical.write_text(renamed, encoding="utf-8")
+                result = self.run_tool("generate")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"canonical section missing: ## {heading}", result.stderr)
+                permissive_sections = [
+                    MODULE.section(renamed, rf"^## {name}\s*$", maximum)
+                    for name, maximum in (("Known open work", 2_500), ("Definition of done", 1_500))
+                ]
+                permissive = "\n\n".join(
+                    value.rstrip() for value in permissive_sections
+                    if value != "[no matching bounded section]\n"
+                ) + "\n"
+                with mock.patch.object(MODULE, "completion_scope", return_value=permissive):
+                    _, metadata = MODULE.render(
+                        self.repo, (".Codex", "runtime", "active-gate.md"),
+                        (".Codex", "runtime", "active-gate.manifest.json"), MODULE.DEFAULT_BYTE_LIMIT)
+                self.assertGreaterEqual(metadata["estimated_tokens"], MODULE.MIN_ESTIMATED_TOKENS)
+                self.assertLessEqual(metadata["estimated_tokens"], MODULE.MAX_ESTIMATED_TOKENS)
+                canonical.write_text(original, encoding="utf-8")
 
     def test_check_fails_closed_on_source_or_output_change(self) -> None:
         self.assertEqual(self.run_tool("generate").returncode, 0)

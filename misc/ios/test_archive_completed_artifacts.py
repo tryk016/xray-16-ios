@@ -6,6 +6,7 @@ from __future__ import annotations
 import errno
 import copy
 from contextlib import contextmanager, ExitStack, nullcontext
+from dataclasses import replace
 import fcntl
 import importlib.util
 import json
@@ -380,7 +381,7 @@ class ArchivePolicyTests(unittest.TestCase):
         CandidateSpec or the CLI; it exists solely to exercise 008+ recovery
         with small fixtures after a canonical 000-007 prefix is durable.
         """
-        main, _, _ = self.configure_retail(f"source-root-{tag}")
+        main, sibling, _ = self.configure_retail(f"source-root-{tag}")
         transaction = self.service.enqueue(main.ident)["transaction_id"]
         self.service.hooks["after_delete_intent"] = lambda **_: (
             _ for _ in ()).throw(ARC.InjectedCrash("armed source-root overlay"))
@@ -437,7 +438,8 @@ class ArchivePolicyTests(unittest.TestCase):
                 policy if candidate_record.get("transaction_id") == transaction else None)
             try:
                 yield {
-                    "main": main, "transaction": transaction, "record": record,
+                    "main": main, "sibling": sibling,
+                    "transaction": transaction, "record": record,
                     "semantic": semantic, "physical": physical, "policy": policy,
                     "transaction_root": transaction_root,
                     "legacy_005_bytes": (
@@ -643,6 +645,137 @@ class ArchivePolicyTests(unittest.TestCase):
                 self.service.hooks.clear()
                 self.service.retirement_pretruncate_open_policy_for_transaction = \
                     original
+
+    @contextmanager
+    def historical_completed_transaction(self, tag: str):
+        """Build a small exact closed analogue for the read-only command."""
+        with self.pretruncate_open_transaction(
+                f"historical-completed-{tag}") as fixture:
+            transaction = fixture["transaction"]
+            self.assertEqual(self.drain(transaction)["status"], "PASS")
+            root = fixture["transaction_root"]
+            stage_names = [name for name, _ in
+                           ARC.HISTORICAL_COMPLETED_STAGE_SHA256]
+            stages = {
+                name: ARC.strict_json_loads(
+                    (root / name).read_text(encoding="ascii"))
+                for name in stage_names
+            }
+            stage_sha = tuple(
+                (name, ARC.sha256_bytes((root / name).read_bytes()))
+                for name in stage_names)
+            published = stages[ARC.RECORD_NAMES["published"]]
+            second_stage = stages[ARC.RECORD_NAMES["second-copy-proof"]]
+            retired = stages[ARC.RECORD_NAMES["source-deleted"]]
+            receipt = stages[ARC.RECORD_NAMES["deletion-receipt"]]
+            manifests_root = self.mount / ARC.ARCHIVE_ROOT / ARC.MANIFEST_ROOT
+            external_manifest = ARC.strict_json_loads(
+                (manifests_root / stages[ARC.RECORD_NAMES[
+                    "manifest-published"]]["external_manifest"]
+                 ).read_text(encoding="ascii"))
+            external_second = ARC.strict_json_loads(
+                (manifests_root / second_stage["external_proof"]
+                 ).read_text(encoding="ascii"))
+            external_receipt = ARC.strict_json_loads(
+                (manifests_root / receipt["external_receipt"]
+                 ).read_text(encoding="ascii"))
+            found: dict[bytes, dict[str, object]] = {}
+            for payload in (*stages.values(), external_manifest,
+                            external_second, external_receipt):
+                found.update(self.service.historical_gate_proofs_in(payload))
+            gate_rows = tuple(sorted((
+                (proof["receipt_name"], proof["receipt_sha256"],
+                 proof["gate_ended_unix"], proof["gate_source_sha256"],
+                 proof["gate_stamp_sha256"], proof["gate_log_sha256"])
+                for proof in found.values()), key=lambda row: row[0]))
+            destination = published["destination_manifest"]
+            tombstone = retired["tombstone_manifest"]
+            prepared = external_second["prepared_manifest"]
+            record = stages[ARC.RECORD_NAMES["candidate"]]
+            policy = ARC.HistoricalCompletedRetirementPolicy(
+                901, transaction, record["candidate_id"], record["source"],
+                tuple(record["source_identity"]),
+                tuple(record["source_parent_identity"]),
+                record["allowlist_version"], record["category"],
+                record["data_class"], record["deletion_rule"],
+                ARC.manifest_canonical_sha256(record["source_manifest"]),
+                record["source_tree_sha256"], stage_sha, gate_rows,
+                published["final_name"], tuple(published["final_identity"]),
+                ARC.manifest_canonical_sha256(destination),
+                destination["tree_sha256"], destination["files"],
+                destination["directories"], destination["symlinks"],
+                destination["logical_bytes"],
+                stages[ARC.RECORD_NAMES["manifest-published"]][
+                    "external_manifest"],
+                stages[ARC.RECORD_NAMES["manifest-published"]][
+                    "external_manifest_sha256"],
+                second_stage["external_proof"],
+                second_stage["external_proof_sha256"],
+                second_stage["proof_hash"],
+                tuple(external_second["prepared_root_identity"]),
+                ARC.manifest_canonical_sha256(prepared),
+                prepared["tree_sha256"], receipt["external_receipt"],
+                receipt["external_receipt_sha256"],
+                retired["tombstone_name"],
+                tuple(retired["tombstone_identity"]),
+                ARC.manifest_canonical_sha256(tombstone),
+                tombstone["tree_sha256"], tombstone["files"],
+                tombstone["directories"], tombstone["symlinks"],
+                tombstone["logical_bytes"], tombstone["allocated_bytes"],
+                ARC.REVIEWED_ALLOWLIST_AUTHORIZATION_SHA256)
+            original_policy = self.service.historical_completed_policy
+            self.service.historical_completed_policy = lambda: policy
+            self.platform.gate_hash = "f" * 64
+            empty = ARC.sha256_bytes(b"")
+            self.platform.current_gate_state = {
+                "head": "9" * 40, "status_sha256": empty,
+                "diff_binary_head_sha256": empty, "untracked": [],
+            }
+            current_receipt = self.write_gate_receipt(
+                source_hash=self.platform.gate_hash,
+                ended=self.platform.clock - 1,
+                receipt_name="gate-2000000001-909-0.json")
+            try:
+                yield {
+                    **fixture, "historical_policy": policy,
+                    "historical_stages": stages,
+                    "external_manifest": external_manifest,
+                    "external_second": external_second,
+                    "external_receipt": external_receipt,
+                    "current_receipt": current_receipt,
+                    "destination_path": (
+                        self.mount / ARC.ARCHIVE_ROOT /
+                        ARC.CATEGORY_ROOTS[record["category"]] /
+                        published["final_name"]),
+                    "tombstone_path": (
+                        self.settings.queue_root /
+                        stages[ARC.RECORD_NAMES["delete-intent"]][
+                            "quarantine_namespace"] /
+                        retired["tombstone_name"]),
+                }
+            finally:
+                self.service.historical_completed_policy = original_policy
+
+    def historical_readonly_snapshot(self) -> dict[str, bytes]:
+        roots = {
+            "queue": self.settings.queue_root,
+            "archive": self.mount / ARC.ARCHIVE_ROOT,
+            "prepared": self.settings.retail_prepared_root,
+            "gates": self.settings.gate_log_root,
+            "stamp": self.settings.full_gate_stamp.parent,
+        }
+        result: dict[str, bytes] = {}
+        for label, root in roots.items():
+            if not root.exists():
+                continue
+            descriptor = ARC.open_absolute_directory(
+                root, f"historical read-only snapshot {label}")
+            try:
+                result[label] = ARC.canonical_json(
+                    ARC.manifest_bound(descriptor, "directory"))
+            finally:
+                os.close(descriptor)
+        return result
 
     def fork_crash_drain(self, transaction: str, hook: str, *,
                          before_boundary_failure: bool = False) -> None:
@@ -4048,6 +4181,375 @@ class ArchivePolicyTests(unittest.TestCase):
             self.service.retirement_pretruncate_open_policy_for_transaction(
                 -1, {"transaction_id": policy.transaction_id}))
 
+    # HST-01..06 — exact read-only completed-retirement verification
+    def hst_01(self) -> None:
+        """The dedicated command returns only its non-authorizing status."""
+        self.assertEqual(
+            ARC.historical_completed_policy_authorization_sha256(
+                ARC.PRODUCTION_HISTORICAL_COMPLETED),
+            ARC.HISTORICAL_COMPLETED_POLICY_AUTHORIZATION_SHA256)
+        self.assertEqual(
+            ARC.parser().parse_args(
+                ["verify-historical-production-state"]).command,
+            "verify-historical-production-state")
+        with self.historical_completed_transaction("positive"):
+            before = self.historical_readonly_snapshot()
+            result = self.service.verify_historical_production_state()
+            after = self.historical_readonly_snapshot()
+            self.assertEqual(result, {
+                "status": "HISTORICAL_PASS",
+                "mutation_authorization": "NONE",
+            })
+            self.assertNotIn("PASS", result.values())
+            self.assertEqual(before, after)
+
+    def hst_02(self) -> None:
+        """The actual sibling path rejects HST and keeps strict equivalence."""
+        with self.historical_completed_transaction("strict-existing") as fixture:
+            with self.assertRaisesRegex(
+                    ARC.ArchiveError, "semantically equivalent"):
+                self.service.verify_production_state(fixture["transaction"])
+            with self.assertRaisesRegex(
+                    ARC.ArchiveError, "semantically equivalent"):
+                self.service.verify_published(fixture["transaction"])
+            result = self.service.verify_historical_production_state()
+            self.assertEqual(set(result), {"status", "mutation_authorization"})
+            self.assertFalse(any(key.startswith("main_") for key in result))
+
+            sibling_transaction = self.service.enqueue(
+                fixture["sibling"].ident)["transaction_id"]
+            sibling_root = self.settings.queue_root / sibling_transaction
+            external_proof = (
+                self.mount / ARC.ARCHIVE_ROOT / ARC.MANIFEST_ROOT /
+                f"{sibling_transaction}-second-copy-proof.json")
+            lock_fd, queue_fd, transaction_fd, sibling_record = \
+                self.service.open_transaction(
+                    sibling_transaction, exclusive=True,
+                    recover_partials=True)
+            try:
+                volume = self.service.bind_volume()
+                try:
+                    roots = self.service.external_roots(
+                        volume, sibling_record["category"])
+                    try:
+                        with mock.patch.object(
+                                self.service,
+                                "verify_historical_production_state",
+                                return_value=result) as historical_api, \
+                                mock.patch.object(
+                                    self.service,
+                                    "verify_retired_main_transaction",
+                                    wraps=getattr(
+                                        self.service,
+                                        "verify_retired_main_transaction")) \
+                                as strict_api:
+                            with self.assertRaisesRegex(
+                                    ARC.ArchiveError,
+                                    "semantically equivalent"):
+                                self.service.ensure_sibling_dependency_proof(
+                                    queue_fd, transaction_fd, sibling_record,
+                                    volume, roots)
+                            historical_api.assert_not_called()
+                            self.assertGreaterEqual(strict_api.call_count, 1)
+                        with mock.patch.object(
+                                self.service,
+                                "verify_retired_main_transaction",
+                                return_value=result):
+                            with self.assertRaisesRegex(
+                                    ARC.ArchiveError,
+                                    "not an authorizing proof"):
+                                self.service.ensure_sibling_dependency_proof(
+                                    queue_fd, transaction_fd, sibling_record,
+                                    volume, roots)
+                    finally:
+                        roots.close()
+                finally:
+                    volume.close()
+            finally:
+                os.close(transaction_fd)
+                os.close(queue_fd)
+                os.close(lock_fd)
+            self.assertFalse(external_proof.exists())
+            self.assertFalse((sibling_root /
+                              ARC.RECORD_NAMES["second-copy-proof"]).exists())
+
+    def hst_03(self) -> None:
+        """Every immutable late stage and authorization tuple is exact."""
+        with self.historical_completed_transaction("stages") as fixture:
+            root = fixture["transaction_root"]
+            for name in (
+                    ARC.RECORD_NAMES["source-quarantined"],
+                    ARC.RECORD_NAMES["retirement-started"],
+                    ARC.RETIREMENT_OVERLAY_BASELINE_RECORD,
+                    ARC.RETIREMENT_PRETRUNCATE_OPEN_RECORD,
+                    ARC.RECORD_NAMES["source-deleted"],
+                    ARC.RECORD_NAMES["deletion-receipt"]):
+                path = root / name
+                original = path.read_bytes()
+                try:
+                    path.write_bytes(original + b" ")
+                    os.chmod(path, 0o600)
+                    with self.subTest(stage=name), self.assertRaises(
+                            ARC.ArchiveError):
+                        self.service.verify_historical_production_state()
+                finally:
+                    path.write_bytes(original)
+                    os.chmod(path, 0o600)
+
+            policy = fixture["historical_policy"]
+            mutations = (
+                replace(policy, candidate_id=policy.candidate_id + "-foreign"),
+                replace(policy, source_path=policy.source_path + "-foreign"),
+                replace(policy, allowlist_version=policy.allowlist_version + 1),
+                replace(policy, category="archives"),
+                replace(policy, source_tree_sha256="0" * 64),
+                replace(policy, production_authorization_sha256="0" * 64),
+            )
+            for changed in mutations:
+                with self.subTest(policy=changed), mock.patch.object(
+                        self.service, "historical_completed_policy",
+                        return_value=changed), self.assertRaises(
+                            (ARC.ArchiveError, FileNotFoundError)):
+                    self.service.verify_historical_production_state()
+
+        production = ARC.ArchiveService()
+        changed = replace(
+            ARC.PRODUCTION_HISTORICAL_COMPLETED,
+            external_receipt_sha256="0" * 64)
+        with mock.patch.object(
+                ARC, "PRODUCTION_HISTORICAL_COMPLETED", changed), \
+                self.assertRaisesRegex(ARC.ArchiveError, "not authorized"):
+            production.historical_completed_policy()
+
+    def hst_04(self) -> None:
+        """Historical evidence, external state, tombstone and prepared proof bind."""
+        with self.historical_completed_transaction("physical") as fixture:
+            policy = fixture["historical_policy"]
+
+            receipt_name = policy.historical_gate_proofs[0][0]
+            historical_receipt = self.settings.gate_log_root / receipt_name
+            original_receipt = historical_receipt.read_bytes()
+            value = ARC.strict_json_loads(original_receipt.decode("ascii"))
+            value["started_unix"] -= 1
+            historical_receipt.write_bytes(ARC.canonical_json(value))
+            try:
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                historical_receipt.write_bytes(original_receipt)
+                os.chmod(historical_receipt, 0o600)
+
+            historical_log = historical_receipt.with_suffix(".log")
+            original_log = historical_log.read_bytes()
+            historical_log.write_bytes(original_log + b"tampered\n")
+            try:
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                historical_log.write_bytes(original_log)
+                os.chmod(historical_log, 0o600)
+
+            manifests = self.mount / ARC.ARCHIVE_ROOT / ARC.MANIFEST_ROOT
+            for name in (
+                    policy.external_manifest_name,
+                    policy.external_second_copy_name,
+                    policy.external_receipt_name):
+                path = manifests / name
+                original = path.read_bytes()
+                path.write_bytes(original + b" ")
+                try:
+                    with self.subTest(external=name), self.assertRaises(
+                            ARC.ArchiveError):
+                        self.service.verify_historical_production_state()
+                finally:
+                    path.write_bytes(original)
+                    os.chmod(path, 0o600)
+
+            destination_manifest = fixture["historical_stages"][
+                ARC.RECORD_NAMES["published"]]["destination_manifest"]
+            target_row = next(row for row in destination_manifest["entries"]
+                              if row["kind"] == "regular")
+            target = fixture["destination_path"] / target_row["path"]
+            original = target.read_bytes()
+            info = target.stat()
+            target.write_bytes(original + b"x")
+            try:
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                target.write_bytes(original)
+                os.chmod(target, stat.S_IMODE(info.st_mode))
+                os.utime(target, ns=(info.st_atime_ns, info.st_mtime_ns))
+
+            tombstone = fixture["tombstone_path"]
+            tombstone_mode = stat.S_IMODE(tombstone.stat().st_mode)
+            os.chmod(tombstone, tombstone_mode ^ 0o100)
+            try:
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                os.chmod(tombstone, tombstone_mode)
+
+            prepared_path = (
+                self.settings.retail_prepared_root /
+                ARC.SECOND_COPY_MAPPINGS[0][1])
+            prepared_bytes = prepared_path.read_bytes()
+            prepared_info = prepared_path.stat()
+            prepared_path.write_bytes(prepared_bytes + b"x")
+            try:
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                prepared_path.write_bytes(prepared_bytes)
+                os.chmod(prepared_path, stat.S_IMODE(prepared_info.st_mode))
+                os.utime(prepared_path, ns=(prepared_info.st_atime_ns,
+                                            prepared_info.st_mtime_ns))
+
+    def hst_05(self) -> None:
+        """Only a fresh exact clean current full gate is independently accepted."""
+        with self.historical_completed_transaction("current-gate") as fixture:
+            receipt_path = fixture["current_receipt"]
+            log_path = receipt_path.with_suffix(".log")
+            receipt_raw = receipt_path.read_bytes()
+            log_raw = log_path.read_bytes()
+            original_state = copy.deepcopy(self.platform.current_gate_state)
+            original_clock = self.platform.clock
+            original_hash = self.platform.gate_hash
+
+            def reset() -> dict[str, object]:
+                receipt_path.write_bytes(receipt_raw)
+                os.chmod(receipt_path, 0o600)
+                log_path.write_bytes(log_raw)
+                os.chmod(log_path, 0o600)
+                self.platform.current_gate_state = copy.deepcopy(original_state)
+                self.platform.clock = original_clock
+                self.platform.gate_hash = original_hash
+                return ARC.strict_json_loads(receipt_raw.decode("ascii"))
+
+            for failure in (
+                    "dirty", "stale", "failed", "non-full", "stamp",
+                    "log", "before-after", "source"):
+                value = reset()
+                if failure == "dirty":
+                    self.platform.current_gate_state["status_sha256"] = "1" * 64
+                elif failure == "stale":
+                    self.platform.clock += self.settings.gate_max_age_seconds + 10
+                elif failure == "failed":
+                    value["exit_code"] = 1
+                    receipt_path.write_bytes(ARC.canonical_json(value))
+                elif failure == "non-full":
+                    value["gate"] = "fast"
+                    receipt_path.write_bytes(ARC.canonical_json(value))
+                elif failure == "stamp":
+                    value["underlying_stamp"]["sha256"] = "0" * 64
+                    receipt_path.write_bytes(ARC.canonical_json(value))
+                elif failure == "log":
+                    log_path.write_bytes(log_raw + b"foreign\n")
+                elif failure == "before-after":
+                    value["after"] = copy.deepcopy(value["after"])
+                    value["after"]["head"] = "8" * 40
+                    receipt_path.write_bytes(ARC.canonical_json(value))
+                elif failure == "source":
+                    self.platform.gate_hash = "7" * 64
+                with self.subTest(current_gate=failure), self.assertRaises(
+                        ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            reset()
+            self.assertEqual(
+                self.service.verify_historical_production_state()["status"],
+                "HISTORICAL_PASS")
+
+    def hst_06(self) -> None:
+        """The capability performs no writes and cannot target incomplete/other work."""
+        with self.historical_completed_transaction("no-writes") as fixture:
+            before = self.historical_readonly_snapshot()
+            real_open = os.open
+            write_open_flags = (
+                os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC |
+                os.O_APPEND | os.O_EXCL)
+
+            def read_only_open(path: object, flags: int, mode: int = 0o777,
+                               *, dir_fd: int | None = None) -> int:
+                if flags & write_open_flags:
+                    raise AssertionError(
+                        f"read-only verifier opened mutation flags: {flags:#x}")
+                if dir_fd is None:
+                    return real_open(path, flags, mode)  # type: ignore[arg-type]
+                return real_open(  # type: ignore[arg-type]
+                    path, flags, mode, dir_fd=dir_fd)
+
+            with ExitStack() as stack:
+                for owner, name in (
+                        (self.service, "write_record"),
+                        (self.service, "stage"),
+                        (self.service, "fsync"),
+                        (self.service, "ensure_private_directory"),
+                        (self.service, "create_private_directory_exclusive"),
+                        (self.service, "recover_record_partials"),
+                        (self.service, "quarantine_record_partial"),
+                        (self.platform, "write"),
+                        (self.platform, "rename_exclusive"),
+                        (self.platform, "fsync"),
+                        (ARC, "apply_xattrs_fd"),
+                        (ARC, "restore_xattrs_fd"),
+                        (ARC, "copy_acl_fd"),
+                        (ARC, "restore_acl_text_fd"),
+                        (ARC, "clear_delete_protection_fd"),
+                        (ARC, "apply_bsd_flags_fd"),
+                        (ARC, "restore_bsd_flags_fd")):
+                    stack.enter_context(mock.patch.object(
+                        owner, name, side_effect=AssertionError(
+                            f"read-only verifier called {name}")))
+                stack.enter_context(mock.patch.object(
+                    os, "open", side_effect=read_only_open))
+                for name in (
+                        "write", "replace", "rmdir", "fchmod", "fchown",
+                        "chmod", "chown", "lchown", "utime", "truncate",
+                        "ftruncate", "unlink", "remove", "rename", "renames",
+                        "mkdir", "makedirs", "setxattr", "removexattr"):
+                    if hasattr(os, name):
+                        stack.enter_context(mock.patch.object(
+                            os, name, side_effect=AssertionError(
+                                f"read-only verifier called os.{name}")))
+                result = self.service.verify_historical_production_state()
+            self.assertEqual(result["mutation_authorization"], "NONE")
+            self.assertEqual(before, self.historical_readonly_snapshot())
+
+            root = fixture["transaction_root"]
+            saved: list[tuple[Path, Path]] = []
+            for name in (ARC.RECORD_NAMES["source-deleted"],
+                         ARC.RECORD_NAMES["deletion-receipt"]):
+                path = root / name
+                backup = root.parent / f"{fixture['transaction']}-{name}.saved"
+                path.rename(backup)
+                saved.append((path, backup))
+            try:
+                with self.assertRaises(ARC.ArchiveError):
+                    self.service.verify_historical_production_state()
+            finally:
+                for path, backup in saved:
+                    backup.rename(path)
+
+            sibling_transaction = self.service.enqueue(
+                fixture["sibling"].ident)["transaction_id"]
+            sibling_policy = replace(
+                fixture["historical_policy"],
+                transaction_id=sibling_transaction,
+                candidate_id=fixture["sibling"].ident,
+                source_path=str(fixture["sibling"].source))
+            with mock.patch.object(
+                    self.service, "historical_completed_policy",
+                    return_value=sibling_policy), self.assertRaises(
+                        ARC.ArchiveError):
+                self.service.verify_historical_production_state()
+
+        self.settings.candidates = (self.candidate,)
+        self.settings.test_retail_roles = ()
+        self.settings.test_retail_inventory = None
+        self.service = ARC.ArchiveService(self.settings, self.platform)
+        with self.assertRaisesRegex(ARC.ArchiveError, "not authorized"):
+            self.service.verify_historical_production_state()
+
     # LOCK-01..12
     def lock_01(self) -> None:
         ready_r, ready_w = os.pipe()
@@ -4663,6 +5165,7 @@ CASE_BODIES = {
     **{f"OVR-{index:02d}": getattr(ArchivePolicyTests, f"ovr_{index:02d}") for index in range(1, 31)},
     **{f"ROB-{index:02d}": getattr(ArchivePolicyTests, f"rob_{index:02d}") for index in range(1, 10)},
     **{f"RPO-{index:02d}": getattr(ArchivePolicyTests, f"rpo_{index:02d}") for index in range(1, 9)},
+    **{f"HST-{index:02d}": getattr(ArchivePolicyTests, f"hst_{index:02d}") for index in range(1, 7)},
     **{f"LOCK-{index:02d}": getattr(ArchivePolicyTests, f"lock_{index:02d}") for index in range(1, 13)},
     **{f"GATE-{index:02d}": getattr(ArchivePolicyTests, f"gate_{index:02d}") for index in range(1, 5)},
 }
@@ -4686,4 +5189,4 @@ if __name__ == "__main__":
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     passed = result.testsRun - len(result.failures) - len(result.errors)
     print(f"archive_completed_artifacts: {passed}/{result.testsRun} PASS")
-    raise SystemExit(0 if result.wasSuccessful() and result.testsRun == 125 else 1)
+    raise SystemExit(0 if result.wasSuccessful() and result.testsRun == 131 else 1)

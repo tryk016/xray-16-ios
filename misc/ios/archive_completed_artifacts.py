@@ -187,6 +187,59 @@ RETIREMENT_PRETRUNCATE_OPEN_ELIGIBLE_PATHS_SHA256 = \
 RETIREMENT_PRETRUNCATE_OPEN_INHERITED_COUNT = 4
 RETIREMENT_PRETRUNCATE_OPEN_INHERITED_PATHS_SHA256 = \
     "16e954228ab3ecc6df6afc4e61c9cb1f834a1cd0cafde88a9e84e176ed49afeb"
+HISTORICAL_COMPLETED_POLICY_VERSION = 1
+HISTORICAL_COMPLETED_STAGE_SHA256 = (
+    ("000-candidate.json",
+     "595ace2d91fa81deac1ebc82be6ba118bb6aae1d769576e9b130628426f68a15"),
+    ("001-copy-started.json",
+     "0fff1402028f0c9bbd8eac8634e28d5ce3df71f9ef0b0a4c376cdfd4e57c1dfa"),
+    ("002-copy-complete.json",
+     "16933a61ca03665a57136b72762a30169ddfd4be5503d02fb42b80b3414b4134"),
+    ("003-verified.json",
+     "a7a6acea4dc0edb9b0400459cb4a7b24325b6065052de79f668246d50bb604ed"),
+    ("004-published.json",
+     "8ac78d8d30f512be968e1977d0815218609d498eac1ce5cd9a799efea0a579a7"),
+    ("005-manifest-published.json",
+     "e80ef1246a280846366401c95869f8aa50bc571d9ca3bbfb95699451b50c9d1c"),
+    ("006-second-copy-proof.json",
+     "ddc6505275ae4639e789208eca48b02434d7ae1024fdf057c2feb92132ca164a"),
+    ("007-delete-intent.json",
+     "0331f1d91ec12b1f723fa49d28634809aa70769a5a766ae3587aea677f17cdfd"),
+    ("008-source-quarantined.json",
+     "9b0693a18c51d95ca90b08a4ccc4df1b692d6a7c32b15332bae99426a44d6b25"),
+    ("009-retirement-started.json",
+     "30de606ee732db5a8b578e7a838c5da311138ae323b412d74ce2de88944d6f15"),
+    ("009a-retirement-overlay-baseline.json",
+     "ec677fb39ba5fff06d9dc82964ad1874917d61522a3a60bc0dc41095c4804653"),
+    ("009b-retirement-pretruncate-open-overlay.json",
+     "c98e6f3d75da7d7bd39edceb169c86034729298e09d3feaaa26af966c26c87c4"),
+    ("010-source-deleted.json",
+     "c6663df763f5a7b7a237e6a2b998cf9a9e207216b5f88ea81ce2aa498cd10812"),
+    ("011-deletion-receipt.json",
+     "8da8e9c44f41b595c943c6ef550cc90afae596ff1d7ecaf7aa39b7ffbcff5bb6"),
+)
+HISTORICAL_COMPLETED_GATE_PROOFS = (
+    ("gate-1786553042910942000-1324-0.json",
+     "6098d6509d7049354736a17e01284f792544cc7e0eb71b28ffd95d35cd7b87ff",
+     1786553786.230761,
+     "25c4bd3f357ecef708a5c081da23e25bcc4225966503b2e7829be82adb0a79a0",
+     "6ff212df8c0c74890ed5e376381bd2f57d8258c9253a130a23439c5920048f82",
+     "5c85b843042e0e1e1ac0de17ac761d84d739ca1d1ce6ee633a69d323c1aa0536"),
+    ("gate-1786558567116907000-55791-0.json",
+     "ca314eb3612fd1c9496403aa1ca6fe34839f3decdb37195a7f89b79d76dcd13c",
+     1786559274.418171,
+     "7728fb7a14bfea604374a0aab8fb61e436f921026aa372b395c477e4991cf5b5",
+     "d6ab2b77ca4d6cab9d09863cd66def26285c9ff1903de04e73357dece11c277a",
+     "153ca510aebe1a369e53bcee059e04f2ec03b82ede93db80ffa7d7b3069f9fb7"),
+    ("gate-1786563440297027000-96172-0.json",
+     "ccf74ad89ad6203521289eba79bb94b98f0759887f4cb6e25676d1a9e6caaeca",
+     1786564226.6601942,
+     "f8727806510005248fb9b92e2c7075fd5c91f66a82af451adfe8baa2d37e587f",
+     "d9cfba1057e29a05fa10937c48da0c43bc7cb896a0b315af44634521d4cc0906",
+     "16f14682fce0287d842108347fbddc8f28b2708dba59eaebf2ff2242ba0b2894"),
+)
+HISTORICAL_COMPLETED_POLICY_AUTHORIZATION_SHA256 = \
+    "0eade64181f67118258f1a9482bc826aebe2a68619ebbb6c25f9c108a6fd3c9a"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 QUEUE_ROOT = Path("/Users/patryk/openxray-handoff/archive-queue")
 GATE_LOG_ROOT = Path("/Users/patryk/openxray-handoff/gate-logs")
@@ -379,6 +432,55 @@ class RetirementPretruncateOpenPolicy:
     inherited_paths_sha256: str
     runtime_xattr_name: str
     runtime_xattr_value: str
+
+
+@dataclass(frozen=True)
+class HistoricalCompletedRetirementPolicy:
+    """One immutable, read-only capability for an already closed transaction."""
+
+    version: int
+    transaction_id: str
+    candidate_id: str
+    source_path: str
+    source_identity: tuple[int, int]
+    source_parent_identity: tuple[int, int]
+    allowlist_version: int
+    category: str
+    data_class: str
+    deletion_rule: str
+    source_manifest_sha256: str
+    source_tree_sha256: str
+    stage_sha256: tuple[tuple[str, str], ...]
+    historical_gate_proofs: tuple[
+        tuple[str, str, float, str, str, str], ...]
+    final_name: str
+    final_identity: tuple[int, int]
+    destination_manifest_sha256: str
+    destination_tree_sha256: str
+    destination_files: int
+    destination_directories: int
+    destination_symlinks: int
+    destination_logical_bytes: int
+    external_manifest_name: str
+    external_manifest_sha256: str
+    external_second_copy_name: str
+    external_second_copy_sha256: str
+    second_copy_proof_hash: str
+    prepared_root_identity: tuple[int, int]
+    prepared_manifest_sha256: str
+    prepared_tree_sha256: str
+    external_receipt_name: str
+    external_receipt_sha256: str
+    tombstone_name: str
+    tombstone_identity: tuple[int, int]
+    tombstone_manifest_sha256: str
+    tombstone_tree_sha256: str
+    tombstone_files: int
+    tombstone_directories: int
+    tombstone_symlinks: int
+    tombstone_logical_bytes: int
+    tombstone_allocated_bytes: int
+    production_authorization_sha256: str
 
 
 PRODUCTION_SOURCE_ROOT_OVERLAY = SourceRootOverlayPolicy(
@@ -620,6 +722,63 @@ def reviewed_allowlist_authorized(
 
 PRODUCTION_REVIEW_AUTHORIZED = reviewed_allowlist_authorized(
     ALLOWLIST_VERSION, INITIAL_CANDIDATES)
+PRODUCTION_HISTORICAL_COMPLETED = HistoricalCompletedRetirementPolicy(
+    HISTORICAL_COMPLETED_POLICY_VERSION,
+    SOURCE_ROOT_OVERLAY_TRANSACTION_ID,
+    SOURCE_ROOT_OVERLAY_CANDIDATE_ID,
+    SOURCE_ROOT_OVERLAY_PATH,
+    SOURCE_ROOT_OVERLAY_IDENTITY,
+    SOURCE_ROOT_OVERLAY_PARENT_IDENTITY,
+    ALLOWLIST_VERSION,
+    "backups",
+    "redundant",
+    "requires-fixed-prepared-proof",
+    SOURCE_ROOT_OVERLAY_SEMANTIC_MANIFEST_SHA256,
+    SOURCE_ROOT_OVERLAY_SEMANTIC_TREE_SHA256,
+    HISTORICAL_COMPLETED_STAGE_SHA256,
+    HISTORICAL_COMPLETED_GATE_PROOFS,
+    "5beca2ef4f034286be6299d6d9a2bdba-device-retail-backup-20260808-185559",
+    (16777256, 20830),
+    "3b457eba2ab83f5d6709ac9dba687d2b6e00a560ad0e3de11ed87880fcf15cd1",
+    "929ddd05bd7b6a33f2729074be2847c38d05b5f54e230d08e4f06b694af110ac",
+    790, 37, 0, 4761061526,
+    "5beca2ef4f034286be6299d6d9a2bdba.json",
+    "92c542d4ebae5f725c23fa7523804b080dd45c71c00af408a3d446214f7ae9e5",
+    "5beca2ef4f034286be6299d6d9a2bdba-second-copy-proof.json",
+    "86c0de066dd45c51e1250a078de171ecbf5f3df101d79a4cd2f21872bf45799a",
+    "5a9eea54d9004f91c9ccc8aca22b3a08a24ddda397ce2bd314035debb2687a56",
+    (16777234, 23449127),
+    "1f38846d7a9a50d9e9ea567bb304bedb7d3da6fb6bf5675121d85b8a61363db8",
+    "9b4eacff01f6e0c7f528c0252e208641388fe35124ebea69c90c4cc8219b2db8",
+    "5beca2ef4f034286be6299d6d9a2bdba-source-deletion.json",
+    "bf032741b03cd30879037943fcffd673d6decb60da966d51df04ed88e4968304",
+    ".retired-de0851374e2047deb725c478cff21b5d",
+    SOURCE_ROOT_OVERLAY_IDENTITY,
+    "ad4a460a6e6b51aae1e8ad91ef87fb311115befe6349470064026bdee514b1e6",
+    "8bdc659811c8e2c1b67948a6e0c99bf6e23e6aef6358977e859fe7036f6b4f7c",
+    790, 37, 0, 0, 0,
+    REVIEWED_ALLOWLIST_AUTHORIZATION_SHA256,
+)
+
+
+def historical_completed_policy_authorization_payload(
+        policy: HistoricalCompletedRetirementPolicy) -> tuple[Any, ...]:
+    return (
+        "openxray.historical-completed-retirement-readonly.v1",
+        tuple(getattr(policy, field_name)
+              for field_name in policy.__dataclass_fields__),
+    )
+
+
+def historical_completed_policy_authorization_sha256(
+        policy: HistoricalCompletedRetirementPolicy) -> str:
+    encoded = (json.dumps(
+        historical_completed_policy_authorization_payload(policy),
+        ensure_ascii=True, separators=(",", ":"), allow_nan=False
+    ) + "\n").encode("ascii")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 SPEC_BY_ID = {candidate.ident: candidate for candidate in INITIAL_CANDIDATES}
 PROTECTED_PREFIXES = ("retail-prepared-", "device-retail-backup-", "device-backup-",
                       "simulator-work-", "resources.db", "levels.db")
@@ -2327,6 +2486,33 @@ class ArchiveService:
         return (reviewed and PRODUCTION_REVIEW_AUTHORIZED == reviewed
                 and self.settings.review_authorized == reviewed
                 and self.settings.candidates == INITIAL_CANDIDATES)
+
+    def historical_completed_policy(self) -> HistoricalCompletedRetirementPolicy:
+        """Select the sole reviewed read-only completed-retirement capability.
+
+        This selector is intentionally not configurable through Settings, the
+        CLI or CandidateSpec.  Changing any tuple field invalidates the separate
+        Sol-reviewed authorization digest without changing mutation authority.
+        """
+        policy = PRODUCTION_HISTORICAL_COMPLETED
+        if (not self.settings.production
+                or type(self.platform) is not DarwinPlatform
+                or not self.production_authorization_valid()
+                or policy.transaction_id != SOURCE_ROOT_OVERLAY_TRANSACTION_ID
+                or policy.candidate_id != SOURCE_ROOT_OVERLAY_CANDIDATE_ID
+                or policy.source_path != SOURCE_ROOT_OVERLAY_PATH
+                or policy.source_identity != SOURCE_ROOT_OVERLAY_IDENTITY
+                or policy.source_parent_identity
+                != SOURCE_ROOT_OVERLAY_PARENT_IDENTITY
+                or policy.allowlist_version != ALLOWLIST_VERSION
+                or policy.production_authorization_sha256
+                != REVIEWED_ALLOWLIST_AUTHORIZATION_SHA256
+                or not hmac.compare_digest(
+                    historical_completed_policy_authorization_sha256(policy),
+                    HISTORICAL_COMPLETED_POLICY_AUTHORIZATION_SHA256)):
+            raise ArchiveError(
+                "historical completed-retirement policy is not authorized")
+        return policy
 
     def __post_init__(self) -> None:
         if not self.settings.production:
@@ -6549,6 +6735,20 @@ class ArchiveService:
             os.close(stamp_parent)
             os.close(gate_fd)
 
+    def matching_clean_full_gate_receipt(self) -> dict[str, Any]:
+        """Return a fresh full proof for an exactly clean current worktree."""
+        proof = self.matching_full_gate_receipt()
+        current = self.platform.gate_state(self.settings)
+        empty = sha256_bytes(b"")
+        if (not self.valid_gate_state(current)
+                or current.get("status_sha256") != empty
+                or current.get("diff_binary_head_sha256") != empty
+                or current.get("untracked") != []):
+            raise ArchiveError(
+                "historical verification requires a clean current worktree")
+        self.validate_full_gate_proof(proof, require_fresh=True)
+        return proof
+
     def validate_full_gate_proof(
             self, proof: Any, *, require_fresh: bool) -> dict[str, Any]:
         """Reopen and validate one immutable full-gate proof against now.
@@ -7287,6 +7487,300 @@ class ArchiveService:
                 os.close(quarantine_fd)
             os.close(source_parent)
 
+    @staticmethod
+    def historical_gate_proof_from_row(
+            row: tuple[str, str, float, str, str, str]) -> dict[str, Any]:
+        receipt, receipt_sha, ended, source, stamp, log = row
+        return {
+            "schema": "openxray.archive-gate-proof.v1",
+            "review_policy_version": REVIEW_POLICY_VERSION,
+            "receipt_name": receipt,
+            "receipt_sha256": receipt_sha,
+            "gate": "full",
+            "gate_ended_unix": ended,
+            "gate_source_sha256": source,
+            "gate_stamp_sha256": stamp,
+            "gate_log_sha256": log,
+        }
+
+    @staticmethod
+    def historical_gate_proofs_in(value: Any) -> dict[bytes, dict[str, Any]]:
+        required = {
+            "schema", "review_policy_version", "receipt_name", "receipt_sha256",
+            "gate", "gate_ended_unix", "gate_source_sha256",
+            "gate_stamp_sha256", "gate_log_sha256",
+        }
+        found: dict[bytes, dict[str, Any]] = {}
+
+        def visit(item: Any) -> None:
+            if isinstance(item, dict):
+                if (set(item) == required
+                        and item.get("schema")
+                        == "openxray.archive-gate-proof.v1"):
+                    found[canonical_json(item)] = item
+                for child in item.values():
+                    visit(child)
+            elif isinstance(item, list):
+                for child in item:
+                    visit(child)
+
+        visit(value)
+        return found
+
+    def verify_historical_completed_state_bound(
+            self, queue_fd: int, transaction_fd: int, record: dict[str, Any],
+            volume: VolumeBinding, roots: ExternalRoots,
+            policy: HistoricalCompletedRetirementPolicy) -> dict[str, str]:
+        """Verify one closed historical retirement without mutation authority.
+
+        This routine deliberately does not call the generic retired-main,
+        production-state or publication verifiers: those remain strict
+        mutation/dependency capabilities and continue to require equivalent
+        historical/current gate proofs.
+        """
+        self.require_volume(volume)
+        expected_names = {name for name, _ in policy.stage_sha256}
+        if set(os.listdir(transaction_fd)) != expected_names:
+            raise ArchiveError(
+                "historical completed transaction record inventory differs")
+        stages: dict[str, dict[str, Any]] = {}
+        for name, expected_sha in policy.stage_sha256:
+            payload = self.read_record(transaction_fd, name)
+            if sha256_bytes(canonical_json(payload)) != expected_sha:
+                raise ArchiveError(f"historical completed stage differs: {name}")
+            stages[name] = payload
+
+        if (policy.production_authorization_sha256
+                != REVIEWED_ALLOWLIST_AUTHORIZATION_SHA256
+                or record.get("transaction_id") != policy.transaction_id
+                or record.get("candidate_id") != policy.candidate_id
+                or record.get("source") != policy.source_path
+                or tuple(record.get("source_identity", ()))
+                != policy.source_identity
+                or tuple(record.get("source_parent_identity", ()))
+                != policy.source_parent_identity
+                or record.get("allowlist_version") != policy.allowlist_version
+                or record.get("category") != policy.category
+                or record.get("data_class") != policy.data_class
+                or record.get("deletion_rule") != policy.deletion_rule
+                or manifest_canonical_sha256(record.get("source_manifest", {}))
+                != policy.source_manifest_sha256
+                or record.get("source_tree_sha256") != policy.source_tree_sha256):
+            raise ArchiveError("historical completed candidate/policy tuple differs")
+
+        published = stages[RECORD_NAMES["published"]]
+        manifest_stage = stages[RECORD_NAMES["manifest-published"]]
+        second_stage = stages[RECORD_NAMES["second-copy-proof"]]
+        intent = stages[RECORD_NAMES["delete-intent"]]
+        quarantined = stages[RECORD_NAMES["source-quarantined"]]
+        retirement = stages[RECORD_NAMES["retirement-started"]]
+        baseline = stages[RETIREMENT_OVERLAY_BASELINE_RECORD]
+        pretruncate = stages[RETIREMENT_PRETRUNCATE_OPEN_RECORD]
+        retired = stages[RECORD_NAMES["source-deleted"]]
+        receipt = stages[RECORD_NAMES["deletion-receipt"]]
+        stage_hashes = dict(policy.stage_sha256)
+
+        if (published.get("final_name") != policy.final_name
+                or tuple(published.get("final_identity", ()))
+                != policy.final_identity
+                or manifest_canonical_sha256(
+                    published.get("destination_manifest", {}))
+                != policy.destination_manifest_sha256
+                or published.get("destination_manifest", {}).get("tree_sha256")
+                != policy.destination_tree_sha256
+                or manifest_stage.get("external_manifest")
+                != policy.external_manifest_name
+                or manifest_stage.get("external_manifest_sha256")
+                != policy.external_manifest_sha256
+                or second_stage.get("external_proof")
+                != policy.external_second_copy_name
+                or second_stage.get("external_proof_sha256")
+                != policy.external_second_copy_sha256
+                or second_stage.get("proof_hash")
+                != policy.second_copy_proof_hash
+                or second_stage.get("proof_kind") != "fixed-prepared-retail"
+                or sha256_bytes(canonical_json(quarantined))
+                != stage_hashes[RECORD_NAMES["source-quarantined"]]
+                or retirement.get("source_quarantined_stage_sha256")
+                != stage_hashes[RECORD_NAMES["source-quarantined"]]
+                or baseline.get("source_quarantined_stage_sha256")
+                != stage_hashes[RECORD_NAMES["source-quarantined"]]
+                or baseline.get("retirement_started_stage_sha256")
+                != stage_hashes[RECORD_NAMES["retirement-started"]]
+                or pretruncate.get("source_quarantined_stage_sha256")
+                != stage_hashes[RECORD_NAMES["source-quarantined"]]
+                or pretruncate.get("retirement_started_stage_sha256")
+                != stage_hashes[RECORD_NAMES["retirement-started"]]
+                or pretruncate.get("retirement_overlay_baseline_stage_sha256")
+                != stage_hashes[RETIREMENT_OVERLAY_BASELINE_RECORD]
+                or pretruncate.get("production_authorization_sha256")
+                != policy.production_authorization_sha256
+                or retired.get("retirement_started_stage_sha256")
+                != stage_hashes[RECORD_NAMES["retirement-started"]]
+                or retired.get("retirement_pretruncate_open_stage_sha256")
+                != stage_hashes[RETIREMENT_PRETRUNCATE_OPEN_RECORD]
+                or receipt.get("source_deleted_stage_sha256")
+                != stage_hashes[RECORD_NAMES["source-deleted"]]
+                or receipt.get("external_receipt")
+                != policy.external_receipt_name
+                or receipt.get("external_receipt_sha256")
+                != policy.external_receipt_sha256):
+            raise ArchiveError("historical completed immutable stage chain differs")
+
+        final_fd = stable_rebind(
+            roots.category_fd, policy.final_name, policy.final_identity,
+            record["source_kind"])
+        try:
+            try:
+                destination = manifest_bound(final_fd, record["source_kind"])
+            except OSError as error:
+                raise ArchiveError(
+                    "historical completed destination cannot be read") from error
+        finally:
+            os.close(final_fd)
+        if (canonical_json(destination)
+                != canonical_json(published["destination_manifest"])
+                or manifest_canonical_sha256(destination)
+                != policy.destination_manifest_sha256
+                or destination.get("tree_sha256")
+                != policy.destination_tree_sha256
+                or (destination.get("files"), destination.get("directories"),
+                    destination.get("symlinks"), destination.get("logical_bytes"))
+                != (policy.destination_files, policy.destination_directories,
+                    policy.destination_symlinks,
+                    policy.destination_logical_bytes)):
+            raise ArchiveError("historical completed destination differs")
+
+        external_manifest = self.read_record(
+            roots.manifests_fd, policy.external_manifest_name)
+        external_second = self.read_record(
+            roots.manifests_fd, policy.external_second_copy_name)
+        external_receipt = self.read_record(
+            roots.manifests_fd, policy.external_receipt_name)
+        if (sha256_bytes(canonical_json(external_manifest))
+                != policy.external_manifest_sha256
+                or sha256_bytes(canonical_json(external_second))
+                != policy.external_second_copy_sha256
+                or sha256_bytes(canonical_json(external_receipt))
+                != policy.external_receipt_sha256
+                or self.second_copy_payload_hash(external_second)
+                != policy.second_copy_proof_hash
+                or external_manifest.get("verification") != "PASS"
+                or external_receipt.get("source_public") != "ABSENT"
+                or external_receipt.get("owned_payload")
+                != "ZEROED_TOMBSTONE"
+                or external_receipt.get("source_deleted_stage_sha256")
+                != stage_hashes[RECORD_NAMES["source-deleted"]]):
+            raise ArchiveError("historical completed external records differ")
+        self.validate_external_overlay_binding(
+            record, external_manifest, published)
+        self.validate_external_overlay_binding(
+            record, external_receipt, published)
+
+        prepared = external_second.get("prepared_manifest")
+        if (not isinstance(prepared, dict)
+                or tuple(external_second.get("prepared_root_identity", ()))
+                != policy.prepared_root_identity
+                or manifest_canonical_sha256(prepared)
+                != policy.prepared_manifest_sha256
+                or prepared.get("tree_sha256") != policy.prepared_tree_sha256
+                or len(external_second.get("mappings", ())) != 13):
+            raise ArchiveError("historical completed prepared proof differs")
+        try:
+            self.verify_prepared_against_immutable_proof(external_second)
+        except OSError as error:
+            raise ArchiveError(
+                "historical completed prepared proof cannot be read") from error
+
+        source_parent = self.require_public_source_absent(record)
+        os.close(source_parent)
+        quarantine_fd = self.open_quarantine_namespace_readonly(queue_fd, intent)
+        try:
+            owned_name = self.owned_quarantine_name(
+                quarantine_fd, intent, policy.tombstone_identity)
+            if (owned_name != policy.tombstone_name
+                    or retired.get("tombstone_name") != policy.tombstone_name
+                    or tuple(retired.get("tombstone_identity", ()))
+                    != policy.tombstone_identity):
+                raise ArchiveError("historical completed tombstone identity differs")
+            tombstone_fd = stable_rebind(
+                quarantine_fd, owned_name, policy.tombstone_identity,
+                record["source_kind"])
+            try:
+                try:
+                    tombstone = manifest_bound(
+                        tombstone_fd, record["source_kind"])
+                except OSError as error:
+                    raise ArchiveError(
+                        "historical completed tombstone cannot be read") from error
+            finally:
+                os.close(tombstone_fd)
+        finally:
+            os.close(quarantine_fd)
+        if (canonical_json(tombstone)
+                != canonical_json(retired.get("tombstone_manifest"))
+                or manifest_canonical_sha256(tombstone)
+                != policy.tombstone_manifest_sha256
+                or tombstone.get("tree_sha256") != policy.tombstone_tree_sha256
+                or (tombstone.get("files"), tombstone.get("directories"),
+                    tombstone.get("symlinks"), tombstone.get("logical_bytes"),
+                    tombstone.get("allocated_bytes"))
+                != (policy.tombstone_files, policy.tombstone_directories,
+                    policy.tombstone_symlinks, policy.tombstone_logical_bytes,
+                    policy.tombstone_allocated_bytes)
+                or retired.get("receipt") != "PASS"
+                or retired.get("public_source") != "ABSENT"
+                or retired.get("owned_payload") != "ZEROED_TOMBSTONE"):
+            raise ArchiveError("historical completed tombstone differs")
+
+        historical_values = [*stages.values(), external_manifest,
+                             external_second, external_receipt]
+        found: dict[bytes, dict[str, Any]] = {}
+        for value in historical_values:
+            found.update(self.historical_gate_proofs_in(value))
+        expected = {
+            canonical_json(self.historical_gate_proof_from_row(row)):
+                self.historical_gate_proof_from_row(row)
+            for row in policy.historical_gate_proofs
+        }
+        if set(found) != set(expected):
+            raise ArchiveError("historical completed gate proof inventory differs")
+        for proof in expected.values():
+            self.validate_reviewed_historical_gate_proof(proof)
+
+        current_gate = self.matching_clean_full_gate_receipt()
+        if current_gate.get("receipt_name") in {
+                row[0] for row in policy.historical_gate_proofs}:
+            raise ArchiveError(
+                "historical verification requires a separate current full gate")
+        self.require_volume(volume)
+        return {"status": "HISTORICAL_PASS", "mutation_authorization": "NONE"}
+
+    def verify_historical_production_state(self) -> dict[str, str]:
+        """Read-only verification of the sole reviewed completed retirement.
+
+        The return value is intentionally not a generic PASS/proof and is never
+        consumed by sibling, drain, recovery or publication services.
+        """
+        policy = self.historical_completed_policy()
+        lock_fd, queue_fd, transaction_fd, record = self.open_transaction(
+            policy.transaction_id, exclusive=False, recover_partials=False)
+        try:
+            volume = self.bind_volume()
+            try:
+                roots = self.external_roots(volume, record["category"])
+                try:
+                    return self.verify_historical_completed_state_bound(
+                        queue_fd, transaction_fd, record, volume, roots, policy)
+                finally:
+                    roots.close()
+            finally:
+                volume.close()
+        finally:
+            os.close(transaction_fd)
+            os.close(queue_fd)
+            os.close(lock_fd)
+
     def verify_production_state(
             self, transaction_id: str = SOURCE_ROOT_OVERLAY_TRANSACTION_ID
             ) -> dict[str, Any]:
@@ -7454,8 +7948,32 @@ class ArchiveService:
                 candidate_record = self.candidate_record(candidate_fd)
                 if candidate_record["candidate_id"] != main_ids[0]:
                     continue
-                matches.append(self.verify_retired_main_transaction(
-                    queue_fd, candidate_fd, candidate_record, volume, roots))
+                dependency = self.verify_retired_main_transaction(
+                    queue_fd, candidate_fd, candidate_record, volume, roots)
+                required_dependency = {
+                    "main_transaction_id", "main_transfer_manifest",
+                    "main_transfer_manifest_sha256", "main_deletion_receipt",
+                    "main_deletion_receipt_sha256", "main_source_deleted_sha256",
+                    "main_second_copy_proof_hash",
+                }
+                expected_transaction = candidate_record["transaction_id"]
+                if (set(dependency) != required_dependency
+                        or dependency.get("main_transaction_id")
+                        != expected_transaction
+                        or dependency.get("main_transfer_manifest")
+                        != f"{expected_transaction}.json"
+                        or dependency.get("main_deletion_receipt")
+                        != f"{expected_transaction}-source-deletion.json"
+                        or any(re.fullmatch(r"[0-9a-f]{64}",
+                                            dependency.get(key, "")) is None
+                               for key in (
+                                   "main_transfer_manifest_sha256",
+                                   "main_deletion_receipt_sha256",
+                                   "main_source_deleted_sha256",
+                                   "main_second_copy_proof_hash"))):
+                    raise ArchiveError(
+                        "sibling main dependency result is not an authorizing proof")
+                matches.append(dependency)
             except ArchiveError as error:
                 if "not complete" not in str(error):
                     raise
@@ -8518,6 +9036,10 @@ def parser() -> argparse.ArgumentParser:
     commands = result.add_subparsers(dest="command", required=True)
     commands.add_parser("audit")
     commands.add_parser("verify-production-state")
+    commands.add_parser(
+        "verify-historical-production-state",
+        help=("read-only exact verification of the reviewed completed main "
+              "retirement; never grants mutation authorization"))
     enqueue = commands.add_parser("enqueue")
     enqueue.add_argument("--candidate", required=True, choices=sorted(SPEC_BY_ID))
     drain = commands.add_parser("drain")
@@ -8538,6 +9060,8 @@ def main(argv: list[str] | None = None) -> int:
             result: Any = service.audit()
         elif arguments.command == "verify-production-state":
             result = service.verify_production_state()
+        elif arguments.command == "verify-historical-production-state":
+            result = service.verify_historical_production_state()
         elif arguments.command == "enqueue":
             result = service.enqueue(arguments.candidate)
         elif arguments.command == "drain":

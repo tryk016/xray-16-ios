@@ -4873,3 +4873,43 @@ or push, current focus and dates are synchronized, prior approval is scoped only
 to its earlier importer review, Resume remains 145 lines and the regenerated
 capsule passed at 25,311 bytes/6,328 estimated tokens. The final complete-diff
 Sol xhigh re-review returned exactly `APPROVE — brak P0/P1/P2`.
+
+## 2026-08-12 — post-commit proof and non-authorizing historical verifier
+
+Commit `a355fab834e0e4e1bd06128e65c9d0335306c463` closed the reviewed local M6,
+graphics-contract and DevArchive documentation slice. Its clean post-commit
+full gate `gate-1786565992761388000-42873-0.log` passed with log SHA-256
+`37c3e0a6828eb1668facdfb4fc9c845c868b4953878387bfeac189f8a285dbc9`
+and stamp SHA-256
+`bf95fcfd75a867fcc34f28d520b0e90250ba8ea0148c91e23e0d75ac0540658f`.
+Before/after were the exact clean HEAD with empty diff/status/untracked. Source
+was `b2bcf20bee60a93011404fb0d5803b6c359ab490f4c92f360bff216209b751e1`,
+UUID `122A97AB-39E3-31F3-86BD-3B795F208140` and bundle SHA-256
+`626c874e30c6872aa5fbb426e493e691573f63130ae9e086675a7df136b608c4`.
+Archive 125/125, mocked retail Simulator 102/102, macros 30/30, resources 13/13,
+SSAO 6/6, SSR 9/9 and links 137/137 passed with zero rebuilt TUs.
+
+The normal production verifier then correctly rejected cross-era equivalence:
+the retirement was authorized by a dirty historical snapshot, while committing
+changed the HEAD-bearing source hash and therefore the stamp hash. Existing
+evidence cannot retroactively prove a complete dirty-tree-to-commit identity.
+Sol xhigh therefore approved a separate transaction-specific read-only design
+and explicitly rejected weakening shared production equivalence.
+
+`verify-historical-production-state` now binds only the reviewed main
+transaction, immutable 000–011 records, historical gate receipts/logs, exact
+DevArchive destination/receipts, 790/790 zero tombstone and the local prepared
+13-file proof. It can return only `HISTORICAL_PASS` with
+`mutation_authorization: NONE`; production verify, sibling, drain, recovery and
+publication remain strict and cannot consume this result. Pre-review exposed
+that sibling dependency creation did not validate the exact returned proof
+shape; it now requires the seven named main-proof fields, exact transaction and
+receipt names, and four 64-hex digests before any sibling write. Focused archive
+tests pass 131/131, including behavioral sibling rejection and expanded
+HST-01…06 mutation/isolation/write-spy cases; active-gate tests pass 12/12 and
+keep clean/dirty capsules inside 6,000–9,000 estimated
+tokens by including bounded canonical open-work/completion scope. A fresh final
+commit/full gate remains pending. After correction of the current DevArchive
+contract count from 125/125 to 131/131, final complete-diff Sol xhigh review
+returned exactly `APPROVE — brak P0/P1/P2`. No phone, Simulator, install or
+DevArchive mutation occurred.
