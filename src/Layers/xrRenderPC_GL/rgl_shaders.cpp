@@ -361,8 +361,13 @@ HRESULT CRender::shader_compile(pcstr name, IReader* fs, pcstr pFunctionName,
         xr_sprintf(c_water_reflection, "%d", ps_r_water_reflection);
         options.add("SSR_QUALITY", c_water_reflection);
         sh_name.append(ps_r_water_reflection);
-        const bool sshHalfDepth = ps_r2_ls_flags_ext.test(R3FLAGEXT_SSR_HALF_DEPTH);
-        appendShaderOption(sshHalfDepth, "SSR_HALF_DEPTH", "1");
+        // $user$half_depth is allocated and populated only when this exact
+        // renderer option is enabled.  Do not emit the shader branch from the
+        // user preference alone: otherwise water can sample an uninitialized
+        // resource while its permutation still requests SSR half depth.
+        const bool ssrHalfDepth =
+            ps_r2_ls_flags_ext.test(R3FLAGEXT_SSR_HALF_DEPTH) && o.ssao_opt_data;
+        appendShaderOption(ssrHalfDepth, "SSR_HALF_DEPTH", "1");
         const bool ssrJitter = ps_r2_ls_flags_ext.test(R3FLAGEXT_SSR_JITTER);
         appendShaderOption(ssrJitter, "SSR_JITTER", "1");
     }

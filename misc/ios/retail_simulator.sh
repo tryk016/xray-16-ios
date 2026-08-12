@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and run retail Call of Pripyat only in an external iOS 26.5 Simulator.
+# Build and run retail Call of Pripyat only in a dedicated external iOS Simulator.
 # It intentionally never uses a physical device, its lease, or device install tools.
 
 set -u -o pipefail
@@ -13,6 +13,10 @@ readonly SOURCE_EXCLUDES=(.git .Codex 'build*' bin)
 
 backup=""
 manifest=""
+prepared=""
+backup_count=0
+manifest_count=0
+prepared_count=0
 work_base="$DEFAULT_WORK_BASE"
 with_saves=0
 autoload_save=""
@@ -20,14 +24,17 @@ ui_navigation=0
 ui_captures=0
 capture_v2=0
 quickload_evidence=0
+clone_save_metadata_diagnostics=0
 runtime_label="26.5"
 launch_timeout=120
 poll_interval="${RETAIL_SIMULATOR_POLL_INTERVAL:-1}"
+ORIGINAL_RETAIL_SIMULATOR_ARGS=("$@")
 
 usage() {
     cat >&2 <<'EOF'
-usage: retail_simulator.sh --backup PATH [--manifest PATH] [--work-base PATH]
+usage: retail_simulator.sh (--backup PATH [--manifest PATH]|--prepared ROOT) [--work-base PATH]
                            [--with-saves] [--autoload-save NAME] [--ui-navigation [--ui-captures]|--capture-v2|--quickload-evidence]
+                           [--clone-save-metadata-diagnostics]
                            [--runtime 26.5|27.0] [--launch-timeout SECONDS]
 
 Creates a new, external Simulator work root. It never reuses a work root and
@@ -39,8 +46,9 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --backup) [ "$#" -ge 2 ] || fail "--backup requires a path"; backup="$2"; shift 2 ;;
-        --manifest) [ "$#" -ge 2 ] || fail "--manifest requires a path"; manifest="$2"; shift 2 ;;
+        --backup) [ "$#" -ge 2 ] || fail "--backup requires a path"; backup_count=$((backup_count + 1)); [ "$backup_count" = 1 ] || fail "duplicate --backup"; backup="$2"; shift 2 ;;
+        --prepared) [ "$#" -ge 2 ] || fail "--prepared requires a root"; prepared_count=$((prepared_count + 1)); [ "$prepared_count" = 1 ] || fail "duplicate --prepared"; prepared="$2"; shift 2 ;;
+        --manifest) [ "$#" -ge 2 ] || fail "--manifest requires a path"; manifest_count=$((manifest_count + 1)); [ "$manifest_count" = 1 ] || fail "duplicate --manifest"; manifest="$2"; shift 2 ;;
         --work-base) [ "$#" -ge 2 ] || fail "--work-base requires a path"; work_base="$2"; shift 2 ;;
         --with-saves) with_saves=1; shift ;;
         --autoload-save) [ "$#" -ge 2 ] || fail "--autoload-save requires a save name"; autoload_save="$2"; shift 2 ;;
@@ -48,6 +56,7 @@ while [ "$#" -gt 0 ]; do
         --ui-captures) ui_captures=1; shift ;;
         --capture-v2) capture_v2=1; shift ;;
         --quickload-evidence) quickload_evidence=1; shift ;;
+        --clone-save-metadata-diagnostics) clone_save_metadata_diagnostics=1; shift ;;
         --runtime) [ "$#" -ge 2 ] || fail "--runtime requires 26.5 or 27.0"; runtime_label="$2"; shift 2 ;;
         --launch-timeout) [ "$#" -ge 2 ] || fail "--launch-timeout requires seconds"; launch_timeout="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
@@ -64,8 +73,12 @@ case "$runtime_label" in
     27.0) runtime_id="com.apple.CoreSimulator.SimRuntime.iOS-27-0" ;;
     *) fail "--runtime must be exactly 26.5 or 27.0" ;;
 esac
+[ -z "$prepared" ] || [ "$runtime_label" = "27.0" ] \
+    || fail "--prepared requires exact --runtime 27.0"
 
-[ -n "$backup" ] || { usage; fail "--backup is required"; }
+[ -z "$backup" ] || [ -z "$prepared" ] || fail "--backup and --prepared are mutually exclusive"
+[ -n "$backup" ] || [ -n "$prepared" ] || { usage; fail "one of --backup or --prepared is required"; }
+[ -z "$prepared" ] || [ -z "$manifest" ] || fail "--manifest is only valid with --backup"
 [ -z "$autoload_save" ] || [ "$with_saves" = 1 ] \
     || fail "--autoload-save requires --with-saves"
 [ "$ui_navigation" = 0 ] || { [ "$with_saves" = 1 ] && [ -n "$autoload_save" ]; } \
@@ -90,8 +103,43 @@ esac
     || fail "--quickload-evidence conflicts with --ui-captures"
 [ "$quickload_evidence" = 0 ] || [ "$capture_v2" = 0 ] \
     || fail "--quickload-evidence conflicts with explicit --capture-v2"
-if [ -z "$manifest" ]; then
-    manifest="${backup%/}.manifest"
+[ "$clone_save_metadata_diagnostics" = 0 ] || { [ -n "$prepared" ] && [ "$quickload_evidence" = 1 ] \
+    && [ "$with_saves" = 1 ] && [ -n "$autoload_save" ]; } \
+    || fail "--clone-save-metadata-diagnostics requires --prepared, --quickload-evidence, --with-saves and --autoload-save"
+if [ -n "$prepared" ]; then
+    prepared="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$prepared")" \
+        || fail "cannot resolve prepared root"
+    [ -d "$prepared" ] || fail "prepared root is not a directory: $prepared"
+    # The importer passes only the inherited sidecar fd. A forged/missing fd
+    # cannot satisfy the descriptor identity and LOCK_SH check below.
+    if [ -z "${OPENXRAY_PREPARED_LOCK_FD:-}" ]; then
+        normalized_runner_args=(--prepared "$prepared")
+        original_index=0
+        while [ "$original_index" -lt "${#ORIGINAL_RETAIL_SIMULATOR_ARGS[@]}" ]; do
+            original_argument="${ORIGINAL_RETAIL_SIMULATOR_ARGS[$original_index]}"
+            if [ "$original_argument" = --prepared ]; then
+                original_index=$((original_index + 2))
+                continue
+            fi
+            normalized_runner_args+=("$original_argument")
+            original_index=$((original_index + 1))
+        done
+        exec python3 "$REPO_ROOT/misc/ios/retail_import.py" prepared-runner \
+            --prepared "$prepared" --runner "$REPO_ROOT/misc/ios/retail_simulator.sh" -- \
+            "${normalized_runner_args[@]}"
+    fi
+    case "$OPENXRAY_PREPARED_LOCK_FD" in ''|*[!0-9]*|0|1|2) fail "invalid inherited prepared lock fd" ;; esac
+    python3 "$REPO_ROOT/misc/ios/retail_import.py" verify-runner-lock \
+        --prepared "$prepared" --fd "$OPENXRAY_PREPARED_LOCK_FD" >/dev/null \
+        || fail "inherited prepared importer lock verification failed"
+    backup="$prepared/Documents"
+    manifest="$prepared/manifest"
+    stage_mode="clone-required"
+else
+    if [ -z "$manifest" ]; then
+        manifest="${backup%/}.manifest"
+    fi
+    stage_mode="legacy-copy"
 fi
 python3 - "$launch_timeout" "$poll_interval" <<'PY' \
     || fail "launch timeout must be positive and poll interval must be between 0.01 and 5 seconds"
@@ -118,13 +166,17 @@ python3 "$GUARD" retail-verify --backup "$backup" --manifest "$manifest" || exit
 timestamp="$(date -u +%Y%m%d-%H%M%S)"
 work_root="$work_base/simulator-work-$timestamp-$$"
 [ ! -e "$work_root" ] || fail "refusing to reuse work root: $work_root"
-mkdir "$work_root" || fail "could not create work root"
+mkdir -m 700 "$work_root" || fail "could not create work root"
+chmod 700 "$work_root" || fail "could not enforce private work-root mode"
 work_root="$(cd "$work_root" && pwd -P)"
 python3 "$GUARD" work-root --repo "$REPO_ROOT" --backup "$backup" \
     --manifest "$manifest" --work-root "$work_root" || exit 1
 
 report="$work_root/report.txt"
 report_pending="$work_root/.report.pending"
+clone_ledger_pending="$work_root/.clone-ledger.pending.json"
+clone_ledger="$work_root/clone-ledger.json"
+clone_metadata_diagnostics_root="$work_root/clone-save-metadata-diagnostics"
 source_snapshot="$work_root/source"
 prefix_snapshot="$work_root/ios-prefix-iphonesimulator"
 build_root="$work_root/build"
@@ -193,6 +245,15 @@ guard_protected() {
 guard_snapshots() {
     compare_tree "$source_snapshot" "$guard_root/repo.tsv" "${SOURCE_EXCLUDES[@]}"
     compare_tree "$prefix_snapshot" "$guard_root/prefix-snapshot.tsv"
+}
+clone_metadata_snapshot() {
+    local label="$1"
+    [ "$clone_save_metadata_diagnostics" = 1 ] || return 0
+    python3 "$GUARD" clone-stat-snapshot --prepared "$prepared" --documents "$documents" \
+        --pending-ledger "$clone_ledger_pending" --work-root "$work_root" \
+        --diagnostics-root "$clone_metadata_diagnostics_root" --label "$label" \
+        --runtime "$runtime_label" \
+        || fail "clone metadata diagnostics $label detected a staged-file change or stat race"
 }
 
 manifest_tree "$REPO_ROOT" "$guard_root/repo.tsv" "${SOURCE_EXCLUDES[@]}"
@@ -295,8 +356,13 @@ python3 "$GUARD" data-container --path "$data_container" --repo "$REPO_ROOT" \
 documents="$data_container/Documents"
 [ ! -e "$documents" ] || { [ -d "$documents" ] && [ -z "$(find "$documents" -mindepth 1 -print -quit)" ]; } \
     || fail "fresh Simulator Documents is not empty"
-stage_args=(stage --backup "$backup" --manifest "$manifest" --repo "$REPO_ROOT" --destination "$documents" \
-    --output "$work_root/staged-files.tsv")
+if [ "$stage_mode" = clone-required ]; then
+    stage_args=(clone-stage --prepared "$prepared" --destination "$documents" \
+        --output "$work_root/staged-files.tsv" --pending-ledger "$clone_ledger_pending")
+else
+    stage_args=(stage --backup "$backup" --manifest "$manifest" --repo "$REPO_ROOT" --destination "$documents" \
+        --output "$work_root/staged-files.tsv")
+fi
 [ "$with_saves" = 0 ] || stage_args+=(--with-saves)
 python3 "$GUARD" "${stage_args[@]}" || fail "retail staging failed"
 if [ -n "$autoload_save" ]; then
@@ -317,6 +383,7 @@ if [ -n "$autoload_save" ]; then
     python3 "$GUARD" selected-save-state --file "$selected_save" \
         --output "$work_root/autoload-save-before.tsv" \
         || fail "could not manifest selected staged save before launch"
+    clone_metadata_snapshot D0
 fi
 guard_protected
 guard_snapshots
@@ -364,20 +431,27 @@ if [ "$capture_v2" = 1 ]; then
 fi
 python3 "$GUARD" "${launch_args[@]}" \
     || fail "Simulator launch did not prove its required runtime boundary before timeout"
+clone_metadata_snapshot D1
 if [ "$quickload_evidence" = 1 ]; then
     quickload_root="$work_root/quickload-evidence"
-    mkdir "$quickload_root" || fail "could not create QuickLoad evidence directory"
+    mkdir -m 700 "$quickload_root" || fail "could not create QuickLoad evidence directory"
+    chmod 700 "$quickload_root" || fail "could not enforce private QuickLoad evidence mode"
+    python3 "$GUARD" private-parent --path "$quickload_root" \
+        || fail "QuickLoad evidence directory is not an exact private parent"
     runtime_pid="$(< "$work_root/quickload-pid.txt")" \
         || fail "could not read QuickLoad launched PID"
     [[ "$runtime_pid" =~ ^[1-9][0-9]*$ ]] || fail "QuickLoad launched PID is invalid"
     python3 "$source_snapshot/misc/ios/simulator_quickload_evidence.py" run \
         --documents "$documents" --log "$documents/xr_boot.log" --expected-pid "$runtime_pid" \
+        --simulator-uuid "$device_uuid" \
         --staged-manifest "$work_root/staged-files.tsv" --root "$quickload_root" \
         --original-save "$selected_save" --timeout "$launch_timeout" --poll "$poll_interval" \
         || fail "QuickSave/QuickLoad Simulator evidence failed before termination"
+    clone_metadata_snapshot D2
 fi
 xcrun simctl terminate "$device_uuid" "$BUNDLE_ID" \
     || fail "could not stop Simulator app before post-runtime integrity checks"
+clone_metadata_snapshot D3
 finalize_args=(finalize-log --source-log "$documents/xr_boot.log" \
     --copied-log "$work_root/xr_boot.log" \
     --snapshot-manifest "$work_root/runtime-log-snapshot.txt" \
@@ -432,13 +506,13 @@ python3 "$GUARD" "${compare_args[@]}" \
     || fail "staged retail data changed during Simulator runtime"
 guard_protected
 guard_snapshots
-
 # This is intentionally after every generic post-stop guard.  It freezes the
 # QuickLoad-specific save/log/capture packet at the last possible point before
 # report preparation; no PASS artifact can survive a later staging mutation.
 if [ "$quickload_evidence" = 1 ]; then
     python3 "$source_snapshot/misc/ios/simulator_quickload_evidence.py" finalize \
         --documents "$documents" --log "$documents/xr_boot.log" --expected-pid "$runtime_pid" \
+        --simulator-uuid "$device_uuid" \
         --staged-manifest "$work_root/staged-files.tsv" --root "$quickload_root" \
         --original-save "$selected_save" \
         || fail "post-stop QuickSave/QuickLoad evidence revalidation failed"
@@ -447,6 +521,29 @@ if [ "$quickload_evidence" = 1 ]; then
     quickload_report_fields="$quickload_root/report-fields.txt"
     [ -f "$quickload_manifest_pending" ] && [ -f "$quickload_report_fields" ] \
         || fail "QuickLoad evidence finalization did not prepare its pending artifacts"
+    clone_metadata_snapshot D4
+fi
+if [ "$stage_mode" = clone-required ]; then
+    clone_finalize_args=(clone-finalize --prepared "$prepared" --documents "$documents" --manifest "$manifest" \
+        --staged-manifest "$work_root/staged-files.tsv" --pending-ledger "$clone_ledger_pending" \
+        --ledger "$clone_ledger" --runtime "$runtime_label")
+    if [ "$clone_save_metadata_diagnostics" = 1 ]; then
+        clone_finalize_args+=(--diagnostics-root "$clone_metadata_diagnostics_root")
+    fi
+    [ "$with_saves" = 0 ] || clone_finalize_args+=(--with-saves)
+    if [ -n "$autoload_save" ] && [ "$quickload_evidence" = 0 ]; then
+        clone_finalize_args+=(--mutable-save "$autoload_save")
+    fi
+    python3 "$GUARD" "${clone_finalize_args[@]}" \
+        || fail "could not finalize clone ledger while container exists"
+fi
+
+clone_report_fields=""
+if [ "$stage_mode" = clone-required ]; then
+    clone_report_fields="$(python3 "$GUARD" clone-report-fields \
+        --ledger "$clone_ledger" --staged-manifest "$work_root/staged-files.tsv" \
+        | sed '/^retail simulator guard: PASS$/d')" \
+        || fail "could not bind finalized clone UF_TRACKED report fields"
 fi
 
 [ -s "$work_root/runtime-proof.txt" ] || fail "runtime proof metadata is missing or empty"
@@ -484,6 +581,12 @@ fi
     printf 'runtime_id=%s\n' "$runtime_id"
     printf 'simulator_uuid=%s\n' "$device_uuid"
     printf 'backup=%s\n' "$backup"
+    if [ "$stage_mode" = clone-required ]; then
+        printf 'prepared=%s\n' "$prepared"
+        printf '%s\n' "$clone_report_fields"
+    else
+        printf 'stage_mode=%s\n' "$stage_mode"
+    fi
     printf 'with_saves=%s\n' "$with_saves"
     printf 'openal_provider=%s\n' "$openal_provider"
     printf 'openal_sha256=%s\n' "$openal_sha256"
@@ -542,18 +645,28 @@ fi
 xcrun simctl shutdown "$device_uuid" >/dev/null 2>&1 || true
 xcrun simctl delete "$device_uuid" || fail "could not delete dedicated Simulator after successful run"
 simulator_created=0
-# publish-report revalidates the finalized manifest immediately before linking
-# report.txt and immediately afterwards, deleting the link on any mismatch.
+# Publication validates every bound input before an exclusive same-parent rename.
+# An interrupted transaction poisons the work root; no rollback deletes a path.
 publish_args=(publish-report --source "$report_pending" --destination "$report")
 if [ "$ui_captures" = 1 ]; then
     publish_args+=(--capture-manifest-state "$ui_capture_manifest_state")
 fi
 if [ "$quickload_evidence" = 1 ]; then
-    python3 "$source_snapshot/misc/ios/simulator_quickload_evidence.py" publish \
+    quickload_publish_args=(publish \
         --pending-manifest "$quickload_manifest_pending" --manifest "$quickload_manifest" \
-        --report-pending "$report_pending" --report "$report" \
+        --report-pending "$report_pending" --report "$report")
+    if [ "$stage_mode" = clone-required ]; then
+        quickload_publish_args+=(--clone-prepared "$prepared" --clone-ledger "$clone_ledger" \
+            --staged-manifest "$work_root/staged-files.tsv")
+    fi
+    python3 "$source_snapshot/misc/ios/simulator_quickload_evidence.py" \
+        "${quickload_publish_args[@]}" \
         || fail "could not atomically publish QuickLoad evidence/report"
 else
+    if [ "$stage_mode" = clone-required ]; then
+        publish_args+=(--clone-prepared "$prepared" --clone-ledger "$clone_ledger" \
+            --staged-manifest "$work_root/staged-files.tsv")
+    fi
     python3 "$GUARD" "${publish_args[@]}" >/dev/null \
         || fail "could not atomically publish retail Simulator report"
 fi

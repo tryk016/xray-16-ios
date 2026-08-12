@@ -10,6 +10,7 @@ from pathlib import Path
 import os
 import shutil
 import shlex
+import stat
 import subprocess
 import sys
 import tempfile
@@ -26,6 +27,7 @@ RUNNER = REPO_ROOT / "misc/ios/retail_simulator.sh"
 GUARD = REPO_ROOT / "misc/ios/retail_simulator_guard.py"
 OPENAL_CONTRACT = REPO_ROOT / "misc/ios/openal_provider_contract.py"
 CAPTURE_EVIDENCE = REPO_ROOT / "misc/ios/lighting_ab_evidence.py"
+RETAIL_IMPORT = REPO_ROOT / "misc/ios/retail_import.py"
 GUARD_SPEC = importlib.util.spec_from_file_location("retail_simulator_guard", GUARD)
 assert GUARD_SPEC is not None and GUARD_SPEC.loader is not None
 GUARD_MODULE = importlib.util.module_from_spec(GUARD_SPEC)
@@ -78,8 +80,11 @@ class RetailSimulatorTests(unittest.TestCase):
         (self.repo / "misc/ios").mkdir(parents=True)
         shutil.copy2(RUNNER, self.repo / "misc/ios/retail_simulator.sh")
         shutil.copy2(GUARD, self.repo / "misc/ios/retail_simulator_guard.py")
+        shutil.copy2(RETAIL_IMPORT, self.repo / "misc/ios/retail_import.py")
         shutil.copy2(OPENAL_CONTRACT, self.repo / "misc/ios/openal_provider_contract.py")
         shutil.copy2(CAPTURE_EVIDENCE, self.repo / "misc/ios/lighting_ab_evidence.py")
+        self._write_diagnostic_guard_wrapper()
+        self._write_quickload_evidence_mock()
         (self.repo / "cmake/toolchains").mkdir(parents=True)
         (self.repo / "cmake/toolchains/ios.toolchain.cmake").write_text("# fixture\n")
         for path in (
@@ -168,10 +173,204 @@ class RetailSimulatorTests(unittest.TestCase):
                 path = self.backup / relative
                 output.write(f"{digest(path)}\t{path.stat().st_size}\t{relative}\n")
 
+    def prepare_retail_fixture(self) -> Path:
+        prepared = self.root / "prepared-retail"
+        result = subprocess.run(
+            (
+                sys.executable, str(self.repo / "misc/ios/retail_import.py"),
+                "prepare", "--backup", str(self.backup),
+                "--manifest", str(self.manifest), "--repo", str(self.repo),
+                "--destination", str(prepared), "--with-saves",
+            ),
+            text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return prepared
+
     def _mock(self, name: str, content: str, directory: Path | None = None) -> None:
         path = (self.mocks if directory is None else directory) / name
         path.write_text("#!/usr/bin/env python3\n" + content, encoding="utf-8")
         path.chmod(0o755)
+
+    def _write_diagnostic_guard_wrapper(self) -> None:
+        guard = self.repo / "misc/ios/retail_simulator_guard.py"
+        implementation = guard.with_name("retail_simulator_guard_impl.py")
+        guard.replace(implementation)
+        guard.write_text(textwrap.dedent("""
+            #!/usr/bin/env python3
+            import importlib.util
+            import os
+            from pathlib import Path
+            import sys
+
+            implementation = Path(__file__).with_name("retail_simulator_guard_impl.py")
+            spec = importlib.util.spec_from_file_location("retail_simulator_guard_impl", implementation)
+            assert spec is not None and spec.loader is not None
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            # CoreSimulator's real container parent does not inherit the /tmp
+            # provenance xattr that this host-only fixture receives.
+            module._raw_xattrs = lambda descriptor, label: {}
+            globals().update({name: value for name, value in vars(module).items()
+                              if not name.startswith("__")})
+            if __name__ == "__main__":
+                args = sys.argv[1:]
+                if args[:1] == ["clone-stat-snapshot"] and os.environ.get(
+                        "MOCK_CLONE_DIAGNOSTIC_FAILURE_LABEL"):
+                    label = args[args.index("--label") + 1]
+                    if label == os.environ["MOCK_CLONE_DIAGNOSTIC_FAILURE_LABEL"]:
+                        documents = Path(args[args.index("--documents") + 1])
+                        (documents / "resources/resources.db0").chmod(0o640)
+                raise SystemExit(module.main())
+        """), encoding="utf-8")
+        guard.chmod(0o755)
+
+    def _write_quickload_evidence_mock(self) -> None:
+        target = self.repo / "misc/ios/simulator_quickload_evidence.py"
+        target.write_text(textwrap.dedent("""
+            #!/usr/bin/env python3
+            import hashlib
+            import importlib.util
+            import json
+            import os
+            from pathlib import Path
+            import sys
+
+            CONTRACT = "openxray-ios27-quicksave-quickload-semantic-v2"
+            SIMULATOR_UUID = "00000000-0000-0000-0000-000000000001"
+            REPORT_SCOPE = ("iOS-27.0-Simulator-Apple-Software-Renderer-only; "
+                            "normal F5/F9 path; not iPhone/pixel-quality/"
+                            "performance/other-content proof")
+
+            def validate_pending_manifest_bytes(payload, *, expected_root=None):
+                parsed = json.loads(payload.decode("utf-8"))
+                if set(parsed) != {"schema", "runtime", "simulator_uuid", "scope"}:
+                    raise ValueError("fixture manifest is not closed")
+                if (parsed["schema"] != "openxray-ios-simulator-quickload-evidence-v2"
+                        or parsed["runtime"] != "27.0"
+                        or parsed["simulator_uuid"] != SIMULATOR_UUID
+                        or parsed["scope"] != "runner-fixture"):
+                    raise ValueError("fixture manifest semantics changed")
+                canonical = (json.dumps(parsed, sort_keys=True, separators=(",", ":"))
+                             + "\\n").encode()
+                if canonical != payload:
+                    raise ValueError("fixture manifest is not canonical")
+                semantic = hashlib.sha256((CONTRACT + "\\n").encode() + payload).hexdigest()
+                return {"contract": CONTRACT, "semantic_sha256": semantic,
+                        "runtime": "27.0", "simulator_uuid": SIMULATOR_UUID}
+
+            def validate_report_fields_bytes(payload, manifest_payload):
+                expected = (
+                    f"quickload_manifest_sha256={hashlib.sha256(manifest_payload).hexdigest()}\\n"
+                    f"quickload_manifest_bytes={len(manifest_payload)}\\n"
+                ).encode("ascii")
+                if payload != expected:
+                    raise ValueError("fixture report fields changed")
+
+            def quickload_report_fields(manifest_path, manifest_payload):
+                return {
+                    "quickload_evidence": "PASS",
+                    "quickload_manifest": str(manifest_path),
+                    "quickload_manifest_sha256": hashlib.sha256(
+                        manifest_payload).hexdigest(),
+                    "quickload_manifest_bytes": str(len(manifest_payload)),
+                    "quickload_scope": REPORT_SCOPE,
+                }
+
+            def value(args, name):
+                return args[args.index(name) + 1]
+
+            def main():
+                args = sys.argv[1:]
+                command = args[0]
+                if command == "run":
+                    if not os.environ.get("MOCK_VALID_QUICKLOAD"):
+                        return 7
+                    root = Path(value(args, "--root"))
+                    path = root / "pre-stop.json"
+                    path.write_bytes(b'{"fixture":"pre-stop"}\\n')
+                    path.chmod(0o600)
+                    log = Path(value(args, "--log"))
+                    log.open("a", encoding="utf-8").write(
+                        "* Game Player - quicksave is successfully loaded from file "
+                        "'/private/tmp/Documents/_appdata_/savedgames/player - quicksave.scop' (0.001s)\\n"
+                    )
+                    return 0
+                if command == "finalize":
+                    root = Path(value(args, "--root"))
+                    payload = (json.dumps({
+                        "runtime": "27.0", "schema": "openxray-ios-simulator-quickload-evidence-v2",
+                        "scope": "runner-fixture", "simulator_uuid": SIMULATOR_UUID,
+                    }, sort_keys=True, separators=(",", ":")) + "\\n").encode()
+                    pending = root / "manifest.pending.json"
+                    fields = root / "report-fields.txt"
+                    pending.write_bytes(payload)
+                    fields.write_text(
+                        f"quickload_manifest_sha256={hashlib.sha256(payload).hexdigest()}\\n"
+                        f"quickload_manifest_bytes={len(payload)}\\n", encoding="ascii")
+                    pending.chmod(0o600)
+                    fields.chmod(0o600)
+                    return 0
+                if command == "publish":
+                    if os.environ.get("REAL_QUICKLOAD_REPORT_VALIDATOR"):
+                        validator_path = Path(
+                            os.environ["REAL_QUICKLOAD_REPORT_VALIDATOR"])
+                        sys.path.insert(0, str(validator_path.parent))
+                        spec = importlib.util.spec_from_file_location(
+                            "real_quickload_report_validator", validator_path)
+                        if spec is None or spec.loader is None:
+                            return 10
+                        validator = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(validator)
+                        pending_manifest = Path(value(args, "--pending-manifest"))
+                        final_manifest = Path(value(args, "--manifest"))
+                        pending_report = Path(value(args, "--report-pending"))
+                        clone_binding = None
+                        try:
+                            clone_fields = None
+                            if "--clone-prepared" in args:
+                                guard_path = Path(__file__).with_name(
+                                    "retail_simulator_guard.py")
+                                guard_spec = importlib.util.spec_from_file_location(
+                                    "runner_real_clone_report_guard", guard_path)
+                                if guard_spec is None or guard_spec.loader is None:
+                                    return 11
+                                guard = importlib.util.module_from_spec(guard_spec)
+                                guard_spec.loader.exec_module(guard)
+                                clone_binding = guard._pin_clone_publication_dependencies(
+                                    Path(value(args, "--clone-prepared")),
+                                    Path(value(args, "--clone-ledger")),
+                                    Path(value(args, "--staged-manifest")))
+                                clone_fields = clone_binding["expected_fields"]
+                            validator._validate_publish_report(
+                                pending_report.read_bytes(),
+                                pending_manifest.read_bytes(), final_manifest,
+                                clone_fields=clone_fields)
+                        finally:
+                            if clone_binding is not None:
+                                guard._close_clone_publication_dependencies(
+                                    clone_binding)
+                        Path(os.environ["MOCK_LOG"]).open(
+                            "a", encoding="utf-8").write(
+                                "real-quickload-report-validation\\n")
+                    pairs = ((Path(value(args, "--pending-manifest")),
+                              Path(value(args, "--manifest"))),
+                             (Path(value(args, "--report-pending")),
+                              Path(value(args, "--report"))))
+                    for source, destination in pairs:
+                        details = source.lstat()
+                        if not source.is_file() or source.is_symlink() or details.st_nlink != 1:
+                            return 8
+                        if os.path.lexists(destination):
+                            return 9
+                        os.rename(source, destination)
+                    return 0
+                return 2
+
+            if __name__ == "__main__":
+                raise SystemExit(main())
+        """), encoding="utf-8")
+        target.chmod(0o755)
 
     def _write_navigation_controller(self) -> None:
         """A deterministic source-snapshot controller, never a Simulator helper.
@@ -281,7 +480,7 @@ class RetailSimulatorTests(unittest.TestCase):
             elif args[1] == 'get_app_container':
                 mode=os.environ.get('MOCK_CONTAINER_MODE','normal')
                 root=pathlib.Path(os.environ['MOCK_REPO'] if mode == 'repo' else os.environ['MOCK_OUTSIDE'] if mode == 'outside' else os.environ['MOCK_SIM_DATA'])
-                root.mkdir(parents=True, exist_ok=True); print(root)
+                root.mkdir(parents=True, exist_ok=True); root.chmod(0o700); print(root)
             elif args[1] == 'launch':
                 if args[-1] == 'com.apple.mobilesafari':
                     state_file=pathlib.Path(os.environ['MOCK_APP_PID_STATE'])
@@ -645,7 +844,12 @@ class RetailSimulatorTests(unittest.TestCase):
                    capture_v2_mode: str | None = None,
                    post_capture_mutation: str | None = None,
                    mutate_selected_save: bool = False,
+                   prepared: Path | None = None,
+                   clone_diagnostic_failure: str | None = None,
+                   valid_quickload: bool = False,
+                   real_quickload_report_validation: bool = False,
                    hang_screenshot: bool = False,
+                   umask_value: int | None = None,
                    launch_timeout: str = "0.1") -> subprocess.CompletedProcess[str]:
         environment = self.runner_environment()
         event_index = getattr(self, "_lifecycle_event_run", 0) + 1
@@ -714,12 +918,28 @@ class RetailSimulatorTests(unittest.TestCase):
                 self.sim_data / "Documents/_appdata_/savedgames/save.scop"
             )
             environment["MOCK_STAGED_ACTION"] = "mutate"
+        if clone_diagnostic_failure is not None:
+            environment["MOCK_CLONE_DIAGNOSTIC_FAILURE_LABEL"] = clone_diagnostic_failure
+        if valid_quickload or "--clone-save-metadata-diagnostics" in extra:
+            environment["MOCK_VALID_QUICKLOAD"] = "1"
+        if real_quickload_report_validation:
+            environment["REAL_QUICKLOAD_REPORT_VALIDATOR"] = str(
+                REPO_ROOT / "misc/ios/simulator_quickload_evidence.py")
         if hang_screenshot:
             environment["MOCK_HANG_SCREENSHOT"] = "1"
-        return subprocess.run(("bash", str(self.repo / "misc/ios/retail_simulator.sh"), "--backup", str(self.backup),
-                               "--manifest", str(self.manifest), "--work-base", str(self.work_base),
+        source_arguments = (
+            ("--prepared", str(prepared))
+            if prepared is not None
+            else ("--backup", str(self.backup), "--manifest", str(self.manifest))
+        )
+        def child_umask() -> None:
+            assert umask_value is not None
+            os.umask(umask_value)
+        return subprocess.run(("bash", str(self.repo / "misc/ios/retail_simulator.sh"),
+                               *source_arguments, "--work-base", str(self.work_base),
                                "--launch-timeout", launch_timeout, *extra),
-                              text=True, capture_output=True, env=environment, check=False)
+                              text=True, capture_output=True, env=environment, check=False,
+                              preexec_fn=child_umask if umask_value is not None else None)
 
     def run_guard(self, *arguments: str, environment: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -922,6 +1142,25 @@ class RetailSimulatorTests(unittest.TestCase):
                 self.assertIn("--runtime must be exactly 26.5 or 27.0", result.stderr)
                 self.assertFalse(list(self.work_base.iterdir()))
                 self.assertFalse(self.commands.exists())
+
+    def test_prepared_requires_explicit_runtime_270_before_work_build_or_simctl(self) -> None:
+        prepared = self.prepare_retail_fixture()
+        for arguments in ((), ("--runtime", "26.5")):
+            with self.subTest(arguments=arguments):
+                before_roots = set(self.work_base.glob("simulator-work-*"))
+                before_commands = (self.commands.read_text().splitlines()
+                                   if self.commands.exists() else [])
+                result = self.run_runner(*arguments, prepared=prepared)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("--prepared requires exact --runtime 27.0", result.stderr)
+                self.assertEqual(set(self.work_base.glob("simulator-work-*")), before_roots)
+                after_commands = (self.commands.read_text().splitlines()
+                                  if self.commands.exists() else [])
+                self.assertEqual(after_commands, before_commands)
+
+        result = self.run_runner("--runtime", "27.0", prepared=prepared)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("--prepared requires", result.stderr)
 
     def test_runtime_270_uses_only_its_exact_id_and_reports_both_fields(self) -> None:
         result = self.run_runner("--runtime", "27.0")
@@ -1295,6 +1534,32 @@ class RetailSimulatorTests(unittest.TestCase):
         ).encode("ascii"))
         self.assertFalse((work / "report.txt").exists())
 
+    def test_runner_quickload_report_uses_real_closed_production_validator(self) -> None:
+        prepared = self.prepare_retail_fixture()
+        before = set(self.work_base.glob("simulator-work-*"))
+        result = self.run_runner(
+            "--runtime", "27.0", "--with-saves", "--autoload-save", "save",
+            "--quickload-evidence", autoload_mode="normal", valid_quickload=True,
+            real_quickload_report_validation=True, launch_timeout="0.5",
+            prepared=prepared,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        created = set(self.work_base.glob("simulator-work-*")) - before
+        self.assertEqual(len(created), 1)
+        work = created.pop()
+        report = (work / "report.txt").read_text().splitlines()
+        quickload = [line for line in report if line.startswith("quickload_")]
+        self.assertEqual([line.split("=", 1)[0] for line in quickload], [
+            "quickload_evidence", "quickload_manifest",
+            "quickload_manifest_sha256", "quickload_manifest_bytes",
+            "quickload_scope",
+        ])
+        self.assertIn("stage_mode=clone-required", report)
+        self.assertTrue(any(line.startswith("clone_quickload_contract=")
+                            for line in report))
+        self.assertEqual(
+            self.commands.read_text().count("real-quickload-report-validation"), 1)
+
     def test_capture_v2_happy_path_keeps_capture_extras_outside_staged_retail_and_reports_after_cleanup(self) -> None:
         result = self.run_runner(
             "--with-saves", "--autoload-save", "save", "--capture-v2", "--runtime", "27.0",
@@ -1405,18 +1670,35 @@ class RetailSimulatorTests(unittest.TestCase):
         self.assertIn("xcrun simctl delete", self.commands.read_text())
 
     def test_report_candidate_and_atomic_publish_fail_closed_without_partial_report(self) -> None:
-        candidate = self.root / "report.pending"
-        report = self.root / "report.txt"
+        failure_parent = self.root / "failed-publication"
+        failure_parent.mkdir(mode=0o700)
+        candidate = failure_parent / "report.pending"
+        report = failure_parent / "report.txt"
         with self.assertRaises(GUARD_MODULE.GuardError):
             GUARD_MODULE.prepare_report(candidate, b"result=FAIL\n")
         self.assertFalse(candidate.exists())
         GUARD_MODULE.prepare_report(candidate, b"result=PASS\nfield=value\n")
 
-        with mock.patch.object(GUARD_MODULE.os, "link", side_effect=OSError("injected link failure")):
+        with mock.patch.object(
+                GUARD_MODULE, "_rename_exclusive_at",
+                side_effect=GUARD_MODULE.GuardError("injected rename failure")):
             with self.assertRaises(GUARD_MODULE.GuardError):
                 GUARD_MODULE.publish_report(candidate, report)
         self.assertFalse(report.exists())
+        self.assertTrue(candidate.exists())
+        parent_fd = GUARD_MODULE._open_absolute_directory_nofollow(
+            failure_parent, "failed publication parent")
+        try:
+            with self.assertRaisesRegex(GUARD_MODULE.GuardError, "poisoned|incomplete"):
+                GUARD_MODULE._validate_transaction_parent_fd(
+                    parent_fd, failure_parent, "failed publication parent")
+        finally:
+            os.close(parent_fd)
 
+        success_parent = self.root / "successful-publication"
+        success_parent.mkdir(mode=0o700)
+        candidate, report = success_parent / "report.pending", success_parent / "report.txt"
+        GUARD_MODULE.prepare_report(candidate, b"result=PASS\nfield=value\n")
         GUARD_MODULE.publish_report(candidate, report)
         self.assertFalse(candidate.exists())
         self.assertEqual(report.read_bytes(), b"result=PASS\nfield=value\n")
@@ -1460,18 +1742,21 @@ class RetailSimulatorTests(unittest.TestCase):
             f"ui_capture_manifest_bytes={size}\n"
             f"ui_capture_manifest_sha256={digest_value}\n"
         ).encode())
-        real_link = GUARD_MODULE.os.link
+        real_write_record = GUARD_MODULE._write_private_record_at
 
-        def link_then_replace(source: Path, destination: Path, *, follow_symlinks: bool = True) -> None:
-            real_link(source, destination, follow_symlinks=follow_symlinks)
-            manifest.replace(self.root / "manifest.before-coordinated-replacement.json")
-            manifest.write_bytes(b'{"capture":"changed-during-publish"}\n')
-            replacement_state = self.root / "manifest.replacement.state"
-            GUARD_MODULE.write_capture_manifest_state(manifest, replacement_state)
-            replacement_state.replace(state)
+        def record_then_replace(parent_fd, name, value, label):
+            result = real_write_record(parent_fd, name, value, label)
+            if label == "Simulator report publication transaction":
+                manifest.replace(self.root / "manifest.before-coordinated-replacement.json")
+                manifest.write_bytes(b'{"capture":"changed-during-publish"}\n')
+                replacement_state = self.root / "manifest.replacement.state"
+                GUARD_MODULE.write_capture_manifest_state(manifest, replacement_state)
+                replacement_state.replace(state)
+            return result
 
-        with mock.patch.object(GUARD_MODULE.os, "link", side_effect=link_then_replace):
-            with self.assertRaisesRegex(GUARD_MODULE.GuardError, "no longer matches"):
+        with mock.patch.object(
+                GUARD_MODULE, "_write_private_record_at", side_effect=record_then_replace):
+            with self.assertRaisesRegex(GUARD_MODULE.GuardError, "private metadata"):
                 GUARD_MODULE.publish_report(pending, report, state)
         self.assertFalse(report.exists())
 
@@ -2443,6 +2728,7 @@ class RetailSimulatorTests(unittest.TestCase):
         self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
         work = shared / "simulator-work-fixture"
         work.mkdir()
+        work.chmod(0o700)
         accepted = self.run_guard(
             "work-root", "--repo", str(self.repo), "--backup", str(backup),
             "--manifest", str(manifest), "--work-root", str(work),
@@ -2489,6 +2775,138 @@ class RetailSimulatorTests(unittest.TestCase):
         self.assertLess(delete, publish_args)
         self.assertIn('publish_args+=(--capture-manifest-state "$ui_capture_manifest_state")', source)
         self.assertNotIn('> "$report"', source)
+
+    def test_clone_save_metadata_diagnostics_is_closed_and_orders_d0_through_d4_before_pass(self) -> None:
+        source = RUNNER.read_text(encoding="utf-8")
+        missing_prepared = subprocess.run(
+            ("bash", str(RUNNER), "--backup", str(self.backup), "--runtime", "27.0",
+             "--with-saves", "--autoload-save", "save", "--quickload-evidence",
+             "--clone-save-metadata-diagnostics"),
+            text=True, capture_output=True, check=False,
+        )
+        self.assertNotEqual(missing_prepared.returncode, 0)
+        self.assertIn("requires --prepared, --quickload-evidence, --with-saves and --autoload-save",
+                      missing_prepared.stderr)
+        for option in ("--clone-save-metadata-diagnostics", "clone-stat-snapshot",
+                       '--work-root "$work_root"', '"$clone_ledger"',
+                       '--runtime "$runtime_label"', "clone-report-fields"):
+            self.assertIn(option, source)
+        boundaries = [source.index(f"clone_metadata_snapshot D{index}") for index in range(5)]
+        self.assertEqual(boundaries, sorted(boundaries))
+        self.assertGreater(boundaries[0], source.index("selected-save-state --file"))
+        self.assertGreater(boundaries[1], source.index('Simulator launch did not prove'))
+        self.assertGreater(boundaries[2], source.index('QuickSave/QuickLoad Simulator evidence failed before termination'))
+        self.assertGreater(boundaries[3], source.index('could not stop Simulator app before post-runtime integrity checks'))
+        self.assertGreater(boundaries[4], source.index('QuickLoad evidence finalization did not prepare its pending artifacts'))
+        self.assertLess(boundaries[4], source.index('clone_finalize_args=(clone-finalize'))
+        helper_start = source.index("clone_metadata_snapshot() {")
+        helper_end = source.index("\n}\n", helper_start) + 3
+        helper = source[helper_start:helper_end]
+        self.assertNotIn("rm -f", helper)
+        self.assertIn('fail "clone metadata diagnostics $label detected a staged-file change or stat race"', helper)
+        # The guard owns identity-bound cleanup; the shell never path-unlinks a
+        # potentially substituted artifact.
+        self.assertEqual(source.count("clone_metadata_snapshot D"), 5)
+
+    def test_clone_metadata_diagnostic_failures_preserve_only_dn_and_delete_simulator(self) -> None:
+        prepared = self.prepare_retail_fixture()
+        arguments = (
+            "--runtime", "27.0", "--with-saves", "--autoload-save", "save",
+            "--quickload-evidence", "--clone-save-metadata-diagnostics",
+        )
+
+        before = set(self.work_base.glob("simulator-work-*"))
+        success = self.run_runner(
+            *arguments, prepared=prepared, autoload_mode="normal", umask_value=0,
+            launch_timeout="0.5",
+        )
+        self.assertEqual(success.returncode, 0, success.stdout + success.stderr)
+        successful_roots = set(self.work_base.glob("simulator-work-*")) - before
+        self.assertEqual(len(successful_roots), 1)
+        successful_root = successful_roots.pop()
+        diagnostic_root = successful_root / "clone-save-metadata-diagnostics"
+        self.assertEqual(stat.S_IMODE(successful_root.stat().st_mode), 0o700)
+        self.assertEqual(
+            stat.S_IMODE((successful_root / "quickload-evidence").stat().st_mode), 0o700)
+        self.assertEqual(
+            {path.name for path in diagnostic_root.iterdir()},
+            {f"D{index}.json" for index in range(5)},
+        )
+        diagnostics = [json.loads((diagnostic_root / f"D{index}.json").read_text())
+                       for index in range(5)]
+        self.assertTrue(all(value["schema"]
+                            == "openxray.retail-clone-stat-diagnostics.v2"
+                            for value in diagnostics))
+        self.assertEqual([value["sequence"] for value in diagnostics], list(range(5)))
+        self.assertIsNone(diagnostics[0]["previous"])
+        self.assertTrue(all(value["runtime"] == "27.0" for value in diagnostics))
+        ledger = json.loads((successful_root / "clone-ledger.json").read_text())
+        self.assertEqual(ledger["schema"], "openxray.retail-clone-ledger.v2")
+        self.assertEqual(ledger["post_runtime"]["continuity_mode"], "D0-D4")
+        self.assertEqual(ledger["post_runtime"]["destination_boundary"],
+                         "validated-before-container-delete")
+        report = (successful_root / "report.txt").read_text()
+        for field in (
+                "clone_runtime=27.0\n",
+                "clone_uf_tracked_policy=darwin-uf-tracked-closed-v1\n",
+                "clone_continuity_mode=D0-D4\n",
+                "clone_validated_before_container_delete=true\n",
+                "clone_diagnostics_chain_path=",
+                "clone_uf_tracked_digest="):
+            self.assertIn(field, report)
+
+        for label in (f"D{index}" for index in range(5)):
+            with self.subTest(label=label):
+                before = set(self.work_base.glob("simulator-work-*"))
+                command_offset = len(self.commands.read_text().splitlines())
+                result = self.run_runner(
+                    *arguments, prepared=prepared, autoload_mode="normal",
+                    clone_diagnostic_failure=label, launch_timeout="0.5",
+                )
+                self.assertNotEqual(result.returncode, 0)
+                created = set(self.work_base.glob("simulator-work-*")) - before
+                self.assertEqual(len(created), 1)
+                work = created.pop()
+                diagnostic = work / "clone-save-metadata-diagnostics" / f"{label}.json"
+                self.assertTrue(diagnostic.is_file())
+                value = json.loads(diagnostic.read_text())
+                self.assertTrue(value["diagnostic_only"])
+                self.assertEqual(value["result"], "diagnostic")
+                self.assertNotIn("PASS", diagnostic.read_text())
+                for path in (
+                    work / ".report.pending",
+                    work / "report.txt",
+                    work / "clone-ledger.json",
+                    work / "quickload-evidence/manifest.pending.json",
+                    work / "quickload-evidence/manifest.json",
+                    work / "quickload-evidence/report-fields.txt",
+                ):
+                    self.assertFalse(path.exists(), path)
+                commands = self.commands.read_text().splitlines()[command_offset:]
+                self.assertTrue(any(
+                    line.startswith("xcrun simctl delete ") for line in commands
+                ), commands)
+
+    def test_clone_without_metadata_diagnostics_reports_final_only_v2(self) -> None:
+        prepared = self.prepare_retail_fixture()
+        before = set(self.work_base.glob("simulator-work-*"))
+        result = self.run_runner(
+            "--runtime", "27.0", "--with-saves", "--autoload-save", "save",
+            "--quickload-evidence", prepared=prepared, autoload_mode="normal",
+            valid_quickload=True, launch_timeout="0.5",
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        created = set(self.work_base.glob("simulator-work-*")) - before
+        self.assertEqual(len(created), 1)
+        work = created.pop()
+        ledger = json.loads((work / "clone-ledger.json").read_text())
+        self.assertEqual(ledger["schema"], "openxray.retail-clone-ledger.v2")
+        self.assertEqual(ledger["post_runtime"]["continuity_mode"], "final-only")
+        self.assertIsNone(ledger["post_runtime"]["diagnostics"])
+        report = (work / "report.txt").read_text()
+        self.assertIn("clone_continuity_mode=final-only\n", report)
+        self.assertIn("clone_diagnostics_chain_path=none\n", report)
+        self.assertFalse((work / "clone-save-metadata-diagnostics").exists())
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-#ifndef	SSAO_QUALITY
+#if SSAO_QUALITY == 0
 
 float4 calc_hbao(float z, float3 N, float2 tc0, float4 pos2d)
 {
@@ -77,7 +77,7 @@ float3 min_diff(float3 P, float3 Pr, float3 Pl)
 float3 fetch_eye_pos(float2 uv)
 {
 ////#define SSAO_OPT_DATA
-#ifndef SSAO_OPT_DATA
+	#if SSAO_OPT_DATA == 0
 #ifdef USE_MSAA
 #ifdef GBUFFER_OPTIMIZATION
 		gbuffer_data gbd = gbuffer_load_data_offset( tc, tap, pos2d, iSample ); // this is wrong - need to correct this

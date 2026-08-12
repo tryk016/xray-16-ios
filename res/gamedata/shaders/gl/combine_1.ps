@@ -19,11 +19,6 @@ Texture2D s_half_depth;
 Texture2D s_occ;
 #endif // SM_5
 
-//#ifdef SSAO_QUALITY
-//#undef SSAO_QUALITY
-//#define SSAO_QUALITY 4
-//#endif
-
 #if SSAO_QUALITY <=3
 #include "ssao.ps"
 //#ifdef SM_5
@@ -43,12 +38,6 @@ Texture2D s_occ;
 ///////
 
 #ifdef USE_HDAO
-#if SSAO_QUALITY > 3
-//#_include "ssao_hdao_new.ps"
-// TODO: XXX: remove this after implementing hdao
-#undef SSAO_QUALITY
-#define SSAO_QUALITY 3
-#endif
 #define USE_HDAO_CODE
 #if SSAO_QUALITY <=3
 #define  g_f2RTSize ( pos_decompression_params2.xy )

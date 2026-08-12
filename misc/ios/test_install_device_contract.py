@@ -14,6 +14,7 @@ import unittest
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "misc/ios/install_device.sh"
+BUILD_CHECK_SCRIPT = REPO / "misc/ios/build_check.sh"
 GATE_HASH_SCRIPT = REPO / "misc/ios/gate_hash.py"
 GATE_HASH_SPEC = importlib.util.spec_from_file_location("openxray_gate_hash", GATE_HASH_SCRIPT)
 assert GATE_HASH_SPEC is not None and GATE_HASH_SPEC.loader is not None
@@ -24,7 +25,21 @@ LEASE_DEPENDENCIES = (
     "misc/ios/command_timeout.py",
 )
 TEXTURE_BC_FALLBACK_TEST = "misc/ios/texture_bc_fallback_test.cpp"
-ARTIFACT_HASH_DEPENDENCIES = LEASE_DEPENDENCIES + (TEXTURE_BC_FALLBACK_TEST,)
+SHADER_RESOURCE_CONTRACT_TEST = "misc/ios/test_shader_resource_contract.py"
+RETAIL_CLONE_STAGING_ARTIFACT_INPUTS = (
+    "misc/ios/retail_simulator.sh",
+    "misc/ios/retail_simulator_guard.py",
+    "misc/ios/retail_import.py",
+    "misc/ios/test_retail_import.py",
+    "misc/ios/test_retail_clone_staging.py",
+    "misc/ios/simulator_quickload_evidence.py",
+    "misc/ios/test_simulator_quickload_evidence.py",
+    "misc/ios/test_retail_simulator.py",
+)
+ARTIFACT_HASH_DEPENDENCIES = LEASE_DEPENDENCIES + (
+    TEXTURE_BC_FALLBACK_TEST,
+    SHADER_RESOURCE_CONTRACT_TEST,
+) + RETAIL_CLONE_STAGING_ARTIFACT_INPUTS
 ARTIFACT_INPUT_DIRECTORIES = {
     "src",
     "res",
@@ -267,28 +282,37 @@ fi
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(f"fixture {relative}\n")
 
+    def test_clone_staging_gate_is_invoked_and_hashed(self) -> None:
+        clone_test = "misc/ios/test_retail_clone_staging.py"
+        self.assertIn(clone_test, RETAIL_CLONE_STAGING_ARTIFACT_INPUTS)
+        self.assertIn(clone_test, GATE_HASH.IOS_ARTIFACT_INPUTS)
+        source = BUILD_CHECK_SCRIPT.read_text()
+        self.assertIn(f"python3 {clone_test} \\", source)
+        self.assertIn("retail clone-staging regression tests failed", source)
+
     def test_artifact_dependencies_invalidate_device_artifact_digest(self) -> None:
         self.assertTrue(GATE_HASH_SCRIPT.is_file())
-        self.assertTrue(all((REPO / path).is_file() for path in LEASE_DEPENDENCIES))
-        self.assertTrue((REPO / TEXTURE_BC_FALLBACK_TEST).is_file())
         for path in ARTIFACT_HASH_DEPENDENCIES:
-            self.assertIn(path, GATE_HASH.IOS_ARTIFACT_INPUTS)
+            with self.subTest(dependency=path):
+                self.assertTrue((REPO / path).is_file())
+                self.assertIn(path, GATE_HASH.IOS_ARTIFACT_INPUTS)
 
         with tempfile.TemporaryDirectory(prefix="openxray-artifact-inputs-") as temporary:
             root = Path(temporary)
             self.make_artifact_input_root(root)
             baseline = self.artifact_digest(root)
             for relative in ARTIFACT_HASH_DEPENDENCIES:
-                dependency = root / relative
-                original = dependency.read_bytes()
-                dependency.write_bytes(original + b"# deterministic mutation\n")
-                self.assertNotEqual(
-                    baseline,
-                    self.artifact_digest(root),
-                    f"{relative} must invalidate ios-device-artifact-v2",
-                )
-                dependency.write_bytes(original)
-                self.assertEqual(baseline, self.artifact_digest(root))
+                with self.subTest(dependency=relative):
+                    dependency = root / relative
+                    original = dependency.read_bytes()
+                    dependency.write_bytes(original + b"# deterministic mutation\n")
+                    self.assertNotEqual(
+                        baseline,
+                        self.artifact_digest(root),
+                        f"{relative} must invalidate ios-device-artifact-v2",
+                    )
+                    dependency.write_bytes(original)
+                    self.assertEqual(baseline, self.artifact_digest(root))
 
     def test_default_env_cli_and_precedence(self) -> None:
         self.passes()

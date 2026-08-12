@@ -4718,3 +4718,158 @@ existed; earlier `362bf625d`/UIScene stamps remain historical and stale. The
 new stamp remains valid only until another artifact input changes, at which
 point a new full gate is mandatory before install or push. During the gate no
 phone, lease, Simulator, device installation, further commit or push occurred.
+
+## 2026-08-10 — IOS-P1-007 local numeric/resource contract and dirty-state full gate
+
+The local IOS-P1-007 sub-slice removes the eight permitted presence tests and
+one `#undef`; the numeric ledger is now five zero fallbacks with debt 0+0 and
+macro mutations 30/30. It keeps HBAO/HDAO forced false on OpenGL. The SSR
+generator emits `SSR_HALF_DEPTH` only when both requested and
+`o.ssao_opt_data`; without an allocated/populated half-depth target, SSR uses
+`s_position`.
+
+The comment-aware resource contract has 13/13 mutations across CPU policy,
+allocation, downsample, water binding and SSR sampling, including negative
+comment, duplicate-emission, duplicate-downsample and independent HBAO/HDAO
+tests. Supported static profiles pass compile 279/279, low 2/2, SSAO 6/6, SSR
+9/9 (off, q1–q4 full, q1–q4 half), numeric 30/30/debt 0+0 and links 137/137.
+`test_shader_resource_contract.py` is an installer artifact input and the
+existing installer mutation coverage remains 13/13.
+
+Final full gate log is
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786387560907572000-93497-0.log`
+(SHA-256 `f496f908f2991cf12a216a78013b374a3891186333462262a290fde1f4134f87`),
+with identical before/after HEAD
+`1c8cb3dbdcb1bb5d423b225be975fb5f5e9b8348`, diff hash
+`89ecda983fac2b8b7ed871c8196bc65950099da3c16cbfa746b94c46b7726966`, status
+hash `33c91abcab71f243c8f51f113fb10b7c7255211f0a29d5b4f017628f0010f179` and
+untracked contract SHA-256
+`9e591edd04c80bb7c21488726c41fda4ac8c0df6cd6660aa2570b8111609bdce`.
+Current underlying stamp SHA-256 is
+`c198b069433c092e0148ba7ecf02f1a8479e4bab25b17f909253750ef3f8e92d`: source
+`aea7d8fb0fe4ffac1f1c002205cc9762b61ded35b241861c54ddebe5d85161b3`, UUID
+`36095C34-3BB5-379F-8ECE-321F937A9043`, bundle
+`bb6f0bbdd95aacbb0ba40b420b4b1f9bccf78098e2fb01c3a6cc2201ba557cf2`, IOS,
+minOS 16.4, SDK 27, shader cache off, 0 rebuilt translation units and dSYM
+513889238 bytes. The prior `e967a4c...` stamp is historical/stale.
+
+Final Sol xhigh: `APPROVE — brak P0/P1/P2`. No phone, lease, `devicectl`,
+Simulator, install, commit or push occurred. This is local static/resource
+evidence only: an iPhone reference frame containing water is still required
+before accepting the changed SSR behavior visually or making a pixel/performance
+claim, so the complete backlog item remains deferred.
+
+## 2026-08-10 — M6-local resumable retail importer evidence
+
+The standalone standard-library `misc/ios/retail_import.py` closes the local
+importer sub-slice without changing the legacy Simulator runner or retail guard.
+Its 21/21 mutation/recovery suite proves descriptor-relative source/output
+confinement, immutable all-file SHA-256 planning, byte-range prefix resume
+including a real 600 MiB sparse fixture at an interior offset, nonblocking lock,
+private permissions, `renameatx_np(RENAME_EXCL)`, fsync/recovery, exact final
+verification and legacy-runner guard compatibility.
+
+The external backup
+`/Users/patryk/openxray-handoff/device-retail-backup-20260808-185559` is a
+read-only input: the existing verifier passed before and after preparation (789
+files, 4.5 GiB). One new external prepared root with saves,
+`/Users/patryk/openxray-handoff/retail-prepared-20260810-211114`, passes importer
+verification and idempotent preparation. Its published root contains only
+`Documents` and `manifest`, with 13 selected files and 4,611,922,289 prepared
+file bytes (4.3 GiB); `resources.db0`–`resources.db4` and
+`levels.db0`–`levels.db1` are present. `prepared-files.tsv` SHA-256 is
+`3dcd34c5934e1bc04b8dfb91873f48e82efe514f1aaf774ad685c09d2f1ae6c8` and
+`prepared-manifest-files.tsv` SHA-256 is
+`3008f88f4b658bf0aa89b64b9701448a253ba91fddb9a4bebeb66d86afe66f18`.
+The unchanged retail guard is PASS for that published `Documents`/`manifest`.
+
+Fresh final-code gates passed with identical before/after state. Fast log
+`gate-1786396379224210000-17575-0.log` has SHA-256
+`b232912151ffc77e82f2bebf9705e7ce01bf34e18b6e0494b53d4ac8f3c4d440` and UUID
+`0C929156-EBDD-336D-ACDB-B5084481271A`. Full log
+`gate-1786396830319115000-33672-0.log` has SHA-256
+`76e8cdde10b98bd4c7d88f1252f2368db8ad8d14929fbdf225c1ffea53397457`; it passes
+retail importer 21/21, retail Simulator 97/97, macros 30/30, resources 13/13,
+shader stages 279/279, low 2/2, SSAO 6/6, SSR 9/9 and links 137/137 with 0 TUs.
+The IOS/minOS 16.4/cache-forced-off/OpenAL-unchanged artifact has dSYM
+513889238 bytes, source
+`41ca5562c1c4fab085510668d7d477b4ffba1f59b8c697b103d44d09a0fcdfef`, UUID
+`36095C34-3BB5-379F-8ECE-321F937A9043`, bundle
+`bb6f0bbdd95aacbb0ba40b420b4b1f9bccf78098e2fb01c3a6cc2201ba557cf2` and full
+stamp SHA-256 `af3a627179500aae8684903918f3b4d5d50ef81afeb0f14e518d0e5bf5146318`.
+
+Sol xhigh pre-final code verdict is `PRE-FINAL CODE CLEAR — brak P0/P1/P2;
+gates/docs pending`; this is not final approval. Evidence is limited to host
+importer integrity/resume/atomicity and real local prepared output. It does not
+certify legality, physical-device transfer/container/save preservation, signed
+update, iPhone runtime/rendering/performance or remote release; App Store
+distribution remains out of scope. Stable Team/bundle preserve the phone's
+container and a Mach-O UUID is unrelated, so physical builds/installs do not
+recopy retail Documents. Conversely, the isolated Simulator intentionally
+creates/deletes a fresh device and stages data per run. The prepared root is a
+one-time resumable verified cache/source, not APFS clone/no-copy staging.
+
+M6 remains active for the distribution acceptance; only its local importer
+sub-slice is complete. IOS-P1-002 remains temporarily in the Backlog until the
+phone returns. No phone, lease, `devicectl`, Simulator, installation, commit or
+push occurred in this documentation closeout.
+
+## 2026-08-10 — M6-local corrected final approval
+
+Final Sol xhigh review found three P2 documentation inconsistencies: the active
+Plan still named the superseded `aea7…`/`c198…` artifact as current, while the
+canonical fresh gate used `41ca…`/`af3…`; canonical and Backlog also still
+described temporarily deferred IOS-P1-002 as active. The current-state files now
+name the fresh stamp, distinguish active IOS-P1-010 from backlogged IOS-P1-002
+and require an explicit future promotion before that lifecycle proof.
+
+Post-correction checks remain Plan 5/5, Resume within 150 lines, `git diff
+--check` PASS and active artifact hash
+`41ca5562c1c4fab085510668d7d477b4ffba1f59b8c697b103d44d09a0fcdfef`.
+Final Sol xhigh re-review returned exactly `APPROVE — brak P0/P1/P2`. This closes
+only M6-local; the distribution, physical transfer/container/save-update and
+remote-release boundaries remain open. No phone, lease, `devicectl`, Simulator,
+installation, commit or push occurred.
+
+## 2026-08-12 — descriptor-bound DevArchive retail retirement
+
+The reviewed DevArchive checkpoint completed without touching the phone,
+Simulator or installed app container. Exact APFS volume
+`08C7CE36-A537-47DD-B8CF-401A6A8A89E1` was descriptor-bound before each
+external mutation. Fresh full gate
+`gate-1786563440297027000-96172-0.log` passed with SHA-256
+`16f14682fce0287d842108347fbddc8f28b2708dba59eaebf2ff2242ba0b2894`:
+archive policy 125/125, mocked retail Simulator 102/102, macros 30/30,
+resources 13/13, SSAO 6/6, SSR 9/9, links 137/137 and zero rebuilt TUs.
+
+Main transaction `5beca2ef4f034286be6299d6d9a2bdba` recovered from immutable stages
+000–009a by publishing 009b and retaining the same 790 open descriptors through
+the first truncate. The observed exact provenance set was 787 paths. Its apply
+and independent verify passed: external tree
+`929ddd05bd7b6a33f2729074be2847c38d05b5f54e230d08e4f06b694af110ac`,
+external deletion-receipt SHA-256
+`bf032741b03cd30879037943fcffd673d6decb60da966d51df04ed88e4968304`,
+local state `RETIRED_TOMBSTONE`, 790/790 zero files and 4,761,061,526 logical
+bytes reclaimed. Sibling transaction `8039f43384784b879442f993dab281ae`
+then passed its independently gated apply/verify with tree
+`1d9c432282d0bc0f3978bfbf1ba05b039c51b456ee1bfa355244600c84e118de`,
+receipt SHA-256
+`45419ed691ac4717abcef1660c9a5c1a697937b1b861553238ac9ac59bc5ff56`
+and 40,301 logical bytes reclaimed.
+
+The two public local source paths are absent and both private tombstones occupy
+zero blocks. The local prepared cache
+`retail-prepared-20260810-211114` remains intact and verifier PASS after removal
+of one Finder-generated 6,148-byte `.DS_Store`; no game archive or save changed.
+Together with six earlier completed transactions, eight retirements reclaimed
+5,750,628,350 logical bytes. Reproducible build products remain local pending
+formal M6 closure and their dedicated cleaner; they were not archive cargo.
+
+The first closeout review found one P1 authorization-boundary inconsistency and
+three P2 current-state/date inconsistencies; the second found the remaining P1
+canonical stamp wording and a stale generated capsule. All were corrected:
+current documents uniformly require a new post-commit full gate before install
+or push, current focus and dates are synchronized, prior approval is scoped only
+to its earlier importer review, Resume remains 145 lines and the regenerated
+capsule passed at 25,311 bytes/6,328 estimated tokens. The final complete-diff
+Sol xhigh re-review returned exactly `APPROVE — brak P0/P1/P2`.

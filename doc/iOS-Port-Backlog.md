@@ -1,6 +1,6 @@
 # OpenXRay iOS — deferred backlog
 
-**Last synchronized:** 2026-08-09
+**Last synchronized:** 2026-08-12
 
 **Canonical contract:** [iOS-Port.md](iOS-Port.md)
 
@@ -43,20 +43,21 @@ periodic full-frame readback.
 
 ### IOS-P1-007: audit ES feature-macro semantics
 
-**Priority:** P1 deferred until an affected dormant feature is considered.
+**Priority:** P1 deferred; do not promote solely on local static evidence.
 
-**Evidence level:** current SSAO permutations and the five-macro static contract
-are proven locally. Thirty mutations freeze five zero fallbacks, eight legacy
-presence tests and one `#undef`; dormant HBAO/HDAO/SSR behavior is static only.
+**Evidence level:** the local sub-slice is complete and Sol xhigh-approved:
+five explicit numeric zero fallbacks; macro mutations 30/30; debt 0 presence +
+0 `#undef`; comment-aware CPU-to-allocation/downsample/water-binding/SSR-sample
+mutations 13/13; compile 279/279, low 2/2, SSAO 6/6, SSR 9/9 and links 137/137.
+HBAO/HDAO remain forced false. `SSR_HALF_DEPTH` is now emitted only when
+requested and `ssao_opt_data` creates/populates the target; otherwise SSR uses
+`s_position`. This changes a real water/SSR resource selection but remains
+static/local evidence only.
 
-Keep explicit zero defaults required by GLSL ES numeric `#if` expressions.
-Before enabling a dormant path, add its real disabled/enabled resource
-permutations to the harness and replace incompatible presence tests only where
-the CPU resource contract supports the selected path.
-
-**Acceptance:** every enabled quality/feature macro has one documented numeric
-meaning, disabled permutations compile, and no shader selects a resource the
-CPU did not allocate or populate.
+**Remaining acceptance:** retain explicit numeric meanings and disabled
+permutations; later capture a reference iPhone frame containing water under the
+new SSR policy, then review pixels separately from performance. Do not claim
+image quality or close the whole item before that device evidence.
 
 ### IOS-P1-008: make environment alias rebinding explicit
 
@@ -99,6 +100,24 @@ lower-memory target remain device-untested.
 **Acceptance:** device logs prove that an eviction lowers current memory and
 the 30-minute run remains inside an explicit device budget.
 
+### IOS-P1-002: finish iOS lifecycle
+
+**Priority:** P1 temporarily deferred while the phone is unavailable; restore
+it to the active Plan before the next physical lifecycle batch.
+
+**Evidence level:** the local frame gate, lifecycle inbox, persistence ordering,
+input cancellation, GL detach/rebind, LOWMEMORY path and corrected Safari/audio
+harness pass their deterministic contracts and reviews. Four diagnostic device
+cycles and one held-W cycle pass. The UIScene backport also preserves one PID
+through one Simulator recovery cycle on both iOS 26.5 and 27.0. Normal Safari
+cycles, lock/held-touch and a real audio interruption remain physical-device
+untested.
+
+**Remaining acceptance:** five normal Safari/background cycles, one separate
+lock/unlock cycle with held touch and one real OpenAL Soft interruption recover
+in the same process without stuck input, black output, lost audio or lost
+settings/saves.
+
 ## P2 — product and maintenance debt
 
 ### IOS-P2-005: harden iOS CI supply-chain provenance
@@ -130,7 +149,8 @@ rendering authority.
 ### IOS-P2-002: prove the intentional OpenAL Soft interruption path
 
 **Priority:** P2 deferred; local technical approval is complete, while the
-physical interruption proof is owned by active IOS-P1-002.
+physical interruption proof depends on temporarily deferred IOS-P1-002 being
+promoted back to the active Plan.
 
 **Evidence level:** the project-owned static OpenAL Soft 1.25.2 selection,
 per-Core exact-scene interruption registry, strict/ASan/UBSan policy tests and
@@ -142,10 +162,10 @@ OpenAL, dynamic/alternate/duplicate archives and forwarded linker forms. The
 required runtime record is `OpenAL Community` / `OpenAL Soft` /
 `1.1 ALSOFT 1.25.2` with extension, pause and resume support `1/1/1`.
 
-**Acceptance:** under IOS-P1-002's physical lifecycle batch, an iPhone audio
-interruption preserves the same process/drawable/input state, resumes audio
-without paused-emitter underflow and records the expected provider capability
-line.
+**Acceptance:** after IOS-P1-002 is promoted for its physical lifecycle batch,
+an iPhone audio interruption preserves the same process/drawable/input state,
+resumes audio without paused-emitter underflow and records the expected provider
+capability line.
 
 ### IOS-P2-001: touch robustness and gameplay controls
 
@@ -196,28 +216,6 @@ source format, upload format, swizzle and shader-space expectation; numeric
 probes and iPhone reference frames justify either preserving that policy or
 switching to `GL_SRGB8_ALPHA8`/explicit swizzles with an intentional bounded
 result.
-
-## M6 — distribution completion
-
-**Priority:** P2.
-
-**Evidence level:** local paid-team signing, cable installation and stable data
-container proven; resumable retail-data import and first complete remote
-release artifact set untested.
-
-- Document legal retail-data import.
-- Make asset transfer resumable and verifiable.
-- Preserve saves across signed updates.
-- Remove device-specific identifiers from general instructions.
-- Keep release metadata generated by CI.
-- Document non-destructive profile/certificate recovery.
-
-App Store distribution is not an active target.
-
-**Acceptance:** a new authorized tester can import legally owned retail data,
-resume and verify the transfer, install without source edits, update without
-losing saves and recover an expired profile without revoking unrelated
-certificates.
 
 ## M7 — renderer decision gate
 

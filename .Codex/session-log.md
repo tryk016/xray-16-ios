@@ -712,3 +712,71 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
 - Supersedes the prior stale-stamp current state. Next artifact-input change
   stales this stamp and needs another full gate before install/push. The gate
   used no phone/lease/Simulator/install and made no further commit/push.
+
+## 2026-08-10 — IOS-P1-007 local macro/resource sub-slice
+
+- Removed eight legacy presence checks and one `#undef`: macro debt is now
+  0+0 with five numeric zero fallbacks; macro mutations pass 30/30.
+- Added comment-aware exact CPU-to-allocation/downsample/water-binding/SSR
+  sample contract (13/13), SSR profiles 9/9 and installer artifact-input
+  mutation coverage. `SSR_HALF_DEPTH` now requires both the request and
+  `ssao_opt_data`; otherwise SSR reads `s_position`. HBAO/HDAO stay false.
+- Final full gate for exact dirty state passed retail 97/97, 279/279, low 2/2,
+  SSAO 6/6, SSR 9/9 and links 137/137; Sol xhigh: `APPROVE — brak P0/P1/P2`.
+  Current stamp is `c198b069…f8e92d`; no phone/lease/devicectl/Simulator/
+  install/commit/push. iPhone water/pixel/performance proof remains deferred.
+
+## 2026-08-10 — M6-local resumable retail importer closeout
+
+- Stdlib `retail_import.py` passes 21/21 mutation/recovery cases: confined
+  descriptor paths, immutable all-file SHA plan, interior prefix resume,
+  nonblocking lock/private permissions, exclusive rename/fsync recovery and
+  exact final/legacy-guard verification.
+- Read-only source `device-retail-backup-20260808-185559` verifies before/after
+  (789 files, 4.5 GiB). Prepared `retail-prepared-20260810-211114` is PASS and
+  idempotent with saves: only Documents+manifest, 13 files, 4,611,922,289 B.
+- Final Fast/full gates pass; full is importer 21/21, Simulator 97/97, macros
+  30/30, resources 13/13, stages 279/279, low 2/2, SSAO 6/6, SSR 9/9, links
+  137/137, 0 TUs. Sol pre-final: `PRE-FINAL CODE CLEAR — brak P0/P1/P2; gates/docs pending`.
+- Host integrity/cache evidence only; no phone, Simulator, install, legal
+  distribution, container/save-preservation or remote-release claim. M6 stays
+  active; IOS-P1-002 remains Backlog-pending until the phone returns.
+
+## 2026-08-10 — M6-local final review
+
+- Corrected stale Plan stamp and active/backlogged lifecycle references.
+- Final Sol xhigh: `APPROVE — brak P0/P1/P2`. M6-local is closed; complete M6
+  remains active for tester distribution, device transfer and update evidence.
+
+## 2026-08-11 — Simulator workroot retention cleanup
+
+- Removed 39 inactive `openxray-handoff/simulator-work-*` directories after
+  confirming that none had a live process or open file. The sole current
+  workroot `simulator-work-20260811-190514-37138` was excluded; free Data-volume
+  space rose from 11 GiB to 97 GiB immediately after deletion (63 GiB at the
+  final checkpoint after unrelated filesystem activity).
+- Added a default-dry-run cleaner with keep-3/24-hour retention, live-PID and
+  nofollow guards, a root lock, and identity-bound private quarantine before
+  deletion. Host safety tests pass 8/8; Sol xhigh: `APPROVE — brak P0/P1/P2`.
+- The retained iOS 27 run later ended normally with a fail-closed QuickSave
+  metadata error before report publication; its dedicated Simulator is absent
+  and the 1.5 GiB workroot remains intact for the paused M6 investigation.
+- Repository audit found 20 GiB of ignored build products (including a 5.3 GiB
+  LTO cache), 965 MiB of generated `bin`, and 646 MiB of Git data. These were
+  preserved because the pending final M6 gate would immediately rebuild them;
+  no retail data was found inside the repository and no phone was used.
+
+## 2026-08-12 — DevArchive retail checkpoint
+
+- Fresh full gate `1786563440297027000-96172-0` PASS: archive 125/125,
+  mocked retail 102/102, macros 30/30, resources 13/13, SSAO 6/6, SSR 9/9,
+  links 137/137, 0 TUs; log SHA `16f146…b2894`.
+- Main retail tx `5beca2ef…bdba` and manifest tx `8039f433…81ae` independently
+  PASS on exact-UUID APFS DevArchive. Main is `RETIRED_TOMBSTONE` 790/790;
+  prepared cache remains local and verifier PASS.
+- Eight completed retirements reclaimed 5,750,628,350 logical bytes. Public
+  local backup paths are absent; receipt-bound tombstones occupy zero blocks.
+- Removed only Finder's 6,148-byte `.DS_Store` from prepared root to restore
+  its strict `Documents`+`manifest` contract. No phone/Simulator/install/push.
+- Final corrected complete-diff Sol xhigh: `APPROVE — brak P0/P1/P2`.
+  Post-commit full gate and production verifier remain required before push.

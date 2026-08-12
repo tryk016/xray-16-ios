@@ -74,6 +74,10 @@ BASE_DEFINES = [
     ("USE_BRANCHING", "1"),
     ("USE_SOFT_WATER", "1"),
     ("SSR_QUALITY", "3"),
+    # The representative half-depth SSR path requires the same generated depth
+    # resource as optimized SSAO. Keep those two defines coherent here, as the
+    # GL renderer now does for real water permutations.
+    ("SSAO_OPT_DATA", "1"),
     ("SSR_HALF_DEPTH", "1"),
     ("SSR_JITTER", "1"),
     ("USE_SOFT_PARTICLES", "1"),
@@ -97,9 +101,15 @@ VERT_PRECISION = list(FRAG_PRECISION)
 
 # These quality options are emitted as numeric values by the GL renderer.  GLSL
 # ES does not accept an undefined identifier in a numeric #if expression, so
-# common.h provides a zero fallback for each one.  Presence tests are wrong for
+# common.h provides a zero fallback for each one. Presence tests are wrong for
 # this set: #ifdef sees an explicit zero as enabled and can select resources the
 # CPU did not create.
+#
+# SUN_QUALITY: 0=low, 1=medium, 2=high (3/4 are unavailable to GL).
+# SSR_QUALITY: 0=off, 1=low, 2=medium, 3=high, 4=ultra.
+# SSAO_QUALITY: 0=off, 1=low, 2=medium, 3=high (4 is reduced to 3 on iOS).
+# SSAO_OPT_DATA: 0=G-buffer, 1=generated full-res depth, 2=half-res depth.
+# MSAA_SAMPLES: 0=off, otherwise the real sample count (2, 4 or 8).
 NUMERIC_FEATURE_MACROS = (
     "SUN_QUALITY",
     "SSR_QUALITY",
@@ -110,37 +120,29 @@ NUMERIC_FEATURE_MACROS = (
 NUMERIC_FEATURE_MACRO_SET = frozenset(NUMERIC_FEATURE_MACROS)
 SHADER_SOURCE_SUFFIXES = (".h", ".ps", ".vs")
 
-# This is intentionally a narrow, reviewable debt ledger rather than a broad
-# exception.  Values are normalized relative paths and normalized directives;
-# any addition, removal or semantic rewrite is a contract failure until it is
-# explicitly reviewed here.  common.h's #ifndef fallback guards are declarations
-# and are excluded from the debt scan.
-LEGACY_NUMERIC_PRESENCE_DEBT = {
+# These exact numeric predicates replace the former presence-test debt. They
+# deliberately pin the zero/one and quality-range boundaries; a broad source
+# scan could prove no #ifdef exists yet miss a changed condition.
+REQUIRED_NUMERIC_VALUE_TESTS = {
+    "combine_1.ps": {
+        "#if SSAO_QUALITY<=3": 2,
+    },
     "ssr.h": {
-        "#if !defined(SSR_QUALITY)||(SSR_QUALITY<=1)||(SSR_QUALITY>4)": 1,
-        "#ifndef SSR_QUALITY": 1,
+        "#if (SSR_QUALITY<=1)||(SSR_QUALITY>4)": 1,
+        "#if SSR_QUALITY==0": 1,
     },
     "ssao_hbao.ps": {
-        "#ifndef SSAO_QUALITY": 1,
-        "#ifndef SSAO_OPT_DATA": 1,
+        "#if SSAO_QUALITY==0": 1,
+        "#if SSAO_OPT_DATA==0": 1,
     },
     "ssao_hdao.ps": {
-        "#ifdef SSAO_QUALITY": 1,
-        "#ifndef SSAO_QUALITY": 1,
+        "#if SSAO_QUALITY>0": 1,
+        "#if SSAO_QUALITY==0": 1,
     },
     "ssao_hdao_new.ps": {
-        "#ifndef SSAO_QUALITY": 2,
+        "#if SSAO_QUALITY==0": 2,
     },
 }
-LEGACY_NUMERIC_PRESENCE_DEBT_TOTAL = 8
-# Kept separate from presence debt so any new, removed, changed or relocated
-# textual #undef requires an explicit manifest update and review.
-LEGACY_NUMERIC_UNDEF_DEBT = {
-    "combine_1.ps": {
-        "#undef SSAO_QUALITY": 1,
-    },
-}
-LEGACY_NUMERIC_UNDEF_DEBT_TOTAL = 1
 
 
 @dataclass(frozen=True)
@@ -404,6 +406,48 @@ def find_numeric_feature_undefs(root: str) -> list[NumericMacroOccurrence]:
     )
 
 
+def validate_required_numeric_value_tests(root: str) -> list[str]:
+    """Require the reviewed numeric replacements for every former debt site."""
+    errors: list[str] = []
+    expected = Counter(
+        (relative_path, directive)
+        for relative_path, directives in REQUIRED_NUMERIC_VALUE_TESTS.items()
+        for directive, count in directives.items()
+        for _ in range(count)
+    )
+    actual: Counter[tuple[str, str]] = Counter()
+    try:
+        for relative_path, directives in REQUIRED_NUMERIC_VALUE_TESTS.items():
+            path = os.path.join(root, relative_path)
+            with open(path, encoding="utf-8", errors="replace") as source_file:
+                lines = logical_preprocessor_lines(source_file.read())
+            required_directives = frozenset(directives)
+            for _start_line, line in lines:
+                match = DIRECTIVE_RE.match(line)
+                if not match:
+                    continue
+                kind, body = match.groups()
+                if kind not in {"if", "elif"}:
+                    continue
+                directive = normalize_directive(kind, body)
+                if directive in required_directives:
+                    actual[(relative_path, directive)] += 1
+    except OSError as error:
+        return [f"could not read required numeric value test: {error}"]
+
+    for key in sorted(set(actual) | set(expected)):
+        actual_count = actual[key]
+        expected_count = expected[key]
+        if actual_count == expected_count:
+            continue
+        relative_path, directive = key
+        errors.append(
+            f"required numeric value test mismatch: {relative_path}: "
+            f"{directive} (expected {expected_count}, found {actual_count})"
+        )
+    return errors
+
+
 def validate_numeric_feature_fallbacks(root: str) -> tuple[list[str], frozenset[int]]:
     """Require one exact guarded zero fallback block per manifest entry.
 
@@ -590,6 +634,7 @@ def check_numeric_feature_macro_contract(root: str) -> list[str]:
     and a cached shader gate can test the static preprocessor contract directly.
     """
     errors, common_fallback_guard_lines = validate_numeric_feature_fallbacks(root)
+    errors.extend(validate_required_numeric_value_tests(root))
     try:
         occurrences = find_numeric_feature_presence_tests(
             root, common_fallback_guard_lines
@@ -597,62 +642,35 @@ def check_numeric_feature_macro_contract(root: str) -> list[str]:
         undef_occurrences = find_numeric_feature_undefs(root)
     except OSError as error:
         return errors + [f"could not scan shader numeric feature macros: {error}"]
-    actual = Counter(
-        (occurrence.relative_path, occurrence.directive) for occurrence in occurrences
-    )
-    expected = Counter(
-        (relative_path, directive)
-        for relative_path, directives in LEGACY_NUMERIC_PRESENCE_DEBT.items()
-        for directive, count in directives.items()
-        for _ in range(count)
-    )
-    if sum(expected.values()) != LEGACY_NUMERIC_PRESENCE_DEBT_TOTAL:
+    if occurrences:
         errors.append(
-            "internal legacy numeric presence debt manifest must contain exactly "
-            f"{LEGACY_NUMERIC_PRESENCE_DEBT_TOTAL} occurrences"
+            "numeric feature-macro presence debt must be zero; found "
+            f"{len(occurrences)} occurrence(s)"
         )
-    for key in sorted(set(actual) | set(expected)):
-        actual_count = actual[key]
-        expected_count = expected[key]
-        if actual_count == expected_count:
-            continue
-        relative_path, directive = key
-        errors.append(
-            f"legacy numeric presence debt mismatch: {relative_path}: "
-            f"{directive} (expected {expected_count}, found {actual_count})"
+        errors.extend(
+            "numeric feature-macro presence test forbidden: "
+            f"{occurrence.relative_path}: {occurrence.directive}"
+            for occurrence in occurrences
         )
-
-    undef_actual = Counter(
-        (occurrence.relative_path, occurrence.directive)
-        for occurrence in undef_occurrences
-    )
-    undef_expected = Counter(
-        (relative_path, directive)
-        for relative_path, directives in LEGACY_NUMERIC_UNDEF_DEBT.items()
-        for directive, count in directives.items()
-        for _ in range(count)
-    )
-    if sum(undef_expected.values()) != LEGACY_NUMERIC_UNDEF_DEBT_TOTAL:
+    if undef_occurrences:
         errors.append(
-            "internal legacy numeric undef debt manifest must contain exactly "
-            f"{LEGACY_NUMERIC_UNDEF_DEBT_TOTAL} occurrence"
+            "numeric feature-macro undef debt must be zero; found "
+            f"{len(undef_occurrences)} occurrence(s)"
         )
-    for key in sorted(set(undef_actual) | set(undef_expected)):
-        actual_count = undef_actual[key]
-        expected_count = undef_expected[key]
-        if actual_count == expected_count:
-            continue
-        relative_path, directive = key
-        errors.append(
-            f"legacy numeric undef debt mismatch: {relative_path}: "
-            f"{directive} (expected {expected_count}, found {actual_count})"
+        errors.extend(
+            "numeric feature-macro undef forbidden: "
+            f"{occurrence.relative_path}: {occurrence.directive}"
+            for occurrence in undef_occurrences
         )
     return errors
 
 
 def report_numeric_feature_macro_contract(root: str) -> bool:
     errors = check_numeric_feature_macro_contract(root)
-    print("Numeric feature-macro contract: " + ("PASS" if not errors else "FAIL"))
+    print(
+        "Numeric feature-macro contract: "
+        + ("PASS (five zero fallbacks; presence debt=0; undef debt=0)" if not errors else "FAIL")
+    )
     for error in errors:
         print(f"  {error}")
     return not errors
@@ -736,16 +754,18 @@ def assemble(
     shader: str,
     stage: str,
     roots: list[str],
-    define_overrides: dict[str, str] | None = None,
+    define_overrides: dict[str, str | None] | None = None,
 ) -> str:
     lines = ["#version 300 es"]
     lines += VERT_PRECISION if stage == "vert" else FRAG_PRECISION
     define_overrides = define_overrides or {}
     for name, value in BASE_DEFINES:
-        lines.append(f"#define {name} {define_overrides.get(name, value)}")
+        effective_value = define_overrides.get(name, value)
+        if effective_value is not None:
+            lines.append(f"#define {name} {effective_value}")
     base_names = {name for name, _value in BASE_DEFINES}
     for name, value in define_overrides.items():
-        if name not in base_names:
+        if name not in base_names and value is not None:
             lines.append(f"#define {name} {value}")
     body: list[str] = []
     inline(shader, roots, set(), body)
@@ -988,6 +1008,46 @@ def main() -> int:
         else:
             ssao_failed.append((profile_name, first_error(report)))
 
+    # Water SSR has a separate resource permutation.  Full depth must compile
+    # without SSR_HALF_DEPTH at every supported quality; half depth is valid
+    # only when SSAO_OPT_DATA selects the generated depth target that the GL
+    # renderer allocates and fills. ``None`` deliberately removes the baseline
+    # define, which is different from an explicit numeric zero for this
+    # presence-style resource switch.
+    ssr_profiles: list[tuple[str, str, dict[str, str | None]]] = [
+        ("off", "water.ps", {"SSR_QUALITY": "0", "SSR_HALF_DEPTH": None, "SSAO_OPT_DATA": "0"})
+    ]
+    for quality in range(1, 5):
+        ssr_profiles.append(
+            (
+                f"q{quality}-full-depth",
+                "water.ps",
+                {"SSR_QUALITY": str(quality), "SSR_HALF_DEPTH": None, "SSAO_OPT_DATA": "0"},
+            )
+        )
+        ssr_profiles.append(
+            (
+                f"q{quality}-half-depth",
+                "water.ps",
+                {"SSR_QUALITY": str(quality), "SSR_HALF_DEPTH": "1", "SSAO_OPT_DATA": "1"},
+            )
+        )
+    ssr_passed = 0
+    ssr_failed: list[tuple[str, str]] = []
+    ssr_variants = []
+    for profile_name, target_name, overrides in ssr_profiles:
+        target = shader_targets_by_name.get(target_name)
+        if target is None:
+            ssr_failed.append((profile_name, f"{target_name} missing"))
+            continue
+        path, stage = target
+        ssr_variants.append((profile_name, path, stage, overrides))
+    for profile_name, ok, report in ordered_map(validate_variant, ssr_variants):
+        if ok:
+            ssr_passed += 1
+        else:
+            ssr_failed.append((profile_name, first_error(report)))
+
     ssao_source_path = os.path.join(root, "ssao.ps")
     with open(ssao_source_path, "r", encoding="utf-8", errors="replace") as fh:
         ssao_source = fh.read()
@@ -1011,6 +1071,12 @@ def main() -> int:
     for profile_name, err in ssao_failed:
         print(f"  {profile_name}: {err}")
     print(
+        f"GLSL ES 3.00 SSR branch profile: "
+        f"{ssr_passed}/{len(ssr_profiles)} compile, {len(ssr_failed)} fail"
+    )
+    for profile_name, err in ssr_failed:
+        print(f"  {profile_name}: {err}")
+    print(
         "SSAO value-macro contract: "
         + ("PASS" if ssao_contract_ok else "FAIL (use numeric #if, never #ifdef/#ifndef)")
     )
@@ -1020,6 +1086,7 @@ def main() -> int:
         failed
         or low_failed
         or ssao_failed
+        or ssr_failed
         or not ssao_contract_ok
         or not numeric_macro_contract_ok
     ):
@@ -1027,6 +1094,7 @@ def main() -> int:
             len(failed)
             + len(low_failed)
             + len(ssao_failed)
+            + len(ssr_failed)
             + (0 if ssao_contract_ok else 1)
             + (0 if numeric_macro_contract_ok else 1)
         )

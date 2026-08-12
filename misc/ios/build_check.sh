@@ -518,6 +518,16 @@ python3 misc/ios/test_ios_quickload_input_contract.py \
 python3 misc/ios/test_simulator_quickload_evidence.py \
     || fail "iOS Simulator QuickSave/QuickLoad evidence regression tests failed"
 
+echo "== iOS retail import contract gate =="
+python3 misc/ios/test_retail_import.py \
+    || fail "retail import regression tests failed"
+python3 misc/ios/test_retail_clone_staging.py \
+    || fail "retail clone-staging regression tests failed"
+
+echo "== iOS completed-artifact archive policy gate =="
+python3 misc/ios/test_archive_completed_artifacts.py \
+    || fail "completed-artifact archive policy regression tests failed"
+
 if [ "$run_shaders" = 1 ]; then
     echo "== iOS Locator registration contract gate =="
     python3 misc/ios/test_locator_registration_contract.py \
@@ -532,6 +542,10 @@ if [ "$run_shaders" = 1 ]; then
         || fail "numeric feature-macro regression tests failed"
     python3 misc/ios/shadercheck/glsl_es_check.py --macro-contract \
         || fail "numeric feature-macro contract failed"
+
+    echo "== iOS shader resource-permutation contract gate =="
+    python3 misc/ios/test_shader_resource_contract.py \
+        || fail "shader resource-permutation regression tests failed"
 
     [ -n "$GLSLANG" ] || fail "glslangValidator not found (brew install glslang)"
     glslang_version=$("$GLSLANG" --version)
@@ -549,6 +563,7 @@ if [ "$run_shaders" = 1 ]; then
         "$REPO_ROOT/misc/ios/gate_hash.py"
         "$REPO_ROOT/misc/ios/shadercheck/glsl_es_check.py"
         "$REPO_ROOT/misc/ios/test_shader_macro_contract.py"
+        "$REPO_ROOT/misc/ios/test_shader_resource_contract.py"
         "$REPO_ROOT/res/gamedata/shaders/gl"
         "$glslang_real"
     )
@@ -601,6 +616,8 @@ if [ "$run_shaders" = 1 ]; then
         || fail "low-settings shader profile failed. Check the no-MSAA / SSAO_QUALITY=1 runtime permutation."
     echo "$out" | grep -q "SSAO branch profile: 6/6 compile, 0 fail" \
         || fail "SSAO resource-branch profile failed. Check disabled, G-buffer, and optimized full/half permutations."
+    echo "$out" | grep -q "SSR branch profile: 9/9 compile, 0 fail" \
+        || fail "SSR resource-branch profile failed. Check full-depth and generated-depth water permutations."
     echo "$out" | grep -q "SSAO value-macro contract: PASS" \
         || fail "SSAO feature macros must be tested numerically; presence tests select resources the CPU did not populate."
     echo "$out" | grep -q "Numeric feature-macro contract: PASS" \
@@ -621,6 +638,7 @@ if [ "$run_shaders" = 1 ]; then
         "$REPO_ROOT/misc/ios/gate_hash.py" \
         "$REPO_ROOT/misc/ios/shadercheck/glsl_es_check.py" \
         "$REPO_ROOT/misc/ios/test_shader_macro_contract.py" \
+        "$REPO_ROOT/misc/ios/test_shader_resource_contract.py" \
         "$REPO_ROOT/misc/ios/shadercheck/link_check.py" \
         "$REPO_ROOT/res/gamedata/shaders/gl" \
         "$REPO_ROOT/src/Layers/xrRender/blenders" \

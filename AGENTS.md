@@ -73,6 +73,40 @@ causal excerpt in a task. After the gate, evidence, documentation and Sol xhigh
 review are complete, regenerate/check the capsule and issue `/compact` before
 starting the next gate; never compact unfinished diagnostic state.
 
+Real Simulator evidence workroots are retained only temporarily. After their
+result has been summarized, run `misc/ios/cleanup_simulator_work.sh` first in
+its default dry-run mode and then, when the selection is correct, with
+`--apply`. The cleaner keeps the three newest workroots, requires a 24-hour
+minimum age and protects a live owner PID by default; never weaken those
+guards merely to reclaim space.
+
+### Permanent DevArchive policy
+
+After every closed gate or checkpoint, classify finished evidence, archives,
+old project copies and locally redundant backups with
+`misc/ios/archive_completed_artifacts.py audit`; queue only its reviewed
+allowlist. The portable archive is exactly APFS `DevArchive`, UUID
+`08C7CE36-A537-47DD-B8CF-401A6A8A89E1`, mounted at `/Volumes/DevArchive`.
+Before every external mutation and source retirement the tool must descriptor-bind
+that exact volume; if it is missing, wrong or remounted, retain the local queue
+and report `DEFERRED_VOLUME`—never create a substitute under `/Volumes`.
+
+Transfers are always copy → immutable manifest → independent verify → exclusive
+publish → reverify → private local quarantine → descriptor-only zeroing with a
+retained immutable tombstone and retirement receipt; payload names are never
+unlinked. The tool defaults to audit/dry-run and actual external writes remain
+review-gated. Keep the active repo, prepared retail cache,
+saves/Documents/resources/levels inputs, current workroot, active gate
+logs/evidence, Codex/cache/model data and build inputs local. Critical data is
+copy-only and DevArchive is never its sole or second-copy proof. Reproducible
+build outputs are delete-later through their own cleaner, never archive cargo.
+New device/retail backups remain local unless an exact candidate receives its
+own reviewed exception. The completed exception for
+`device-retail-backup-20260808-185559` is transaction
+`5beca2ef4f034286be6299d6d9a2bdba`; its sibling `.manifest` is transaction
+`8039f43384784b879442f993dab281ae`. Both are retired locally with immutable
+receipts after independent PASS; the fixed prepared cache remains local.
+
 Never install a build after a failed or stale matching gate. Do not pipe either
 build script through a command that hides its exit status. Only one worker may
 own the device or a given iOS build tree at a time.
@@ -194,11 +228,15 @@ Routing by subsystem:
 
 ## Validation contracts
 
+- Retail importer mutation/recovery contract: `21/21`.
 - Shader compile gate: `279/279`.
 - Low-settings shader profile: `2/2`.
 - SSAO resource-branch profile: `6/6`; value-macro contract must pass.
-- Numeric feature-macro contract: `30/30`; five zero fallbacks, eight presence
-  debts and one `#undef` debt must match exactly.
+- SSR profile: `9/9` (off, qualities 1–4 in full- and half-depth modes).
+- Numeric feature-macro contract: `30/30`; five zero fallbacks and exactly
+  zero presence/`#undef` debts.
+- CPU-to-shader resource contract: `13/13`, including allocation, downsample,
+  water binding and SSR sampling permutations.
 - Shader link gate: `137/137`.
 - Device target: arm64, iOS 16.4+.
 - Device stamps bind source content, Mach-O UUID and complete app-bundle content.

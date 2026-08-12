@@ -303,35 +303,17 @@ class NumericFeatureMacroContractTest(unittest.TestCase):
 
         self.assert_fails(mutate, "common.h: #undef SUN_QUALITY")
 
-    def test_existing_numeric_undef_removal_fails(self) -> None:
-        def mutate(root: Path) -> None:
-            path = root / "combine_1.ps"
-            source, count = re.subn(
-                r"^[ \t]*#[ \t]*undef[ \t]+SSAO_QUALITY[ \t]*\n?",
-                "",
-                path.read_text(encoding="utf-8"),
-                count=1,
-                flags=re.MULTILINE,
-            )
-            self.assertEqual(count, 1)
-            path.write_text(source, encoding="utf-8")
+    def test_reintroduced_numeric_undef_in_combine_fails(self) -> None:
+        self.assert_fails(
+            lambda root: self.append(root / "combine_1.ps", "\n#undef SSAO_QUALITY\n"),
+            "combine_1.ps: #undef SSAO_QUALITY",
+        )
 
-        self.assert_fails(mutate, "combine_1.ps: #undef SSAO_QUALITY")
-
-    def test_existing_numeric_undef_change_fails(self) -> None:
-        def mutate(root: Path) -> None:
-            path = root / "combine_1.ps"
-            source, count = re.subn(
-                r"^([ \t]*#[ \t]*undef[ \t]+)SSAO_QUALITY([ \t]*)$",
-                r"\g<1>SSR_QUALITY\g<2>",
-                path.read_text(encoding="utf-8"),
-                count=1,
-                flags=re.MULTILINE,
-            )
-            self.assertEqual(count, 1)
-            path.write_text(source, encoding="utf-8")
-
-        self.assert_fails(mutate, "combine_1.ps: #undef SSR_QUALITY")
+    def test_reintroduced_numeric_undef_change_fails(self) -> None:
+        self.assert_fails(
+            lambda root: self.append(root / "combine_1.ps", "\n#undef SSR_QUALITY\n"),
+            "combine_1.ps: #undef SSR_QUALITY",
+        )
 
     def test_numeric_undef_inside_if_zero_fails(self) -> None:
         self.assert_fails(
@@ -358,18 +340,18 @@ class NumericFeatureMacroContractTest(unittest.TestCase):
             )
         )
 
-    def test_legacy_debt_addition_fails(self) -> None:
+    def test_reintroduced_presence_in_former_debt_file_fails(self) -> None:
         self.assert_fails(
             lambda root: self.append(root / "ssao_hbao.ps", "\n#ifdef SSAO_QUALITY\n#endif\n"),
             "ssao_hbao.ps: #ifdef SSAO_QUALITY",
         )
 
-    def test_legacy_debt_removal_fails(self) -> None:
+    def test_required_numeric_value_test_removal_fails(self) -> None:
         def mutate(root: Path) -> None:
             path = root / "ssao_hbao.ps"
             source, count = re.subn(
-                r"^\s*#\s*ifndef\s+SSAO_QUALITY\s*$\n?",
-                "",
+                r"^\s*#\s*if\s+SSAO_OPT_DATA\s*==\s*0\s*$",
+                "#if SSAO_OPT_DATA < 0",
                 path.read_text(encoding="utf-8"),
                 count=1,
                 flags=re.MULTILINE,
@@ -377,22 +359,28 @@ class NumericFeatureMacroContractTest(unittest.TestCase):
             self.assertEqual(count, 1)
             path.write_text(source, encoding="utf-8")
 
-        self.assert_fails(mutate, "ssao_hbao.ps: #ifndef SSAO_QUALITY")
+        self.assert_fails(mutate, "ssao_hbao.ps: #if SSAO_OPT_DATA==0")
 
-    def test_legacy_debt_change_fails(self) -> None:
-        def mutate(root: Path) -> None:
-            path = root / "ssao_hbao.ps"
-            source, count = re.subn(
-                r"^(\s*#\s*)ifndef(\s+SSAO_OPT_DATA\s*)$",
-                r"\g<1>ifdef\g<2>",
-                path.read_text(encoding="utf-8"),
-                count=1,
-                flags=re.MULTILINE,
-            )
-            self.assertEqual(count, 1)
-            path.write_text(source, encoding="utf-8")
+    def test_each_required_numeric_value_test_change_fails(self) -> None:
+        mutations = (
+            ("combine_1.ps", "#if SSAO_QUALITY <=3", "#if SSAO_QUALITY <=2", "#if SSAO_QUALITY<=3"),
+            ("ssr.h", "#if (SSR_QUALITY <= 1) || (SSR_QUALITY > 4)", "#if SSR_QUALITY == 1", "#if (SSR_QUALITY<=1)||(SSR_QUALITY>4)"),
+            ("ssr.h", "#if SSR_QUALITY == 0", "#if SSR_QUALITY < 0", "#if SSR_QUALITY==0"),
+            ("ssao_hbao.ps", "#if SSAO_QUALITY == 0", "#if SSAO_QUALITY < 0", "#if SSAO_QUALITY==0"),
+            ("ssao_hbao.ps", "#if SSAO_OPT_DATA == 0", "#if SSAO_OPT_DATA < 0", "#if SSAO_OPT_DATA==0"),
+            ("ssao_hdao.ps", "#if SSAO_QUALITY > 0", "#if SSAO_QUALITY >= 0", "#if SSAO_QUALITY>0"),
+            ("ssao_hdao.ps", "#if SSAO_QUALITY == 0", "#if SSAO_QUALITY < 0", "#if SSAO_QUALITY==0"),
+            ("ssao_hdao_new.ps", "#if SSAO_QUALITY == 0", "#if SSAO_QUALITY < 0", "#if SSAO_QUALITY==0"),
+        )
+        for filename, original, replacement, expected in mutations:
+            with self.subTest(filename=filename, original=original):
+                def mutate(root: Path, filename=filename, original=original, replacement=replacement) -> None:
+                    path = root / filename
+                    source = path.read_text(encoding="utf-8")
+                    self.assertIn(original, source)
+                    path.write_text(source.replace(original, replacement, 1), encoding="utf-8")
 
-        self.assert_fails(mutate, "ssao_hbao.ps: #ifdef SSAO_OPT_DATA")
+                self.assert_fails(mutate, expected)
 
     def test_multiline_defined_test_fails(self) -> None:
         self.assert_fails(

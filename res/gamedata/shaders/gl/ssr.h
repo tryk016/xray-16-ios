@@ -23,7 +23,7 @@ By LVutner for X-Ray Oxygen project (2020)
 #include "common.h"
 
 /*Quality tokens*/
-#if !defined(SSR_QUALITY) || (SSR_QUALITY <= 1) || (SSR_QUALITY > 4)
+#if (SSR_QUALITY <= 1) || (SSR_QUALITY > 4)
 	#define SSR_SAMPLES int(8) // Low
 	#define SSR_DISTANCE float(150.0)
 #elif SSR_QUALITY==2
@@ -67,7 +67,7 @@ float3 hash(float3 a)
 }
 
 /*World space components as input*/
-#ifndef SSR_QUALITY
+#if SSR_QUALITY == 0
 float4 compute_ssr(float3 position, float3 normal, float3 skybox)
 {
 	return float4(skybox.xyz, 1.0);

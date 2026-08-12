@@ -2,7 +2,7 @@
 
 Canonical specification for the OpenXRay iOS project.
 
-**Last synchronized:** 2026-08-10
+**Last synchronized:** 2026-08-12
 
 **Status:** playable development build; affected-iPhone startup-sector, known
 SSAO and stationary Simulator startup-sector defects fixed; the later
@@ -408,9 +408,15 @@ physical-iPhone behavior, performance or a lighting cause.
 The static shader contract now covers all five numeric zero-default macros:
 `SUN_QUALITY`, `SSR_QUALITY`, `SSAO_QUALITY`, `SSAO_OPT_DATA` and
 `MSAA_SAMPLES`. Thirty mutation tests validate complete guarded zero fallbacks,
-comments and multiline directives, and freeze exactly eight legacy presence
-tests plus one `#undef`. It changes no shader behavior and does not enable HBAO,
-HDAO, alternate SSR or MSAA.
+comments, multiline directives and the active SSAO quality-3 threshold; the
+legacy debt is now zero presence tests and zero `#undef` directives. A separate
+13-mutation CPU-to-shader contract is comment-aware and requires exactly one
+allocation, downsample, water binding and SSR sample where applicable. It also
+proves that `SSR_HALF_DEPTH` is emitted only for `requested &&
+ssao_opt_data`; otherwise SSR samples `s_position` rather than a missing
+half-depth target. The supported static profiles compile 279/279, low 2/2,
+SSAO 6/6, SSR 9/9 and link 137/137. HBAO/HDAO remain forced false on OpenGL;
+this is local contract evidence, not iPhone water/pixel or performance proof.
 
 ## Lifecycle model
 
@@ -635,8 +641,8 @@ and exact scope `semantic-ui-navigation-only`.
 
 Its task-specific host contracts passed; historical artifact identifiers for
 that semantic-navigation slice are retained in the append-only Journal. The
-current install-authorizing full stamp is recorded below; it remains valid only
-until an artifact input changes.
+latest pre-document full stamp is recorded below and is now stale; no current
+receipt authorizes install or push.
 
 This establishes semantic navigation and saved-game synchronization only. It
 does not prove pixels, readability, performance or physical-device behavior.
@@ -680,30 +686,38 @@ This proves UIKit/SDL bootstrap, the code-level rendered-menu boundary and one
 same-PID foreground recovery on iOS 26.5 and 27.0 Simulators. It does not prove
 pixels or readability, physical-device behavior, performance, audio
 interruption or multi-cycle soak. Physical-device acceptance remains active
-under IOS-P1-010 and IOS-P1-002.
+under IOS-P1-010. Related IOS-P1-002 acceptance is temporarily backlogged while
+the phone is unavailable and requires explicit promotion before that device
+batch.
 
 The UIScene-local full gate rebuilt four translation units and passed its SDL
 scene 7/7, lifecycle marker 10/10 and retail oracle 74/74 contracts alongside
 the shader gates. It remains valid UIScene-local/Simulator evidence, but its
 older stamp is stale and does not authorize an install or push.
 
-### Current code-artifact full-gate stamp
+### Latest pre-document code-artifact gates (historical)
 
-The clean post-commit full gate for
-`e967a4c36dfbecf13f3934fee1cf018d618dd776` passed with identical clean
-before/after worktrees and identical HEAD. Its private gate log is
-`/Users/patryk/openxray-handoff/gate-logs/gate-1786383243349579000-249-0.log`
-(SHA-256 `56cc51ce531ffd76a83dce0653620d7b71e720ea940189a1deaae26e65c38d90`);
-the matching metadata is `gate-1786383243349579000-249-0.json`. It passed
-retail 97/97, numeric macros 30/30, shaders 279/279 and links 137/137, rebuilt
-68 translation units, targets arm64 `IOS` with minOS 16.4, and forces the
-shader cache off. During this gate no phone, device install, lease, Simulator,
-further commit or push occurred.
+The fresh final-code Fast gate passed with identical before/after state: private
+log `/Users/patryk/openxray-handoff/gate-logs/gate-1786396379224210000-17575-0.log`
+has SHA-256 `b232912151ffc77e82f2bebf9705e7ce01bf34e18b6e0494b53d4ac8f3c4d440`
+and Fast UUID `0C929156-EBDD-336D-ACDB-B5084481271A`.
+
+The latest pre-document full gate also passed with identical before/after state:
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786563440297027000-96172-0.log`
+has SHA-256 `16f14682fce0287d842108347fbddc8f28b2708dba59eaebf2ff2242ba0b2894`.
+It passes retail importer 21/21, retail Simulator 102/102, archive policy
+125/125, numeric macros 30/30, resource contract 13/13, internally enforced
+shader stages 279/279, low 2/2, SSAO 6/6, SSR 9/9 and links 137/137; 0 TUs. The arm64
+target is `IOS`, minOS 16.4, cache forced off, OpenAL unchanged and dSYM is
+513889238 bytes. The source, UUID, bundle and full-stamp SHA-256 values are
+recorded below. No phone, lease, `devicectl`, Simulator, install, commit or
+push occurred.
 
 ```text
-source_sha256=e0c841e751510fb7ccbb4ea40f37e3cef1eb0875f44306119a1f055f85b3e8d0
-app_uuid=6F266276-A948-3D6F-838A-09E60F04BD11
-bundle_sha256=53dd0d5c87ce40c0a9e663befb9238a7514fc479cf206549ded19ae814175f39
+source_sha256=f8727806510005248fb9b92e2c7075fd5c91f66a82af451adfe8baa2d37e587f
+app_uuid=36095C34-3BB5-379F-8ECE-321F937A9043
+bundle_sha256=e15e8300a4b1fe87dd4752417d77fcce16e783a6f04a34b32b2074cd5e889ff6
+full_stamp_sha256=d9cfba1057e29a05fa10937c48da0c43bc7cb896a0b315af44634521d4cc0906
 openal_provider=OpenALSoft-1.25.2-static
 openal_sha256=86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914
 platform=IOS
@@ -711,11 +725,16 @@ minos=16.4
 shader_cache=forced-off
 ```
 
-This stamp authorizes an install only while the corresponding artifact inputs
-remain unchanged. The next artifact-input change invalidates it and requires a
-fresh full gate before an install or push. It has not been installed on a phone.
+The current documentation changes invalidate its install/push authorization.
+A new post-commit full gate is required before either action. This artifact has
+not been installed on a phone.
 
 ### Historical code-artifact full-gate stamp (stale)
+
+The prior clean post-commit `e967a4c36dfbecf13f3934fee1cf018d618dd776` stamp
+(source `e0c841e7…3e8d0`, UUID `6F266276-A948-3D6F-838A-09E60F04BD11`, bundle
+`53dd0d5c…175f39`) is historical and stale because its artifact inputs precede
+the IOS-P1-007 local sub-slice. It must not authorize an install or push.
 
 After commit `362bf625d59a5219857382afb8a5f23ccbf54fbe`, the final uncached
 full gate rebuilt 68 translation units and passed the strict/sanitized BC
@@ -733,9 +752,9 @@ openal_sha256=86dd63597bac2f3e3e8dae7be8bbbc84a35d3aa492e2cd23ffca6363e97c4914
 __debug_info=513888155
 ```
 
-Subsequent `active_gate.py` artifact-input changes moved the artifact hash after
-this recorded build. Do not treat these historical values as a matching stamp;
-the current matching stamp is the `e967a4c...` one above.
+Subsequent artifact-input changes moved the artifact hash after this recorded
+build. Do not treat these historical values as a matching stamp; the current
+matching artifact-input stamp is the one above.
 
 The installer has local-only completion. `--device` resolves CLI over
 environment over the fixed default. A custom absolute `.app`/stamp pair resolves
@@ -790,6 +809,69 @@ workflow creates a new work root outside the repository and never reuses it:
   --with-saves \
   --autoload-save 'mobile user - beginning of the game'
 ```
+
+### Resumable retail preparation (M6-local complete)
+
+`misc/ios/retail_import.py` is a standalone, standard-library host importer.
+It prepares only an already accessible, legally owned retail backup; it neither
+copies from a phone nor establishes a distribution right. Its 21/21
+mutation/recovery contract covers descriptor-relative source/output confinement,
+an immutable all-file SHA-256 plan, byte-range prefix resume (including a real
+600 MiB sparse fixture at an interior offset), nonblocking lock, private
+permissions, `renameatx_np(RENAME_EXCL)`, fsync/recovery, exact final
+verification and unchanged legacy-runner guard compatibility.
+
+The reviewed full backup is archived read-only at
+`/Volumes/DevArchive/OpenXRay/backups/5beca2ef4f034286be6299d6d9a2bdba-device-retail-backup-20260808-185559`;
+its independent manifest is at
+`/Volumes/DevArchive/OpenXRay/backups/8039f43384784b879442f993dab281ae-device-retail-backup-20260808-185559.manifest`.
+Both archive transactions verify PASS. The former local sources were retired
+through immutable receipts after descriptor-bound APFS/UUID verification; the
+phone container was not touched. The one verified local prepared cache with saves is
+`/Users/patryk/openxray-handoff/retail-prepared-20260810-211114`; it contains
+only `Documents` and `manifest`, with 13 selected files and 4,611,922,289
+prepared file bytes. Required `resources.db0`–`resources.db4` and
+`levels.db0`–`levels.db1` are present. Its manifest digests are
+`prepared-files.tsv`
+`3dcd34c5934e1bc04b8dfb91873f48e82efe514f1aaf774ad685c09d2f1ae6c8` and
+`prepared-manifest-files.tsv`
+`3008f88f4b658bf0aa89b64b9701448a253ba91fddb9a4bebeb66d86afe66f18`. The
+unchanged retail guard is PASS for its published `Documents` and `manifest`.
+
+From the repository root, make a fresh prepared cache (the destination must be
+a new external path), verify it, then feed its two published children to the
+unchanged Simulator runner:
+
+```bash
+SOURCE=/Volumes/DevArchive/OpenXRay/backups/5beca2ef4f034286be6299d6d9a2bdba-device-retail-backup-20260808-185559
+SOURCE_MANIFEST=/Volumes/DevArchive/OpenXRay/backups/8039f43384784b879442f993dab281ae-device-retail-backup-20260808-185559.manifest
+PREPARED=/Users/patryk/openxray-handoff/retail-prepared-YYYYMMDD-HHMMSS
+python3 misc/ios/retail_import.py prepare \
+  --backup "$SOURCE" --manifest "$SOURCE_MANIFEST" --repo "$PWD" \
+  --destination "$PREPARED" --with-saves
+python3 misc/ios/retail_import.py verify --prepared "$PREPARED"
+./misc/ios/retail_simulator.sh \
+  --backup "$PREPARED/Documents" --manifest "$PREPARED/manifest" \
+  --with-saves --autoload-save 'mobile user - beginning of the game'
+```
+
+This cache is resumable and verified, not APFS-clone/no-copy staging. Physical
+iPhone builds and in-place installs do **not** recopy retail `Documents`: the
+stable Team ID and bundle identifier retain the same app container, while the
+Mach-O UUID is unrelated to that container. The isolated Simulator runner does
+intentionally create and delete a fresh Simulator and stage data on every run,
+so its evidence remains isolated rather than a physical-device transfer proof.
+
+The archival checkpoint used the exact APFS `DevArchive` UUID and completed
+eight reviewed transactions. Main retail transaction
+`5beca2ef4f034286be6299d6d9a2bdba` is `RETIRED_TOMBSTONE` with 790/790 files,
+tree `929ddd05bd7b6a33f2729074be2847c38d05b5f54e230d08e4f06b694af110ac`
+and external deletion-receipt SHA-256
+`bf032741b03cd30879037943fcffd673d6decb60da966d51df04ed88e4968304`.
+Sibling transaction `8039f43384784b879442f993dab281ae` verifies tree
+`1d9c432282d0bc0f3978bfbf1ba05b039c51b456ee1bfa355244600c84e118de`.
+All eight retirements reclaimed 5,750,628,350 logical bytes locally; the active
+prepared cache remains verifier PASS and is not archive cargo.
 
 `build_fast_device.sh` is the normal iteration gate. It uses a separate
 `build/ios-engine-fastdevice-iphoneos` tree and
@@ -941,7 +1023,7 @@ device identifier above.
 | P1 | Memory | Device-prove current/peak telemetry and bounded LOWMEMORY eviction, then set budgets |
 | P1 | Lifecycle | Device-prove atomic frame gating, context restore, persistence and audio recovery |
 | P1 | CI | Run a deliberate negative shader/varying canary in Actions and monitor the verified dSYM artifact on the first remote run |
-| P1 | Shaders | Keep the frozen eight-presence/one-undef legacy debt explicit and remove or re-review it before enabling HBAO/alternate SSR paths |
+| P1 | Shaders | IOS-P1-007 local macro/resource contract is complete; obtain a later iPhone water reference frame before claiming the SSR behavior change is visually accepted |
 | P1 | Diagnostics | Measure normal-mode performance and prove no autonomous polling/readback overhead |
 | P1 | Presentation | Measure the fixed 1864×860 1:1 path and profile FPS/thermal targets; validate simplified Video/Controls and dense retail UI independently |
 | P1 | Environment textures | Device-prove that pinned environment/colormap raw aliases remain valid through LOWMEMORY handling and subsequent texture reloads |
@@ -950,6 +1032,7 @@ device identifier above.
 | P2 | Visibility | Replace the disabled iOS occlusion-query path |
 | P2 | Texture color | Use the frozen local BC/DXT contract to choose sRGB/swizzle semantics from representative numeric probes and iPhone reference frames |
 | P2 | Supply chain | Run one clean miss and one exact-hit workflow, compare artifacts and close the unprotected-branch trust boundary |
+| P2 | Distribution | M6-local importer is complete; device transfer/container/save preservation, legal tester distribution and remote release remain open |
 
 Active priorities and acceptance criteria live in
 [iOS-Port-Plan.md](iOS-Port-Plan.md); deferred requirements remain in

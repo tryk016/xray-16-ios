@@ -175,7 +175,7 @@ const int2 g_i2HDAONormalLoadPattern[NUM_NORMAL_LOADS] = int2[]
 	int2( 8, 9 )
 );
 
-#ifdef SSAO_QUALITY
+#if SSAO_QUALITY > 0
 //=================================================================================================================================
 // Computes the general valley angle
 //=================================================================================================================================
@@ -267,7 +267,7 @@ float	calc_hdao( float3 P, float3 N, float2 tc, float2 tcJ, float4 pos2d, uint i
 float	calc_hdao( float3 P, float3 N, float2 tc, float2 tcJ, uint iSample)
 #endif
 #endif
-#ifndef	SSAO_QUALITY
+#if SSAO_QUALITY == 0
 {
 	return 1.0;
 }

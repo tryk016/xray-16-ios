@@ -1,6 +1,6 @@
 # OpenXRay iOS — active roadmap
 
-**Last synchronized:** 2026-08-10
+**Last synchronized:** 2026-08-12
 
 **Canonical contract:** [iOS-Port.md](iOS-Port.md)
 
@@ -9,12 +9,15 @@
 **Platform scope:** iOS-only; desktop compatibility is not an acceptance gate.
 
 **Current focus:** continue startup-sector, measured-profile, dense-UI and
-physical lifecycle validation in the numbered order below. IOS-P2-005's local
+physical lifecycle validation. The M6 local importer and independently verified
+DevArchive retirement are complete; remaining M6 work is authorized-tester distribution,
+signed-update save preservation and remote-release acceptance. IOS-P2-005's local
 pinning/cache contract is complete and has returned to the Backlog pending two
 remote runs. IOS-P2-006's behavior-preserving BC codec contract is also locally
 complete and backlogged pending a color-space decision plus iPhone reference
 frames. The UIKit scene-lifecycle migration is locally and Simulator-complete;
-its physical-device acceptance remains IOS-P1-010 and IOS-P1-002. IOS-P0-003's
+its physical-device acceptance remains active IOS-P1-010 plus backlogged
+IOS-P1-002. IOS-P0-003's
 stationary branch is corrected and its real iOS 27 capture-v2 publication
 passes; wider save/level and physical-device evidence is now the active edge.
 
@@ -32,7 +35,7 @@ here is deferred and must be promoted explicitly from the Backlog.
 | M3 — Playability | Level, controller, touch menu, audio and saves | Controller-playable |
 | M4 — Reliability | Multi-level, memory, lifecycle and automation | In progress |
 | M5 — Performance | Fixed 1864×860 profiles and measured baseline | Device validation in progress |
-| M6 — Distribution | Reproducible tester package and data setup | Deferred |
+| M6 — Distribution | Reproducible tester package and data setup | Local importer complete; distribution acceptance remains |
 | M7 — Renderer decision | ES, ANGLE or native Metal from measurements | Deferred |
 
 ## 1. IOS-P0-003: validate startup-sector recovery across content
@@ -52,13 +55,16 @@ have not yet produced a physical-device A/B packet. The separate isolated iOS
 parser 31/31, runner 84/84 and final Sol xhigh
 `APPROVE — brak P0/P1/P2`). Commit `399b7fdbb` records the stationary-branch
 correction, its real successful T2 publication and its post-commit full Release
-PASS. The clean post-commit full gate for `e967a4c36dfbecf13f3934fee1cf018d618dd776`
-now supplies the current full install stamp: source
-`e0c841e751510fb7ccbb4ea40f37e3cef1eb0875f44306119a1f055f85b3e8d0`, UUID
-`6F266276-A948-3D6F-838A-09E60F04BD11` and bundle
-`53dd0d5c87ce40c0a9e663befb9238a7514fc479cf206549ded19ae814175f39`.
-It is valid only while its artifact inputs remain unchanged; the next such
-change requires another full gate before install or push.
+PASS. The earlier clean `e967a4c...` install stamp is historical/stale. The
+later source `aea7d8fb0fe4ffac1f1c002205cc9762b61ded35b241861c54ddebe5d85161b3`
+and stamp `c198b069433c092e0148ba7ecf02f1a8479e4bab25b17f909253750ef3f8e92d`
+are also historical/stale. The latest pre-document full gate used source
+`f8727806510005248fb9b92e2c7075fd5c91f66a82af451adfe8baa2d37e587f`, UUID
+`36095C34-3BB5-379F-8ECE-321F937A9043`, bundle
+`e15e8300a4b1fe87dd4752417d77fcce16e783a6f04a34b32b2074cd5e889ff6` and stamp
+`d9cfba1057e29a05fa10937c48da0c43bc7cb896a0b315af44634521d4cc0906`.
+It is historical after the documentation update; no full receipt currently
+authorizes install or push until the required post-commit full gate passes.
 
 Real workroot `simulator-work-20260810-015703-14748` exposed and corrected an
 over-strict live-readiness classification: a valid post-T1 `loading` candidate
@@ -238,11 +244,16 @@ inputs are unchanged and cleanup passed. Binding JSON has
 and exact scope `semantic-ui-navigation-only`.
 
 Its task-specific host contracts passed and final Sol xhigh verdict is
-`APPROVE — brak P0/P1/P2`. The current full stamp is the clean post-commit
-`e967a4c36dfbecf13f3934fee1cf018d618dd776` stamp recorded above; it is
-invalidated by the next artifact-input change and then requires another full
-gate before install or push. This is semantic navigation only, not pixel, readability,
-performance or physical-device proof.
+`APPROVE — brak P0/P1/P2`. The latest pre-document full source
+`f8727806510005248fb9b92e2c7075fd5c91f66a82af451adfe8baa2d37e587f` and stamp
+`d9cfba1057e29a05fa10937c48da0c43bc7cb896a0b315af44634521d4cc0906` are now
+historical; the exact committed state needs a new full gate before install or push.
+This is semantic navigation only, not pixel, readability, performance or
+physical-device proof.
+
+Unpromoted backlog note: IOS-P1-007 now has local macro/resource completion
+(30/30, 13/13, SSR 9/9 and debt 0+0) under the same full stamp. It remains
+deferred for an iPhone water reference frame; this does not add an active task.
 
 The opt-in iOS 27 `--ui-captures` path now layers native evidence on top of
 `--ui-navigation`: it requires diagnostics/autoinput and captures steps 1
@@ -301,30 +312,51 @@ menu-boundary evidence only, not physical-device, pixel, audio or soak proof.
 **Acceptance:** five physical-device foreground cycles plus one lock/unlock and
 audio-interruption cycle preserve PID, input, audio, drawable and saves.
 
-## 5. IOS-P1-002: finish iOS lifecycle
+## 5. M6: make legal retail-data import resumable and verifiable
 
-**Priority:** P1.
+**Priority:** P2 promoted for the current phone-free implementation window;
+physical lifecycle remains higher priority when the iPhone is available.
 
-**Evidence level:** the local frame gate, lifecycle inbox, persistence ordering,
-input cancellation, GL detach/rebind, LOWMEMORY path and corrected Safari/audio
-harness pass their deterministic contracts and reviews. Four diagnostic device
-cycles and one held-W cycle pass. The UIScene backport also preserves one PID
-through one Simulator recovery cycle on both iOS 26.5 and 27.0. Normal Safari
-cycles, lock/held-touch and a real audio interruption remain physical-device
-untested.
+**Evidence level:** the M6-local importer sub-slice is complete: standalone
+stdlib `misc/ios/retail_import.py` and 21/21 mutation/recovery tests prove
+descriptor-relative source/output confinement, immutable all-file SHA-256
+planning, byte-range prefix resume (including a real 600 MiB sparse fixture at
+an interior offset), nonblocking locking, private permissions,
+`renameatx_np(RENAME_EXCL)`, fsync/recovery, exact final verification and
+unchanged legacy-runner guard compatibility. The reviewed source and its
+independent manifest are now archived under `/Volumes/DevArchive/OpenXRay/backups`
+as transactions `5beca2ef4f034286be6299d6d9a2bdba` and
+`8039f43384784b879442f993dab281ae`; both verify PASS and their local sources
+are receipt-bound zero tombstones. One prepared root with saves at
+`/Users/patryk/openxray-handoff/retail-prepared-20260810-211114` verifies and
+idempotently prepares PASS: final root is only `Documents` plus `manifest`, 13
+selected files, 4.3 GiB/4,611,922,289 prepared bytes, required
+`resources.db0`–`resources.db4` and `levels.db0`–`levels.db1` present. No phone
+is in scope. The unchanged retail guard is PASS for the prepared
+`Documents`/`manifest`. The earlier Sol xhigh review of the local importer
+implementation and then-current documentation returned
+`APPROVE — brak P0/P1/P2`; that verdict did not pre-approve the later
+DevArchive production retirement or this documentation closeout.
+
+The fresh pre-document full gate `gate-1786563440297027000-96172-0.log` is
+PASS: archive policy 125/125, mocked retail Simulator 102/102, numeric macros
+30/30, resources 13/13, SSAO 6/6, SSR 9/9, links 137/137 and 0 rebuilt TUs.
+This archival evidence is host-only and does not close the remaining M6 device,
+legal-distribution or remote-release acceptance.
 
 **Next actions:**
 
-1. Run five normal physical-device Safari/background cycles and require one
-   PID, a valid 1864x860 drawable, responsive input and unchanged saves/config.
-2. Run one separate lock/unlock cycle while touch input is held and prove every
-   synthetic input is released without replay.
-3. Trigger one real audio interruption and require the selected OpenAL Soft
-   provider to resume the exact surviving scenes without replacing the process.
+1. Define and evidence the distribution path for authorized testers, including
+   a no-copy/clone decision if it is proposed.
+2. Device-prove transfer/container/save preservation across a signed update;
+   retain the legal, remote-release and App Store boundaries.
 
-**Acceptance:** five Safari/background cycles, one separate lock/unlock cycle
-and one audio interruption recover in the same process without stuck input,
-black output, lost audio or lost settings/saves.
+**Acceptance:** local importer acceptance met: a lawful, already accessible
+backup can be interrupted inside a large archive, resumed without recopying its
+valid prefix, independently verified byte-for-byte and atomically published in
+the unchanged Simulator format. M6 remains active: physical-device transfer,
+signed-update save preservation, legal distribution and remote-release
+artifacts remain separate acceptance work.
 
 ## Definition of done for an active task
 

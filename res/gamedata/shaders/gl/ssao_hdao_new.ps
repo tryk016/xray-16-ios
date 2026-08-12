@@ -474,7 +474,7 @@ float ValleyAngle( uint2 u2ScreenCoord )
     //=============================================================================================================================
     [numthreads( GROUP_THREAD_DIM, GROUP_THREAD_DIM, 1 )]
     void main( uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID, uint GI : SV_GroupIndex )
-    #ifndef	SSAO_QUALITY
+    #if SSAO_QUALITY == 0
     {
         // Calculate the screen pos
 	    uint2 u2ScreenPos = uint2( Gid.x * ALU_DIM + GTid.x, Gid.y * ALU_DIM + GTid.y );
@@ -601,7 +601,7 @@ float	calc_new_hdao( float3 P, float3 N, float2 tc, float2 tcJ, float4 pos2d, ui
 float	calc_new_hdao( float3 P, float3 N, float2 tc, float2 tcJ, uint iSample)
 #endif
 #endif
-#ifndef	SSAO_QUALITY
+#if SSAO_QUALITY == 0
 {
 	return 1.0;
 }
@@ -673,4 +673,3 @@ float	calc_new_hdao( float3 P, float3 N, float2 tc, float2 tcJ, uint iSample)
 //=================================================================================================================================
 // EOF
 //=================================================================================================================================
-
