@@ -1,27 +1,37 @@
 #!/usr/bin/env python3
-"""Static Phase 0A inventory for the iOS test feedback work.
+"""Phase 0A test inventory and Phase 0B fail-open runtime telemetry.
 
-This module deliberately does not import or run test entrypoints.  It is an
-offline inventory: AST plus the existing shader/link list modes are its only
-sources of executable-test information.  It has no authority over selection,
-cache, gate execution, stamps, or runtime telemetry.
+The catalog remains offline and has no selection/cache authority.  Runtime
+telemetry is observational: it receives a one-shot context over an inherited
+file descriptor, writes private evidence only, and cannot alter a gate result.
 """
 from __future__ import annotations
 
 import argparse
 import ast
+import errno
 import hashlib
+import hmac
 import json
+import os
 import re
+import secrets
+import select
+import stat
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG_PATH = Path(__file__).with_name("test_feedback_catalog.json")
 SCHEMA = "openxray.test-feedback-catalog.v1"
-PYTHON_COMMAND = re.compile(r"^\s*python3\s+(misc/ios/test_[^\s\\]+\.py)")
+RUNTIME_SCHEMA = "openxray.test-feedback.v1"
+PYTHON_COMMAND = re.compile(
+    r'^\s*(?:feedback_stage\s+"stage::python::misc/ios/test_[^\"]+\.py"\s+)?'
+    r"(?:python3|feedback_selected_python)\s+(misc/ios/test_(?!feedback\.py)[^\s\\]+\.py)"
+)
 CASE_RANGE = re.compile(r"^([A-Z]+)-\{index:02d\}$")
 EXPECTED_BUILD_STAGE_EXCLUSIONS = frozenset({
     "build-stage::artifact-input-hash-after",
@@ -47,6 +57,1374 @@ EXPECTED_BUILD_STAGE_EXCLUSIONS = frozenset({
 
 class CatalogError(RuntimeError):
     pass
+
+
+# Runtime is deliberately observational.  Selection is computed once by the
+# parent and frozen in selection.json.  Writers never import test modules,
+# enumerate shaders, spawn subprocesses, or make selection/cache decisions.
+_ENV_DIR = "OPENXRAY_TEST_FEEDBACK_DIR"
+_ENV_NONCE = "OPENXRAY_TEST_FEEDBACK_NONCE"
+_ENV_RUN = "OPENXRAY_TEST_FEEDBACK_RUN_ID"
+_ENV_PROFILE = "OPENXRAY_TEST_FEEDBACK_PROFILE"
+_ENV_CONTEXT_FD = "XRAY_FEEDBACK_CONTEXT_FD"
+_RAW_EVENT_SCHEMA = "openxray.test-feedback.raw.v1"
+_MAX_RAW_EVENT_BYTES = 1 << 20
+_MAX_RAW_EVENT_COUNT = 4096
+_RESULTS = frozenset({"PASS", "FAIL", "ERROR", "SKIP", "TIMEOUT", "PLATFORM_SKIP"})
+_CACHE_ROOT = ROOT / "build/ios-engine-iphoneos/.ios_gate_cache"
+_CACHE_OUTPUT_TEMPLATE = "{cache_root}/{stage}/{key}.out"
+
+
+def _hash_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    value = hashlib.sha256()
+    with path.open("rb") as source:
+        for block in iter(lambda: source.read(1 << 20), b""):
+            value.update(block)
+    return value.hexdigest()
+
+
+def _sha256_regular_file(path: Path) -> str:
+    """Hash one descriptor-bound, non-symlink regular file."""
+    before = path.lstat()
+    if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
+        raise CatalogError("runtime input is not a regular file")
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+            raise CatalogError("runtime input identity changed")
+        value = hashlib.sha256()
+        while True:
+            block = os.read(descriptor, 1 << 20)
+            if not block:
+                break
+            value.update(block)
+        finished = os.fstat(descriptor)
+        rebound = path.lstat()
+        if (not _same_file_snapshot(opened, finished)
+                or not _same_file_snapshot(opened, rebound)):
+            raise CatalogError("runtime input changed while hashing")
+        return value.hexdigest()
+    finally:
+        os.close(descriptor)
+
+
+def _same_identity(left: os.stat_result, right: os.stat_result) -> bool:
+    return (left.st_dev, left.st_ino) == (right.st_dev, right.st_ino)
+
+
+def _same_file_snapshot(left: os.stat_result, right: os.stat_result) -> bool:
+    return (_same_identity(left, right) and left.st_size == right.st_size
+            and left.st_mtime_ns == right.st_mtime_ns)
+
+
+def _validate_directory_stat(detail: os.stat_result, *, private: bool) -> None:
+    if stat.S_ISLNK(detail.st_mode) or not stat.S_ISDIR(detail.st_mode):
+        raise CatalogError("runtime directory chain is unsafe")
+    if private:
+        if detail.st_uid != os.getuid() or stat.S_IMODE(detail.st_mode) != 0o700:
+            raise CatalogError("runtime directory must be owner-bound mode 0700")
+    elif detail.st_uid not in {0, os.getuid()} or stat.S_IMODE(detail.st_mode) & 0o022:
+        raise CatalogError("runtime directory chain ownership/mode is unsafe")
+
+
+def _open_directory_at(parent_fd: int, name: str, *, private: bool) -> int:
+    """Open one directory component and bind both lookup names to its inode."""
+    named = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    _validate_directory_stat(named, private=private)
+    child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_fd)
+    try:
+        opened = os.fstat(child)
+        rebound = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        _validate_directory_stat(opened, private=private)
+        _validate_directory_stat(rebound, private=private)
+        if not _same_identity(named, opened) or not _same_identity(opened, rebound):
+            raise CatalogError("runtime directory identity changed")
+        return child
+    except Exception:
+        os.close(child)
+        raise
+
+
+def _open_private_directory(path: Path) -> int:
+    """Open an absolute, symlink-free, owner-bound private directory chain."""
+    path = Path(path)
+    if not path.is_absolute():
+        raise CatalogError("runtime directory must be absolute")
+    path = Path(os.path.abspath(path))
+    descriptor = os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        parts = path.parts[1:]
+        if not parts:
+            raise CatalogError("runtime directory cannot be a filesystem root")
+        for index, component in enumerate(parts):
+            child = _open_directory_at(descriptor, component, private=index == len(parts) - 1)
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def _open_safe_directory(path: Path) -> int:
+    """Open an absolute non-writable directory chain with name/inode binding."""
+    path = Path(path)
+    if not path.is_absolute():
+        raise CatalogError("runtime directory must be absolute")
+    normalized = Path(os.path.abspath(path))
+    parts = normalized.parts[1:]
+    descriptor = os.open(normalized.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for component in parts:
+            child = _open_directory_at(descriptor, component, private=False)
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def _snapshot_regular_file(path: Path) -> tuple[str, os.stat_result]:
+    """Hash a regular file through a bound parent and return its fixed identity."""
+    absolute = Path(os.path.abspath(path))
+    parent_fd = _open_safe_directory(absolute.parent)
+    descriptor = -1
+    try:
+        named = os.stat(absolute.name, dir_fd=parent_fd, follow_symlinks=False)
+        if (stat.S_ISLNK(named.st_mode) or not stat.S_ISREG(named.st_mode)
+                or named.st_uid != os.getuid()):
+            raise CatalogError("cache output is not an owner-bound regular file")
+        descriptor = os.open(absolute.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent_fd)
+        opened = os.fstat(descriptor)
+        rebound = os.stat(absolute.name, dir_fd=parent_fd, follow_symlinks=False)
+        if not _same_identity(named, opened) or not _same_identity(opened, rebound):
+            raise CatalogError("cache output identity changed")
+        value = hashlib.sha256()
+        while True:
+            block = os.read(descriptor, 1 << 20)
+            if not block:
+                break
+            value.update(block)
+        finished = os.fstat(descriptor)
+        final_rebound = os.stat(absolute.name, dir_fd=parent_fd, follow_symlinks=False)
+        if (not _same_file_snapshot(opened, finished)
+                or not _same_file_snapshot(opened, final_rebound)):
+            raise CatalogError("cache output changed while hashing")
+        return value.hexdigest(), opened
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        os.close(parent_fd)
+
+
+def _open_child_directory(parent_fd: int, name: str) -> int:
+    if not re.fullmatch(r"[A-Za-z0-9-]+", name):
+        raise CatalogError("invalid runtime child directory name")
+    return _open_directory_at(parent_fd, name, private=True)
+
+
+def _create_private_runtime_directory(path: Path) -> int:
+    """Create only the final runtime root through an already-bound parent."""
+    path = Path(path)
+    if not path.is_absolute():
+        raise CatalogError("runtime directory must be absolute")
+    normalized = Path(os.path.abspath(path))
+    parts = normalized.parts[1:]
+    if not parts:
+        raise CatalogError("runtime directory cannot be a filesystem root")
+    parent_fd = os.open(normalized.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for component in parts[:-1]:
+            child = _open_directory_at(parent_fd, component, private=False)
+            os.close(parent_fd)
+            parent_fd = child
+        os.mkdir(parts[-1], 0o700, dir_fd=parent_fd)
+        root_fd = _open_directory_at(parent_fd, parts[-1], private=True)
+        return root_fd
+    finally:
+        os.close(parent_fd)
+
+
+def _create_private_child(parent_fd: int, name: str) -> int:
+    if not re.fullmatch(r"[A-Za-z0-9-]+", name):
+        raise CatalogError("invalid runtime child directory name")
+    os.mkdir(name, 0o700, dir_fd=parent_fd)
+    return _open_directory_at(parent_fd, name, private=True)
+
+
+def _publish_json_at(directory_fd: int, name: str, value: dict[str, Any]) -> None:
+    """Descriptor-bound O_EXCL pending -> no-clobber link transaction."""
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+\.json", name) or name.startswith("."):
+        raise CatalogError("invalid runtime record name")
+    pending = f".{name}.{os.getpid()}.{secrets.token_hex(12)}.pending"
+    descriptor = -1
+    published = False
+    try:
+        descriptor = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                             0o600, dir_fd=directory_fd)
+        opened = os.fstat(descriptor)
+        pending_named = os.stat(pending, dir_fd=directory_fd, follow_symlinks=False)
+        if (not stat.S_ISREG(opened.st_mode) or opened.st_uid != os.getuid()
+                or stat.S_IMODE(opened.st_mode) != 0o600
+                or not _same_identity(opened, pending_named)):
+            raise CatalogError("runtime pending record is unsafe")
+        data = (canonical(value) + "\n").encode("utf-8")
+        offset = 0
+        while offset < len(data):
+            written = os.write(descriptor, data[offset:])
+            if written <= 0:
+                raise OSError(errno.EIO, "zero-length runtime write")
+            offset += written
+        os.fsync(descriptor)
+        finished = os.fstat(descriptor)
+        pending_rebound = os.stat(pending, dir_fd=directory_fd, follow_symlinks=False)
+        if (not _same_file_snapshot(finished, pending_rebound)
+                or not _same_identity(opened, finished)
+                or finished.st_size != len(data)
+                or finished.st_uid != os.getuid()
+                or stat.S_IMODE(finished.st_mode) != 0o600):
+            raise CatalogError("runtime pending record changed while writing")
+        os.close(descriptor)
+        descriptor = -1
+        os.link(pending, name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd,
+                follow_symlinks=False)
+        final_named = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        pending_linked = os.stat(pending, dir_fd=directory_fd, follow_symlinks=False)
+        if (not _same_file_snapshot(finished, final_named)
+                or not _same_file_snapshot(finished, pending_linked)
+                or not stat.S_ISREG(final_named.st_mode)
+                or final_named.st_uid != os.getuid()
+                or stat.S_IMODE(final_named.st_mode) != 0o600):
+            raise CatalogError("runtime final record identity changed")
+        os.unlink(pending, dir_fd=directory_fd)
+        final_rebound = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        if not _same_file_snapshot(finished, final_rebound):
+            raise CatalogError("runtime final record changed after publication")
+        os.fsync(directory_fd)
+        published = True
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if not published:
+            try:
+                os.unlink(pending, dir_fd=directory_fd)
+            except OSError:
+                pass
+
+
+def _read_json_at(directory_fd: int, name: str) -> dict[str, Any]:
+    named = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+    if (not stat.S_ISREG(named.st_mode) or stat.S_ISLNK(named.st_mode)
+            or named.st_uid != os.getuid() or stat.S_IMODE(named.st_mode) != 0o600):
+        raise CatalogError("runtime record mode/type is unsafe")
+    descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory_fd)
+    try:
+        opened = os.fstat(descriptor)
+        rebound = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        if (not _same_identity(opened, named) or not _same_identity(opened, rebound)
+                or opened.st_uid != os.getuid() or stat.S_IMODE(opened.st_mode) != 0o600):
+            raise CatalogError("runtime record identity changed")
+        chunks: list[bytes] = []
+        while True:
+            block = os.read(descriptor, 1 << 20)
+            if not block:
+                break
+            chunks.append(block)
+        finished = os.fstat(descriptor)
+        final_rebound = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        if (not _same_file_snapshot(opened, finished)
+                or not _same_file_snapshot(opened, final_rebound)):
+            raise CatalogError("runtime record changed while reading")
+        raw = b"".join(chunks)
+    finally:
+        os.close(descriptor)
+    try:
+        value = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise CatalogError("runtime record is corrupt JSON") from error
+    if raw != (canonical(value) + "\n").encode("utf-8"):
+        raise CatalogError("runtime record is not canonical JSON")
+    if not isinstance(value, dict):
+        raise CatalogError("runtime record is not an object")
+    return value
+
+
+def _list_final_json(directory_fd: int) -> tuple[list[str], bool, bool]:
+    """Return canonical event names and flag incomplete or foreign contents.
+
+    Event directories are private append-only journals.  Treating an unknown
+    filename as invisible would let a completed-looking trace mask a writer or
+    filesystem failure, so every non-record name is evidence of corruption.
+    """
+    names = os.listdir(directory_fd)
+    pending = any(name.startswith(".") or name.endswith(".pending") for name in names)
+    finals = sorted(name for name in names if name.endswith(".json") and not name.startswith("."))
+    foreign = any(name not in finals and not name.startswith(".") for name in names)
+    return finals, pending, foreign
+
+
+def _runtime_context(context: dict[str, str] | None = None) -> dict[str, str]:
+    if context is not None:
+        return dict(context)
+    marker = os.environ.pop(_ENV_CONTEXT_FD, None)
+    for key in (_ENV_DIR, _ENV_NONCE, _ENV_RUN, _ENV_PROFILE):
+        os.environ.pop(key, None)
+    descriptor = -1
+    try:
+        if marker is None or not re.fullmatch(r"[3-9][0-9]*", marker):
+            raise CatalogError("runtime context descriptor is invalid")
+        descriptor = int(marker)
+        details = os.fstat(descriptor)
+        if not (stat.S_ISREG(details.st_mode) or stat.S_ISFIFO(details.st_mode)):
+            raise CatalogError("runtime context descriptor is not a regular file or closed pipe")
+        if stat.S_ISREG(details.st_mode) and details.st_size > 16384:
+            raise CatalogError("runtime context is too large")
+        chunks: list[bytes] = []
+        remaining = 16384
+        while True:
+            if stat.S_ISFIFO(details.st_mode):
+                ready, _, _ = select.select([descriptor], [], [], 0.25)
+                if not ready:
+                    raise CatalogError("runtime context pipe did not close promptly")
+            block = os.read(descriptor, min(4096, remaining + 1))
+            if not block:
+                break
+            chunks.append(block)
+            remaining -= len(block)
+            if remaining < 0:
+                raise CatalogError("runtime context is too large")
+        os.close(descriptor)
+        descriptor = -1
+        raw = b"".join(chunks)
+        if not raw.endswith(b"\n") or b"\r" in raw:
+            raise CatalogError("runtime context wire format is invalid")
+        lines = raw[:-1].split(b"\n")
+        if len(lines) != 4 or any(not line for line in lines):
+            raise CatalogError("runtime context requires four non-empty lines")
+        directory, nonce, run_id, profile = (line.decode("utf-8") for line in lines)
+        return {"directory": directory, "nonce": nonce, "run_id": run_id, "profile": profile}
+    except Exception:
+        try:
+            if descriptor >= 0:
+                os.close(descriptor)
+        except OSError:
+            pass
+        return {"directory": "", "nonce": "", "run_id": "", "profile": ""}
+
+
+def _selection_payload_hash(value: dict[str, Any]) -> str:
+    copy = dict(value)
+    expected = copy.pop("selection_sha256", None)
+    copy.pop("auth_tag", None)
+    actual = _hash_bytes((canonical(copy) + "\n").encode("utf-8"))
+    if expected is not None and expected != actual:
+        raise CatalogError("selection snapshot hash mismatch")
+    return actual
+
+
+def _normalized_runtime_path(directory: str | Path) -> str:
+    """Return the stable, non-resolving path bound into a runtime HMAC key."""
+    return os.path.normpath(os.path.abspath(os.fspath(directory)))
+
+
+def _runtime_auth_key(context: dict[str, str]) -> bytes:
+    """Derive a per-runtime signing key without persisting the nonce anywhere."""
+    nonce = context.get("nonce")
+    run_id = context.get("run_id")
+    profile = context.get("profile")
+    directory = context.get("directory")
+    if not all(isinstance(item, str) and item for item in (nonce, run_id, profile, directory)):
+        raise CatalogError("runtime authentication context is incomplete")
+    bound = "\0".join((RUNTIME_SCHEMA, run_id, profile, _normalized_runtime_path(directory))).encode("utf-8")
+    return hmac.new(nonce.encode("utf-8"), b"openxray.test-feedback.v1/runtime-key\0" + bound,
+                    hashlib.sha256).digest()
+
+
+def _auth_tag(context: dict[str, str], domain: str, value: dict[str, Any]) -> str:
+    """Domain-separate every persistent telemetry record's authentication tag."""
+    if not isinstance(domain, str) or not domain or "\0" in domain:
+        raise CatalogError("runtime authentication domain is invalid")
+    body = dict(value)
+    body.pop("auth_tag", None)
+    payload = (canonical(body) + "\n").encode("utf-8")
+    return hmac.new(_runtime_auth_key(context),
+                    b"openxray.test-feedback.v1/record\0" + domain.encode("utf-8") + b"\0" + payload,
+                    hashlib.sha256).hexdigest()
+
+
+def _signed_record(context: dict[str, str], domain: str, value: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(value)
+    if "auth_tag" in payload:
+        raise CatalogError("runtime record already carries authentication")
+    payload["auth_tag"] = _auth_tag(context, domain, payload)
+    return payload
+
+
+def _verify_record_auth(context: dict[str, str], domain: str, value: dict[str, Any]) -> None:
+    tag = value.get("auth_tag")
+    if not isinstance(tag, str) or not re.fullmatch(r"[0-9a-f]{64}", tag):
+        raise CatalogError("runtime record authentication is missing")
+    expected = _auth_tag(context, domain, value)
+    if not hmac.compare_digest(tag, expected):
+        raise CatalogError("runtime record authentication failed")
+
+
+def _validate_selection_snapshot(selection: dict[str, Any]) -> None:
+    """Validate the immutable parent-produced index before any writer trusts it."""
+    if (selection.get("schema") != RUNTIME_SCHEMA
+            or selection.get("selection_authority") != "NONE"
+            or selection.get("cache_authority") != "NONE"
+            or not isinstance(selection.get("entrypoints"), list)
+            or not isinstance(selection.get("cases"), list)
+            or not isinstance(selection.get("stages"), list)
+            or not isinstance(selection.get("cache_contracts"), list)):
+        raise CatalogError("selection snapshot schema is invalid")
+    for collection, key in ((selection["entrypoints"], "entrypoint_id"),
+                            (selection["cases"], "test_id"),
+                            (selection["stages"], "stage_id")):
+        identifiers = [item.get(key) for item in collection if isinstance(item, dict)]
+        if (len(identifiers) != len(collection)
+                or any(not isinstance(item, str) or not item for item in identifiers)
+                or len(identifiers) != len(set(identifiers))):
+            raise CatalogError(f"selection snapshot has duplicate/invalid {key}")
+    for collection in (selection["cases"], selection["stages"]):
+        ordinals = [item.get("ordinal") for item in collection]
+        if (ordinals != list(range(1, len(collection) + 1))
+                or len(ordinals) != len(set(ordinals))):
+            raise CatalogError("selection snapshot ordinals are invalid")
+        for item in collection:
+            required = ("parent_stage_id", "kind", "labels", "resources",
+                        "timeout_seconds", "timeout_policy", "explicit_inputs",
+                        "input_sha256", "input_mapping_complete")
+            if (any(field not in item for field in required)
+                    or item["timeout_policy"] != "report-only"
+                    or not isinstance(item["labels"], list)
+                    or not isinstance(item["resources"], list)
+                    or not isinstance(item["explicit_inputs"], list)
+                    or not re.fullmatch(r"[0-9a-f]{64}", item["input_sha256"] or "")):
+                raise CatalogError("selection snapshot metadata is invalid")
+    case_ids = [item["test_id"] for item in selection["cases"]]
+    stage_ids = [item["stage_id"] for item in selection["stages"]]
+    if (selection.get("case_ids_sha256") != digest(case_ids)
+            or selection.get("stage_ids_sha256") != digest(stage_ids)):
+        raise CatalogError("selection snapshot inventory digest is invalid")
+    selected_stage_ids = set(stage_ids)
+    for item in selection["cases"]:
+        if item["parent_stage_id"] not in selected_stage_ids:
+            raise CatalogError("selected case lacks selected parent stage")
+    expected_contract_stages = {
+        "stage::shader::glsl-es", "stage::shader::link"
+    } & selected_stage_ids
+    contracts = {item.get("stage_id"): item for item in selection["cache_contracts"]
+                 if isinstance(item, dict)}
+    if len(contracts) != len(selection["cache_contracts"]) or set(contracts) != expected_contract_stages:
+        raise CatalogError("selection cache contracts are invalid")
+    for stage_id, contract in contracts.items():
+        expected_prefix = "shader:" if stage_id.endswith("glsl-es") else "shader-link:"
+        expected = [item["test_id"] for item in selection["cases"]
+                    if item["test_id"].startswith(expected_prefix)]
+        if (contract.get("catalog_sha256") != selection.get("catalog_sha256")
+                or contract.get("catalog_schema") != SCHEMA
+                or contract.get("runtime_schema") != RUNTIME_SCHEMA
+                or contract.get("covered_ids") != expected
+                or contract.get("covered_count") != len(expected)
+                or contract.get("covered_sha256") != digest(expected)
+                or contract.get("list_ids_sha256") != digest(expected)
+                or not isinstance(contract.get("cache_root"), str)
+                or not Path(contract["cache_root"]).is_absolute()
+                or contract.get("output_template") != _CACHE_OUTPUT_TEMPLATE
+                or not isinstance(contract.get("checker_path"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", contract.get("checker_sha256", ""))):
+            raise CatalogError("selection cache contract metadata is invalid")
+
+
+def _load_selection(context: dict[str, str]) -> tuple[int, dict[str, Any]]:
+    if not all(context.get(key) for key in ("directory", "nonce", "run_id", "profile")):
+        raise CatalogError("runtime context incomplete")
+    root_fd = _open_private_directory(Path(context["directory"]))
+    try:
+        selection = _read_json_at(root_fd, "selection.json")
+        _selection_payload_hash(selection)
+        _validate_selection_snapshot(selection)
+        _verify_record_auth(context, "selection", selection)
+        if (selection.get("schema") != RUNTIME_SCHEMA
+                or selection.get("run_id") != context["run_id"]
+                or selection.get("profile") != context["profile"]
+                or "nonce" in selection
+                or selection.get("selection_authority") != "NONE"
+                or selection.get("cache_authority") != "NONE"):
+            raise CatalogError("selection authentication failed")
+        return root_fd, selection
+    except Exception:
+        os.close(root_fd)
+        raise
+
+
+def _exact_target_argv(entrypoint: str, argv: list[str], cwd: Path) -> bool:
+    """Accept only the command shapes the existing gate actually executes."""
+    if cwd.resolve() != ROOT or not argv:
+        return False
+    try:
+        target = Path(argv[0]).resolve().relative_to(ROOT).as_posix()
+    except (OSError, ValueError):
+        return False
+    expected = {
+        "shader::glsl-es": "misc/ios/shadercheck/glsl_es_check.py",
+        "shader::link": "misc/ios/shadercheck/link_check.py",
+    }.get(entrypoint, entrypoint.removeprefix("python::"))
+    if target != expected:
+        return False
+    arguments = argv[1:]
+    if entrypoint.startswith("python::"):
+        return not arguments
+    if entrypoint == "shader::link":
+        return arguments == ["--strict"]
+    if entrypoint == "shader::glsl-es":
+        return (len(arguments) == 3 and arguments[0] == "--glslang"
+                and arguments[1] and arguments[2] == "--strict")
+    return False
+
+
+def authenticate_target(context: dict[str, str], entrypoint: str,
+                        argv: list[str] | None = None, cwd: Path | None = None) -> dict[str, Any] | None:
+    """Authenticate an explicitly opted-in entrypoint against frozen selection."""
+    try:
+        observed_argv = list(sys.argv if argv is None else argv)
+        observed_cwd = Path.cwd() if cwd is None else Path(cwd)
+        if not _exact_target_argv(entrypoint, observed_argv, observed_cwd):
+            return None
+        root_fd, selection = _load_selection(context)
+        os.close(root_fd)
+        item = next((value for value in selection["entrypoints"]
+                     if value["entrypoint_id"] == entrypoint), None)
+        if item is None or not item["selected"]:
+            return None
+        return {"context": context, "entrypoint_id": entrypoint,
+                "stage_id": f"stage::{entrypoint}", "kind": item["kind"]}
+    except Exception:
+        return None
+
+
+def _path_digest(path: Path, cache: dict[str, str]) -> str:
+    key = str(path)
+    if key in cache:
+        return cache[key]
+    if path.is_symlink() or not path.exists():
+        value = "missing-or-symlink"
+    elif path.is_file():
+        value = sha256_file(path)
+    elif path.is_dir():
+        records = []
+        for child in sorted(path.rglob("*")):
+            if child.is_symlink():
+                raise CatalogError(f"input contains symlink: {child}")
+            if child.is_file():
+                records.append(f"{child.relative_to(path).as_posix()}\0{sha256_file(child)}")
+        value = _hash_bytes(("\n".join(records) + "\n").encode("utf-8"))
+    else:
+        value = "unsupported"
+    cache[key] = value
+    return value
+
+
+def _metadata(entry: dict[str, Any], cache: dict[str, str]) -> dict[str, Any]:
+    inputs = []
+    for item in entry["explicit_inputs"]:
+        copy = dict(item)
+        if item.get("type") == "path":
+            copy["sha256"] = _path_digest(ROOT / item["value"], cache)
+        inputs.append(copy)
+    return {"kind": entry["kind"], "labels": entry["labels"], "resources": entry["resources"],
+            "timeout_seconds": entry["timeout_seconds"], "timeout_policy": "report-only",
+            "explicit_inputs": inputs,
+            "input_sha256": _hash_bytes((canonical(inputs) + "\n").encode("utf-8")),
+            "input_mapping_complete": entry["input_mapping_complete"]}
+
+
+def runtime_profile_ids(profile: str) -> list[str]:
+    groups = profile_ids()
+    if profile not in {"engine", "shaders", "device", "full", "fast"}:
+        raise CatalogError(f"unknown runtime profile: {profile}")
+    unconditional, shader_only = parse_build_check_python()
+    selected: list[str] = []
+    for path in unconditional + ([] if profile == "engine" else shader_only):
+        selected.extend(parse_archive_generated_methods(ROOT / path)
+                        if path.endswith("test_archive_completed_artifacts.py")
+                        else parse_python_methods(ROOT / path))
+    selected.extend(groups["cpp"])
+    selected.extend(groups["shell"])
+    if profile != "engine":
+        selected.extend(groups["shader-baseline"] + groups["shader-variants"] + groups["shader-links"])
+    if len(selected) != len(set(selected)):
+        raise CatalogError("runtime selected stable IDs are not unique")
+    return selected
+
+
+def _case_entrypoint(identifier: str) -> str:
+    if identifier.startswith("py:"):
+        return "python::" + identifier[3:].split("::", 1)[0]
+    if identifier.startswith("cpp:"):
+        return identifier.split("@", 1)[0]
+    if identifier.startswith("sh:"):
+        return "shell::ui-log-oracle"
+    if identifier.startswith("shader-link:"):
+        return "shader::link"
+    if identifier.startswith("shader:"):
+        return "shader::glsl-es"
+    raise CatalogError(f"case has no entrypoint: {identifier}")
+
+
+def _stage_entrypoint(identifier: str, profile: str) -> str:
+    """Return the sole producer allowed to record one selected stage."""
+    if not identifier.startswith("stage::") and not identifier.startswith("build-stage::"):
+        raise CatalogError(f"stage has no entrypoint: {identifier}")
+    source = identifier.removeprefix("stage::")
+    if source.startswith("python::") or source in {"shader::glsl-es", "shader::link", "shell::ui-log-oracle"}:
+        return source
+    if source.startswith("cpp:"):
+        return source.split("@", 1)[0]
+    # Validation and build stages are emitted only by their top-level gate.
+    if source.startswith("validation::") or identifier.startswith("build-stage::"):
+        return f"observer::{profile}"
+    raise CatalogError(f"stage has no known producer: {identifier}")
+
+
+def _stage_order(profile: str, catalog: dict[str, Any], root: Path = ROOT) -> list[str]:
+    """Derive stage trace order directly from the executing shell wrappers.
+
+    ``feedback_stage``, ``feedback_case`` and ``feedback_begin_manual_stage``
+    are the single source of stage order.  Profile membership follows the same
+    run_shaders/run_engine mode partition configured above the actual calls.
+    No second hand-maintained sequence exists in Python.
+    """
+    if profile not in {"engine", "shaders", "device", "full", "fast"}:
+        raise CatalogError(f"unknown runtime profile: {profile}")
+    text = (root / "misc/ios/build_check.sh").read_text(encoding="utf-8")
+    markers: list[str] = []
+    pattern = re.compile(r'\b(?:feedback_stage|feedback_case|feedback_begin_manual_stage)\s+"([^"]+)"')
+    deferred: dict[str, list[str]] = {"run_openal_configured": [], "run_openal_artifact": []}
+    active_function: str | None = None
+    for line in text.splitlines():
+        opened = re.match(r'^(run_openal_(?:configured|artifact))\(\)\s*\{', line)
+        if opened:
+            active_function = opened.group(1)
+            continue
+        if active_function is not None:
+            for match in pattern.finditer(line):
+                deferred[active_function].append(match.group(1))
+            if line == "}":
+                active_function = None
+            continue
+        invoked = re.match(r'^\s*(run_openal_(?:configured|artifact))\b', line)
+        if invoked:
+            markers.extend(deferred[invoked.group(1)])
+            continue
+        for match in pattern.finditer(line):
+            markers.append(match.group(1))
+    markers = [f"stage::{identifier}" if identifier.startswith("cpp:") else identifier
+               for identifier in markers
+               if identifier.startswith("cpp:") or identifier.startswith("stage::")
+               or identifier.startswith("build-stage::")]
+    if len(markers) != len(set(markers)):
+        raise CatalogError("executing stage wrapper has duplicate marker")
+    shader_stage = {"stage::shader::glsl-es", "stage::shader::link",
+                    "stage::validation::shader::macro-contract"}
+    shader_stage.update(item for item in markers if item.startswith("stage::python::misc/ios/test_")
+                        and item.rsplit("/", 1)[-1] in {
+                            "test_locator_registration_contract.py", "test_retail_simulator.py",
+                            "test_shader_macro_contract.py", "test_shader_resource_contract.py"})
+    engine_stage = {"build-stage::cmake-configure", "build-stage::release-engine-build",
+                    "build-stage::resource-sync", "build-stage::artifact-platform-debug-verification",
+                    "stage::validation::python::openal-configured",
+                    "stage::validation::python::openal-artifact"}
+    dual_stage = {"build-stage::artifact-input-hash-before", "build-stage::artifact-input-hash-after",
+                  "build-stage::stamp-publication"}
+    shader_guard = text.find('if [ "$run_shaders" = 1 ]; then')
+    engine_guard = text.find('if [ "$run_engine" = 1 ]; then')
+    dual_guards = [match.start() for match in re.finditer(
+        r'if \[ "\$run_shaders" = 1 \] && \[ "\$run_engine" = 1 \]; then', text)]
+    if shader_guard < 0 or engine_guard < 0 or len(dual_guards) != 2:
+        raise CatalogError("executing stage profile guard drift")
+    marker_positions = {match.group(1): match.start() for match in pattern.finditer(text)}
+    for identifier in shader_stage:
+        position = marker_positions.get(identifier)
+        if position is None or not shader_guard < position < engine_guard:
+            raise CatalogError("shader stage escaped its executing profile guard")
+    for identifier in engine_stage - {"stage::validation::python::openal-configured",
+                                      "stage::validation::python::openal-artifact"}:
+        position = marker_positions.get(identifier)
+        if position is None or not engine_guard < position < dual_guards[1]:
+            raise CatalogError("engine stage escaped its executing profile guard")
+    for identifier in dual_stage:
+        position = marker_positions.get(identifier)
+        if position is None or not (dual_guards[0] < position < shader_guard or position > dual_guards[1]):
+            raise CatalogError("dual gate stage escaped its executing profile guard")
+    result = []
+    for identifier in markers:
+        if identifier in shader_stage:
+            selected = profile != "engine"
+        elif identifier in engine_stage:
+            selected = profile in {"engine", "device", "full", "fast"}
+        elif identifier in dual_stage:
+            selected = profile in {"device", "full", "fast"}
+        else:
+            selected = True
+        if selected:
+            result.append(identifier)
+    if profile == "fast":
+        # Read the actual FastDevice body in execution order.  Its artifact
+        # hash precedes the nested shader gate; the remaining FastDevice
+        # stages follow that nested trace.  Do not concatenate two independently
+        # derived lists: that loses this interleaving and masks profile drift.
+        fast_text = (root / "misc/ios/build_fast_device.sh").read_text(encoding="utf-8")
+        anchor = '[ -d "$PREFIX_DIR" ]'
+        if anchor not in fast_text or "feedback_run_nested_shaders || fail" not in fast_text:
+            raise CatalogError("FastDevice executing profile anchor drift")
+        body = fast_text[fast_text.index(anchor):]
+        fast_markers: list[str] = []
+        for line in body.splitlines():
+            if "feedback_run_nested_shaders || fail" in line:
+                fast_markers.extend(_stage_order("shaders", catalog, root))
+                continue
+            if re.match(r'^\s*run_openal_configured\b', line):
+                fast_markers.append("stage::validation::python::openal-configured")
+                continue
+            if re.match(r'^\s*run_openal_artifact\b', line):
+                fast_markers.append("stage::validation::python::openal-artifact")
+                continue
+            for match in re.finditer(r'\b(?:feedback_stage|feedback_begin_manual_stage)\s+"([^"]+)"', line):
+                fast_markers.append(match.group(1))
+        result = fast_markers
+    if len(result) != len(set(result)):
+        raise CatalogError("profile stage wrappers overlap")
+    return result
+
+
+def runtime_selection(profile: str, run_id: str, nonce: str,
+                      directory: Path | str) -> dict[str, Any]:
+    catalog = read_catalog()
+    entries = {item["entrypoint_id"]: item for item in catalog["entrypoints"]}
+    path_cache: dict[str, str] = {}
+    entrypoints = []
+    for item in catalog["entrypoints"]:
+        selected = profile in item["selected_profiles"]
+        entrypoints.append({"entrypoint_id": item["entrypoint_id"], "kind": item["kind"],
+                            "selected": selected,
+                            "reason": "selected by existing profile" if selected else "outside existing gate selection"})
+    case_ids = runtime_profile_ids(profile)
+    stages = _stage_order(profile, catalog)
+    case_records = []
+    for ordinal, identifier in enumerate(case_ids, 1):
+        entrypoint = _case_entrypoint(identifier)
+        meta = _metadata(entries[entrypoint], path_cache)
+        parent = (f"stage::{identifier}" if identifier.startswith("cpp:")
+                  else f"stage::{entrypoint}")
+        case_records.append({"test_id": identifier, "ordinal": ordinal,
+                             "parent_stage_id": parent, **meta})
+    stage_records = []
+    exclusions = {item["stage_id"]: item for item in catalog["build_stage_exclusions"]}
+    for ordinal, identifier in enumerate(stages, 1):
+        source = identifier.removeprefix("stage::")
+        if source.startswith("cpp:"):
+            source = source.split("@", 1)[0]
+        if source in entries:
+            meta = _metadata(entries[source], path_cache)
+        else:
+            classification = exclusions.get(identifier, {"classification": "build-stage"})
+            inputs = [{"type": "path", "value": "misc/ios/build_check.sh",
+                       "sha256": _path_digest(ROOT / "misc/ios/build_check.sh", path_cache)}]
+            meta = {"kind": classification["classification"], "labels": ["build-stage"],
+                    "resources": ["ios-build-tree"], "timeout_seconds": 1800,
+                    "timeout_policy": "report-only", "explicit_inputs": inputs,
+                    "input_sha256": _hash_bytes((canonical(inputs) + "\n").encode()),
+                    "input_mapping_complete": False}
+        stage_records.append({"stage_id": identifier, "ordinal": ordinal,
+                              "parent_stage_id": None, **meta})
+    build_classifications = []
+    selected_build = set(stages) & EXPECTED_BUILD_STAGE_EXCLUSIONS
+    for item in catalog["build_stage_exclusions"]:
+        selected = item["stage_id"] in selected_build
+        build_classifications.append({"stage_id": item["stage_id"], "selected": selected,
+                                      "reason": "selected high-level stage" if selected
+                                      else "classified but represented by parent stage or not applicable"})
+    cache_contracts = []
+    for stage_id, checker_relative, list_schema, prefix in (
+            ("stage::shader::glsl-es", "misc/ios/shadercheck/glsl_es_check.py",
+             "openxray.shader-case-list.v1", "shader:"),
+            ("stage::shader::link", "misc/ios/shadercheck/link_check.py",
+             "openxray.shader-link-list.v1", "shader-link:")):
+        if stage_id in stages:
+            covered = [item["test_id"] for item in case_records if item["test_id"].startswith(prefix)]
+            cache_contracts.append({"stage_id": stage_id, "checker_path": checker_relative,
+                                    "checker_sha256": _sha256_regular_file(ROOT / checker_relative),
+                                    "catalog_sha256": sha256_file(CATALOG_PATH),
+                                    "catalog_schema": SCHEMA, "runtime_schema": RUNTIME_SCHEMA,
+                                    "list_schema": list_schema, "covered_ids": covered,
+                                    "covered_count": len(covered), "covered_sha256": digest(covered),
+                                    "list_ids_sha256": digest(covered),
+                                    "cache_root": str(_CACHE_ROOT),
+                                    "output_template": _CACHE_OUTPUT_TEMPLATE})
+    base = {"schema": RUNTIME_SCHEMA, "run_id": run_id, "profile": profile,
+            "selection_authority": "NONE", "cache_authority": "NONE",
+            "catalog_sha256": sha256_file(CATALOG_PATH), "entrypoints": entrypoints,
+            "build_stage_classifications": build_classifications,
+            "cases": case_records, "stages": stage_records, "cache_contracts": cache_contracts,
+            "case_ids_sha256": digest(case_ids), "stage_ids_sha256": digest(stages)}
+    base["selection_sha256"] = _selection_payload_hash(base)
+    return _signed_record({"directory": str(directory), "profile": profile,
+                           "run_id": run_id, "nonce": nonce}, "selection", base)
+
+
+def runtime_initialize(directory: Path, profile: str, run_id: str, nonce: str) -> bool:
+    try:
+        root_fd = _create_private_runtime_directory(directory)
+        try:
+            for child_name in ("case-events", "stage-events", "error-events"):
+                child_fd = _create_private_child(root_fd, child_name)
+                os.close(child_fd)
+            selection = runtime_selection(profile, run_id, nonce, directory)
+            _publish_json_at(root_fd, "selection.json", selection)
+        finally:
+            os.close(root_fd)
+        return True
+    except Exception:
+        return False
+
+
+def _error_marker(context: dict[str, str], operation: str, error: BaseException) -> None:
+    try:
+        root_fd = _open_private_directory(Path(context["directory"]))
+        try:
+            error_fd = _open_child_directory(root_fd, "error-events")
+            try:
+                payload = {"schema": RUNTIME_SCHEMA, "run_id": context.get("run_id"),
+                           "profile": context.get("profile"), "operation": operation,
+                           "error": type(error).__name__, "monotonic_ns": time.monotonic_ns()}
+                _publish_json_at(error_fd, f"error-{time.monotonic_ns()}-{secrets.token_hex(6)}.json",
+                                 _signed_record(context, "error-event", payload))
+            finally:
+                os.close(error_fd)
+        finally:
+            os.close(root_fd)
+    except Exception:
+        pass
+
+
+def runtime_event(identifier: str, result: str, started_ns: int, *, entrypoint_id: str,
+                  kind: str = "case",
+                  exit_code: int | None = None, cache_hit: bool | None = None,
+                  parent_stage_id: str | None = None, detail: str | None = None,
+                  ended_ns: int | None = None,
+                  context: dict[str, str] | None = None) -> bool:
+    runtime = _runtime_context(context)
+    try:
+        if result not in _RESULTS or kind not in {"case", "stage"}:
+            raise CatalogError("invalid runtime result/kind")
+        root_fd, selection = _load_selection(runtime)
+        try:
+            key = "test_id" if kind == "case" else "stage_id"
+            table = selection["cases" if kind == "case" else "stages"]
+            selected = next((item for item in table if item[key] == identifier), None)
+            if selected is None:
+                raise CatalogError("event is outside immutable selection")
+            expected_origin = (_case_entrypoint(identifier) if kind == "case"
+                               else _stage_entrypoint(identifier, runtime["profile"]))
+            if entrypoint_id != expected_origin:
+                raise CatalogError("event origin does not own selected identifier")
+            bucket_fd = _open_child_directory(root_fd, "case-events" if kind == "case" else "stage-events")
+            try:
+                ended = time.monotonic_ns() if ended_ns is None else ended_ns
+                recorded = time.monotonic_ns()
+                if (not isinstance(started_ns, int) or not isinstance(ended, int)
+                        or started_ns < 0 or ended < started_ns or recorded < ended):
+                    raise CatalogError("runtime event timing is invalid")
+                payload = {"schema": RUNTIME_SCHEMA, "run_id": runtime["run_id"],
+                           "profile": runtime["profile"], key: identifier,
+                           "selection_authority": "NONE", "cache_authority": "NONE",
+                           "parent_stage_id": selected["parent_stage_id"], "ordinal": selected["ordinal"],
+                           "kind": selected["kind"], "labels": selected["labels"],
+                           "resources": selected["resources"], "timeout_seconds": selected["timeout_seconds"],
+                           "timeout_policy": "report-only", "explicit_inputs": selected["explicit_inputs"],
+                           "input_sha256": selected["input_sha256"],
+                           "input_mapping_complete": selected["input_mapping_complete"],
+                           "selection_sha256": selection["selection_sha256"],
+                           "started_monotonic_ns": started_ns, "ended_monotonic_ns": ended,
+                           "recorded_monotonic_ns": recorded,
+                           "elapsed_ms": (ended - started_ns) // 1_000_000, "result": result,
+                           "exit_code": exit_code, "cache_hit": cache_hit, "shard": None, "attempt": 1,
+                           "skip_reason": detail if result in {"SKIP", "PLATFORM_SKIP"} else None,
+                           "result_detail": detail}
+                suffix = _hash_bytes(identifier.encode())[:16]
+                _publish_json_at(bucket_fd, f"{kind}-{selected['ordinal']:06d}-{suffix}.json",
+                                 _signed_record(runtime, f"{kind}-event", payload))
+            finally:
+                os.close(bucket_fd)
+        finally:
+            os.close(root_fd)
+        return True
+    except Exception as error:
+        _error_marker(runtime, f"write-{kind}", error)
+        return False
+
+
+def _read_raw_events(path: Path) -> list[dict[str, Any]]:
+    """Read one completed child-owned raw sink through a bound descriptor."""
+    absolute = Path(os.path.abspath(path))
+    parent_fd = _open_safe_directory(absolute.parent)
+    descriptor = -1
+    try:
+        named = os.stat(absolute.name, dir_fd=parent_fd, follow_symlinks=False)
+        if (stat.S_ISLNK(named.st_mode) or not stat.S_ISREG(named.st_mode)
+                or named.st_uid != os.getuid() or stat.S_IMODE(named.st_mode) != 0o600
+                or named.st_size > _MAX_RAW_EVENT_BYTES):
+            raise CatalogError("raw event sink is unsafe")
+        descriptor = os.open(absolute.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent_fd)
+        opened = os.fstat(descriptor)
+        rebound = os.stat(absolute.name, dir_fd=parent_fd, follow_symlinks=False)
+        if not _same_identity(named, opened) or not _same_identity(opened, rebound):
+            raise CatalogError("raw event sink identity changed")
+        chunks: list[bytes] = []
+        remaining = _MAX_RAW_EVENT_BYTES
+        while True:
+            block = os.read(descriptor, min(65536, remaining + 1))
+            if not block:
+                break
+            chunks.append(block)
+            remaining -= len(block)
+            if remaining < 0:
+                raise CatalogError("raw event sink is too large")
+        finished = os.fstat(descriptor)
+        final_rebound = os.stat(absolute.name, dir_fd=parent_fd, follow_symlinks=False)
+        if (not _same_file_snapshot(opened, finished)
+                or not _same_file_snapshot(opened, final_rebound)):
+            raise CatalogError("raw event sink changed while reading")
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        os.close(parent_fd)
+    return _decode_raw_events(b"".join(chunks))
+
+
+def _read_raw_events_fd(descriptor: int) -> list[dict[str, Any]]:
+    """Read an already-unlinked raw sink through the parent's retained FD."""
+    try:
+        if not isinstance(descriptor, int) or descriptor < 3:
+            raise CatalogError("raw event descriptor is invalid")
+        initial = os.fstat(descriptor)
+        if (not stat.S_ISREG(initial.st_mode) or initial.st_uid != os.getuid()
+                or stat.S_IMODE(initial.st_mode) != 0o600
+                or initial.st_size > _MAX_RAW_EVENT_BYTES):
+            raise CatalogError("raw event descriptor is unsafe")
+        chunks: list[bytes] = []
+        remaining = _MAX_RAW_EVENT_BYTES
+        offset = 0
+        while True:
+            block = os.pread(descriptor, min(65536, remaining + 1), offset)
+            if not block:
+                break
+            chunks.append(block)
+            offset += len(block)
+            remaining -= len(block)
+            if remaining < 0:
+                raise CatalogError("raw event sink is too large")
+        finished = os.fstat(descriptor)
+        if not _same_file_snapshot(initial, finished):
+            raise CatalogError("raw event descriptor changed while reading")
+    except OSError as error:
+        raise CatalogError("raw event descriptor is unavailable") from error
+    return _decode_raw_events(b"".join(chunks))
+
+
+def _decode_raw_events(raw: bytes) -> list[dict[str, Any]]:
+    """Parse the bounded canonical raw stream after its transport is verified."""
+    if not raw:
+        return []
+    if not raw.endswith(b"\n"):
+        raise CatalogError("raw event sink is truncated")
+    rows = raw.splitlines()
+    if len(rows) > _MAX_RAW_EVENT_COUNT:
+        raise CatalogError("raw event sink has too many events")
+    records: list[dict[str, Any]] = []
+    expected_keys = {"detail", "ended_monotonic_ns", "result", "schema",
+                     "started_monotonic_ns", "test_id"}
+    for row in rows:
+        try:
+            value = json.loads(row)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise CatalogError("raw event sink contains corrupt JSON") from error
+        if (not isinstance(value, dict) or set(value) != expected_keys
+                or row != canonical(value).encode("utf-8")):
+            raise CatalogError("raw event sink record is not canonical")
+        identifier = value.get("test_id")
+        result = value.get("result")
+        started = value.get("started_monotonic_ns")
+        ended = value.get("ended_monotonic_ns")
+        detail = value.get("detail")
+        if (value.get("schema") != _RAW_EVENT_SCHEMA or not isinstance(identifier, str)
+                or not identifier or len(identifier) > 1024 or result not in _RESULTS
+                or not isinstance(started, int) or not isinstance(ended, int)
+                or started < 0 or ended < started
+                or (detail is not None and (not isinstance(detail, str) or len(detail) > 2048))):
+            raise CatalogError("raw event sink record is invalid")
+        records.append(value)
+    return records
+
+
+def runtime_ingest(entrypoint_id: str, raw_events: Path | None = None,
+                   context: dict[str, str] | None = None, *,
+                   raw_fd: int | None = None) -> bool:
+    """Trusted parent mapping from one raw sink to one fixed selected origin."""
+    runtime = _runtime_context(context)
+    try:
+        root_fd, selection = _load_selection(runtime)
+        try:
+            selected_origin = next((item for item in selection["entrypoints"]
+                                    if item["entrypoint_id"] == entrypoint_id), None)
+            if selected_origin is None or not selected_origin["selected"]:
+                raise CatalogError("raw ingest origin is not selected")
+        finally:
+            os.close(root_fd)
+        if (raw_events is None) == (raw_fd is None):
+            raise CatalogError("raw ingest transport is ambiguous")
+        records = (_read_raw_events(raw_events) if raw_events is not None
+                   else _read_raw_events_fd(raw_fd))
+        for value in records:
+            identifier = value["test_id"]
+            if _case_entrypoint(identifier) != entrypoint_id:
+                raise CatalogError("raw event claims a different selected origin")
+            result = value["result"]
+            if not runtime_event(identifier, result, value["started_monotonic_ns"],
+                                 entrypoint_id=entrypoint_id, kind="case",
+                                 exit_code=0 if result == "PASS" else 1,
+                                 detail=value["detail"], ended_ns=value["ended_monotonic_ns"],
+                                 context=runtime):
+                raise CatalogError("raw event could not be ingested")
+        return True
+    except Exception as error:
+        _error_marker(runtime, "ingest", error)
+        return False
+
+
+def runtime_cache_certificate(stage: str, key: str, output_path: Path,
+                              before: str, after: str,
+                              *, entrypoint_id: str,
+                              context: dict[str, str] | None = None) -> bool:
+    runtime = _runtime_context(context)
+    try:
+        if (stage not in {"compile", "link"} or before != after or key != before
+                or not re.fullmatch(r"[0-9a-f]{64}", key)):
+            raise CatalogError("cache identity mismatch")
+        root_fd, selection = _load_selection(runtime)
+        try:
+            stage_id = "stage::shader::glsl-es" if stage == "compile" else "stage::shader::link"
+            if entrypoint_id != _stage_entrypoint(stage_id, runtime["profile"]):
+                raise CatalogError("cache certificate origin does not own selected stage")
+            selected_stage = next(item for item in selection["stages"] if item["stage_id"] == stage_id)
+            contract = next((item for item in selection["cache_contracts"]
+                             if item["stage_id"] == stage_id), None)
+            if contract is None:
+                raise CatalogError("cache stage is absent from frozen selection")
+            expected_output = (Path(contract["cache_root"]) / stage / f"{key}.out")
+            output_path = Path(os.path.abspath(output_path))
+            if output_path != expected_output:
+                raise CatalogError("cache output path does not match frozen contract")
+            cached_output_sha256, output_stat = _snapshot_regular_file(output_path)
+            payload = {"schema": RUNTIME_SCHEMA, "run_id": runtime["run_id"],
+                       "profile": runtime["profile"], "stage_id": stage_id,
+                       "selection_authority": "NONE", "cache_authority": "NONE",
+                       "parent_stage_id": None, "ordinal": selected_stage["ordinal"],
+                       "kind": selected_stage["kind"], "labels": selected_stage["labels"],
+                       "resources": selected_stage["resources"], "timeout_seconds": selected_stage["timeout_seconds"],
+                       "timeout_policy": "report-only", "explicit_inputs": selected_stage["explicit_inputs"],
+                       "input_sha256": selected_stage["input_sha256"],
+                       "input_mapping_complete": selected_stage["input_mapping_complete"],
+                       "selection_sha256": selection["selection_sha256"], "result": "PASS", "exit_code": 0,
+                       "cache_hit": True, "execution": "cache-replay", "cache_key": key,
+                       "cached_output_path": str(output_path), "cached_output_dev": output_stat.st_dev,
+                       "cached_output_ino": output_stat.st_ino, "cached_output_size": output_stat.st_size,
+                       "cached_output_mtime_ns": output_stat.st_mtime_ns,
+                       "cached_output_sha256": cached_output_sha256, "input_before": before,
+                       "input_after": after, "checker_sha256": contract["checker_sha256"],
+                       "catalog_sha256": contract["catalog_sha256"],
+                       "catalog_schema": contract["catalog_schema"], "runtime_schema": RUNTIME_SCHEMA,
+                       "list_schema": contract["list_schema"],
+                       "list_tool_sha256": contract["checker_sha256"],
+                       "covered_ids": contract["covered_ids"], "covered_count": contract["covered_count"],
+                       "covered_sha256": contract["covered_sha256"],
+                       "list_ids_sha256": contract["list_ids_sha256"],
+                       "started_monotonic_ns": None,
+                       "ended_monotonic_ns": None, "recorded_monotonic_ns": time.monotonic_ns(),
+                       "elapsed_ms": None, "shard": None, "attempt": 1,
+                       "skip_reason": None}
+            bucket_fd = _open_child_directory(root_fd, "stage-events")
+            try:
+                _publish_json_at(bucket_fd, f"stage-{selected_stage['ordinal']:06d}-cache-{stage}.json",
+                                 _signed_record(runtime, "cache-certificate", payload))
+            finally:
+                os.close(bucket_fd)
+        finally:
+            os.close(root_fd)
+        return True
+    except Exception as error:
+        _error_marker(runtime, "cache-certificate", error)
+        return False
+
+
+def _validate_runtime_record(value: dict[str, Any], selected: dict[str, Any], key: str,
+                             selection: dict[str, Any], context: dict[str, str]) -> None:
+    domain = ("cache-certificate" if value.get("execution") == "cache-replay"
+              else ("case-event" if key == "test_id" else "stage-event"))
+    _verify_record_auth(context, domain, value)
+    if (value.get("schema") != RUNTIME_SCHEMA or value.get(key) != selected[key]
+            or value.get("ordinal") != selected["ordinal"]
+            or value.get("run_id") != selection["run_id"]
+            or value.get("profile") != selection["profile"]
+            or "nonce" in value
+            or value.get("selection_authority") != "NONE"
+            or value.get("cache_authority") != "NONE"
+            or value.get("selection_sha256") != selection["selection_sha256"]
+            or value.get("result") not in _RESULTS or value.get("shard") is not None
+            or value.get("attempt") != 1 or value.get("timeout_policy") != "report-only"):
+        raise CatalogError("runtime event schema/identity mismatch")
+    for field in ("parent_stage_id", "kind", "labels", "resources", "timeout_seconds",
+                  "explicit_inputs", "input_sha256", "input_mapping_complete"):
+        if value.get(field) != selected.get(field):
+            raise CatalogError(f"runtime event metadata mismatch: {field}")
+    if value.get("cache_hit") is True and key != "stage_id":
+        raise CatalogError("case cannot be cache replay")
+    if key == "test_id" and value.get("cache_hit") is not None:
+        raise CatalogError("direct case has invalid cache state")
+    started = value.get("started_monotonic_ns")
+    ended = value.get("ended_monotonic_ns")
+    elapsed = value.get("elapsed_ms")
+    recorded = value.get("recorded_monotonic_ns")
+    if value.get("execution") == "cache-replay":
+        if (key != "stage_id" or selected["stage_id"] not in {
+                "stage::shader::glsl-es", "stage::shader::link"}
+                or value.get("cache_hit") is not True
+                or any(item is not None for item in (started, ended, elapsed))
+                or not isinstance(recorded, int) or recorded < 0):
+            raise CatalogError("cache certificate timing/schema is invalid")
+    else:
+        if (not isinstance(started, int) or not isinstance(ended, int)
+                or not isinstance(recorded, int) or not isinstance(elapsed, int)
+                or min(started, ended, recorded, elapsed) < 0
+                or ended < started or recorded < ended
+                or elapsed != max(0, (ended - started) // 1_000_000)):
+            raise CatalogError("runtime event timing is invalid")
+        if selected.get("stage_id") in {"stage::shader::glsl-es", "stage::shader::link"}:
+            if value.get("cache_hit") is not False:
+                raise CatalogError("direct shader stage lacks cache miss state")
+        elif value.get("cache_hit") not in {None, True}:
+            raise CatalogError("runtime stage has invalid cache state")
+    result = value["result"]
+    if (result in {"SKIP", "PLATFORM_SKIP"}) != (value.get("skip_reason") is not None):
+        raise CatalogError("runtime skip reason combination is invalid")
+    if result == "PASS" and value.get("exit_code") not in {None, 0}:
+        raise CatalogError("PASS event has failing exit code")
+    if result in {"FAIL", "ERROR", "TIMEOUT"} and value.get("exit_code") == 0:
+        raise CatalogError("failed event has successful exit code")
+
+
+def _replay_current_cache_list(contract: dict[str, Any]) -> None:
+    """Re-run the current list producer before accepting cached shader coverage."""
+    checker = ROOT / contract["checker_path"]
+    environment = {"PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1"}
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(checker), "--list-json"], cwd=ROOT, env=environment,
+            text=True, capture_output=True, timeout=30, check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise CatalogError("cache list producer could not run") from error
+    if completed.returncode != 0:
+        raise CatalogError("cache list producer failed")
+    try:
+        listed = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise CatalogError("cache list producer emitted malformed JSON") from error
+    if not isinstance(listed, dict) or listed.get("schema") != contract["list_schema"]:
+        raise CatalogError("cache list producer schema changed")
+    if contract["stage_id"] == "stage::shader::glsl-es":
+        baseline, variants = listed.get("baseline"), listed.get("variants")
+        if not (isinstance(baseline, list) and isinstance(variants, list)
+                and all(isinstance(value, str) for value in baseline + variants)):
+            raise CatalogError("shader cache list has invalid cases")
+        actual = baseline + variants
+    else:
+        actual = listed.get("links")
+        if not isinstance(actual, list) or not all(isinstance(value, str) for value in actual):
+            raise CatalogError("link cache list has invalid cases")
+    if (actual != contract["covered_ids"] or len(actual) != contract["covered_count"]
+            or digest(actual) != contract["covered_sha256"]
+            or digest(actual) != contract["list_ids_sha256"]):
+        raise CatalogError("cache list producer coverage changed")
+
+
+_RUNTIME_ROOT_BASE = frozenset({"selection.json", "case-events", "stage-events", "error-events"})
+
+
+def _verify_runtime_root_layout(root_fd: int, *, published: bool) -> None:
+    """Require a closed runtime namespace before and after final publication."""
+    expected = set(_RUNTIME_ROOT_BASE)
+    if published:
+        expected.add("run.json")
+    names = set(os.listdir(root_fd))
+    if names != expected:
+        raise CatalogError("runtime root contains incomplete or foreign artifacts")
+    for name in ("case-events", "stage-events", "error-events"):
+        detail = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
+        _validate_directory_stat(detail, private=True)
+    for name in ("selection.json", *( ("run.json",) if published else ())):
+        detail = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
+        if (stat.S_ISLNK(detail.st_mode) or not stat.S_ISREG(detail.st_mode)
+                or detail.st_uid != os.getuid() or stat.S_IMODE(detail.st_mode) != 0o600):
+            raise CatalogError("runtime root record is unsafe")
+
+
+def runtime_finalize(directory: Path, profile: str, run_id: str, nonce: str,
+                     gate_exit_code: int) -> dict[str, Any]:
+    context = {"directory": str(directory), "profile": profile, "run_id": run_id, "nonce": nonce}
+    base = {"status": "ERROR", "path": str(directory), "sha256": None}
+    try:
+        root_fd, selection = _load_selection(context)
+        try:
+            _verify_runtime_root_layout(root_fd, published=False)
+            case_fd = _open_child_directory(root_fd, "case-events")
+            stage_fd = _open_child_directory(root_fd, "stage-events")
+            error_fd = _open_child_directory(root_fd, "error-events")
+            try:
+                case_names, case_pending, case_foreign = _list_final_json(case_fd)
+                stage_names, stage_pending, stage_foreign = _list_final_json(stage_fd)
+                error_names, error_pending, error_foreign = _list_final_json(error_fd)
+                cases = [_read_json_at(case_fd, name) for name in case_names]
+                stages = [_read_json_at(stage_fd, name) for name in stage_names]
+                errors = [_read_json_at(error_fd, name) for name in error_names]
+            finally:
+                os.close(case_fd); os.close(stage_fd); os.close(error_fd)
+            for value in errors:
+                if (value.get("schema") != RUNTIME_SCHEMA
+                        or value.get("run_id") != run_id
+                        or value.get("profile") != profile
+                        or "nonce" in value
+                        or not isinstance(value.get("operation"), str)
+                        or not isinstance(value.get("error"), str)
+                        or not isinstance(value.get("monotonic_ns"), int)):
+                    raise CatalogError("foreign or invalid runtime error marker")
+                _verify_record_auth(context, "error-event", value)
+            selected_cases = {item["test_id"]: item for item in selection["cases"]}
+            selected_stages = {item["stage_id"]: item for item in selection["stages"]}
+            direct_ids: list[str] = []
+            cache_ids: list[str] = []
+            for value in cases:
+                identifier = value.get("test_id")
+                if identifier not in selected_cases:
+                    raise CatalogError("extra case event")
+                _validate_runtime_record(value, selected_cases[identifier], "test_id", selection, context)
+                direct_ids.append(identifier)
+            stage_ids: list[str] = []
+            for value in stages:
+                identifier = value.get("stage_id")
+                if identifier not in selected_stages:
+                    raise CatalogError("extra stage event")
+                _validate_runtime_record(value, selected_stages[identifier], "stage_id", selection, context)
+                stage_ids.append(identifier)
+                if value.get("execution") == "cache-replay":
+                    covered = value.get("covered_ids")
+                    expected_covered = [item["test_id"] for item in selection["cases"]
+                                        if (item["test_id"].startswith("shader:")
+                                            if identifier == "stage::shader::glsl-es"
+                                            else item["test_id"].startswith("shader-link:"))]
+                    contract = next((item for item in selection["cache_contracts"]
+                                     if item["stage_id"] == identifier), None)
+                    if contract is None:
+                        raise CatalogError("cache replay has no frozen contract")
+                    output_path = Path(value.get("cached_output_path", ""))
+                    expected_output = (Path(contract["cache_root"]) /
+                                       ("compile" if identifier.endswith("glsl-es") else "link") /
+                                       f"{value.get('cache_key', '')}.out")
+                    try:
+                        if output_path != expected_output:
+                            raise CatalogError("cache output path does not match frozen contract")
+                        output_hash, output_stat = _snapshot_regular_file(output_path)
+                    except (OSError, CatalogError) as error:
+                        raise CatalogError("cache output is unavailable or unsafe") from error
+                    if (not isinstance(covered, list) or value.get("covered_count") != len(covered)
+                            or value.get("covered_sha256") != digest(covered)
+                            or covered != expected_covered or covered != contract["covered_ids"]
+                            or value.get("elapsed_ms") is not None
+                            or value.get("input_before") != value.get("input_after")
+                            or value.get("cache_key") != value.get("input_before")
+                            or not re.fullmatch(r"[0-9a-f]{64}", value.get("cache_key", ""))
+                            or value.get("catalog_sha256") != contract["catalog_sha256"]
+                            or sha256_file(CATALOG_PATH) != contract["catalog_sha256"]
+                            or value.get("catalog_schema") != contract["catalog_schema"]
+                            or value.get("runtime_schema") != RUNTIME_SCHEMA
+                            or value.get("checker_sha256") != contract["checker_sha256"]
+                            or _sha256_regular_file(ROOT / contract["checker_path"]) != contract["checker_sha256"]
+                            or value.get("list_tool_sha256") != contract["checker_sha256"]
+                            or value.get("list_schema") != contract["list_schema"]
+                            or value.get("list_ids_sha256") != contract["list_ids_sha256"]
+                            or value.get("covered_sha256") != contract["covered_sha256"]
+                            or output_stat.st_dev != value.get("cached_output_dev")
+                            or output_stat.st_ino != value.get("cached_output_ino")
+                            or output_stat.st_size != value.get("cached_output_size")
+                            or output_stat.st_mtime_ns != value.get("cached_output_mtime_ns")
+                            or output_hash != value.get("cached_output_sha256")):
+                        raise CatalogError("invalid cache certificate")
+                    _replay_current_cache_list(contract)
+                    cache_ids.extend(covered)
+            if (len(direct_ids) != len(set(direct_ids)) or len(stage_ids) != len(set(stage_ids))
+                    or len(cache_ids) != len(set(cache_ids)) or set(direct_ids) & set(cache_ids)):
+                raise CatalogError("duplicate or overlapping runtime coverage")
+            observed_cases = direct_ids + cache_ids
+            expected_cases = [item["test_id"] for item in selection["cases"]]
+            expected_stages = [item["stage_id"] for item in selection["stages"]]
+            raw_stages = sorted(stages, key=lambda item: item.get("recorded_monotonic_ns", -1))
+            raw_stage_ids = [item["stage_id"] for item in raw_stages]
+            stage_ordinals = [selected_stages[item]["ordinal"] for item in raw_stage_ids]
+            if stage_ordinals != sorted(stage_ordinals) or len(stage_ordinals) != len(set(stage_ordinals)):
+                raise CatalogError("stage trace is unordered")
+            if gate_exit_code != 0 and stage_ordinals != list(range(1, len(stage_ordinals) + 1)):
+                raise CatalogError("failed gate stage trace is not an ordered prefix")
+            incomplete = bool(case_pending or stage_pending or error_pending or error_names
+                              or case_foreign or stage_foreign or error_foreign)
+            complete = (gate_exit_code == 0 and not incomplete
+                        and set(observed_cases) == set(expected_cases)
+                        and stage_ids == expected_stages
+                        and all(value["result"] == "PASS" for value in cases + stages))
+            status = "COMPLETE" if complete else "INCOMPLETE"
+            payload = {"schema": RUNTIME_SCHEMA, "run_id": run_id, "profile": profile,
+                       "selection_authority": "NONE", "cache_authority": "NONE",
+                       "selection_sha256": selection["selection_sha256"], "gate_exit_code": gate_exit_code,
+                       "telemetry_status": status, "cases": sorted(cases, key=lambda item: item["ordinal"]),
+                       "stages": sorted(stages, key=lambda item: item["ordinal"]),
+                       "direct_case_ids_sha256": digest(direct_ids) if direct_ids else None,
+                       "cache_case_ids_sha256": digest(cache_ids) if cache_ids else None,
+                       "stage_ids_sha256": digest(stage_ids) if stage_ids else None,
+                       "raw_case_order_sha256": _hash_bytes(("\n".join(direct_ids) + "\n").encode()),
+                       "raw_stage_order_sha256": _hash_bytes(("\n".join(raw_stage_ids) + "\n").encode()),
+                       "error_marker_count": len(error_names)}
+            # Recheck before publication: a failed raw/nested cleanup or a
+            # concurrent writer must never be silently hidden by COMPLETE.
+            _verify_runtime_root_layout(root_fd, published=False)
+            _publish_json_at(root_fd, "run.json", _signed_record(context, "run", payload))
+            _verify_runtime_root_layout(root_fd, published=True)
+            run = _read_json_at(root_fd, "run.json")
+            _verify_record_auth(context, "run", run)
+            run_hash = _hash_bytes((canonical(run) + "\n").encode())
+            return {"status": status, "path": str(directory), "sha256": run_hash}
+        finally:
+            os.close(root_fd)
+    except Exception as error:
+        _error_marker(context, "finalize", error)
+        return base
 
 
 def canonical(value: object) -> str:
@@ -318,12 +1696,16 @@ def parse_cpp_executions(root: Path = ROOT) -> list[str]:
         escaped = re.escape(variable)
         if variant == "asan-ubsan":
             executions = re.findall(
-                rf'^ASAN_OPTIONS="\$[A-Za-z0-9_]+"\s+UBSAN_OPTIONS=halt_on_error=1\s+'
+                rf'^(?:ASAN_OPTIONS="\$[A-Za-z0-9_]+"\s+UBSAN_OPTIONS=halt_on_error=1\s+|'
+                rf'feedback_case\s+"cpp:misc/ios/[A-Za-z0-9_]+_test@asan-ubsan"\s+env\s+'
+                rf'ASAN_OPTIONS="\$[A-Za-z0-9_]+"\s+UBSAN_OPTIONS=halt_on_error=1\s+)'
                 rf'"\${escaped}"\s+\\?$',
                 text, re.MULTILINE,
             )
         else:
-            executions = re.findall(rf'^"\${escaped}"\s+\|\|\s+fail\b.*$', text, re.MULTILINE)
+            executions = re.findall(
+                rf'^(?:feedback_case\s+"cpp:misc/ios/[A-Za-z0-9_]+_test@strict"\s+)?'
+                rf'"\${escaped}"\s+\|\|\s+fail\b.*$', text, re.MULTILINE)
         if len(executions) != 1:
             raise CatalogError(
                 f"C++ binary execution mapping drift for {variable}: executions={len(executions)}"
@@ -339,29 +1721,29 @@ def parse_gate_validation_entrypoints(root: Path = ROOT) -> dict[str, list[str]]
     text = (root / "misc/ios/build_check.sh").read_text(encoding="utf-8")
     exact_patterns = {
         "validation::python::openal-configured": (
-            r'^\s+openal_fields=\$\(python3 "\$REPO_ROOT/misc/ios/openal_provider_contract\.py" configured\s+\\$',
+            r'^\s+openal_fields=\$\(feedback_stage "stage::validation::python::openal-configured" python3 "\$REPO_ROOT/misc/ios/openal_provider_contract\.py" configured\s+\\$',
             ["engine", "device", "full", "fast"],
         ),
         "validation::python::openal-artifact": (
-            r'^\s+openal_fields=\$\(python3 "\$REPO_ROOT/misc/ios/openal_provider_contract\.py" artifact\s+\\$',
+            r'^\s+openal_fields=\$\(feedback_stage "stage::validation::python::openal-artifact" python3 "\$REPO_ROOT/misc/ios/openal_provider_contract\.py" artifact\s+\\$',
             ["engine", "device", "full", "fast"],
         ),
         "validation::bash-n::run-gate-launcher": (
-            r"^bash -n misc/ios/run_gate_logged\.sh\s+\\$", ["engine", "shaders", "device", "full", "fast"]
+            r'^feedback_stage "stage::validation::bash-n::run-gate-launcher" bash -n misc/ios/run_gate_logged\.sh\s+\\$', ["engine", "shaders", "device", "full", "fast"]
         ),
         "validation::bash-n::capture-tools": (
-            r"^bash -n misc/ios/device_lease\.sh misc/ios/input\.sh misc/ios/shot\.sh "
+            r'^feedback_stage "stage::validation::bash-n::capture-tools" bash -n misc/ios/device_lease\.sh misc/ios/input\.sh misc/ios/shot\.sh '
             r"misc/ios/lighting_ab_capture\.sh\s+\\$", ["engine", "shaders", "device", "full", "fast"]
         ),
         "validation::shellcheck::capture-tools": (
-            r"^shellcheck -x misc/ios/device_lease\.sh misc/ios/input\.sh misc/ios/shot\.sh "
+            r'^feedback_stage "stage::validation::shellcheck::capture-tools" shellcheck -x misc/ios/device_lease\.sh misc/ios/input\.sh misc/ios/shot\.sh '
             r"misc/ios/lighting_ab_capture\.sh\s+\\$", ["engine", "shaders", "device", "full", "fast"]
         ),
         "validation::python::ui-contract": (
-            r"^python3 misc/ios/ui_contract_check\.py\s+\\$", ["engine", "shaders", "device", "full", "fast"]
+            r'^feedback_stage "stage::validation::python::ui-contract" python3 misc/ios/ui_contract_check\.py\s+\\$', ["engine", "shaders", "device", "full", "fast"]
         ),
         "validation::shader::macro-contract": (
-            r"^\s+python3 misc/ios/shadercheck/glsl_es_check\.py --macro-contract\s+\\$",
+            r'^\s+feedback_stage "stage::validation::shader::macro-contract" python3 misc/ios/shadercheck/glsl_es_check\.py --macro-contract\s+\\$',
             ["shaders", "device", "full", "fast"],
         ),
     }
@@ -379,23 +1761,31 @@ def parse_gate_family_entrypoints(root: Path = ROOT) -> dict[str, list[str]]:
     text = (root / "misc/ios/build_check.sh").read_text(encoding="utf-8")
     patterns = {
         "shell::ui-log-oracle": (
-            r"^misc/ios/ui_automation/test_log_oracles\.sh\s+\\$",
+            (r'^feedback_stage "stage::shell::ui-log-oracle" misc/ios/ui_automation/test_log_oracles\.sh\s+\\$',
+             r'^\s*elif \[ "\$\{1:-\}" = misc/ios/ui_automation/test_log_oracles\.sh \]; then\n'
+             r'\s*feedback_selected_shell "\$@"\n\s*return \$\?$',),
             ["engine", "shaders", "device", "full", "fast"],
         ),
         "shader::glsl-es": (
-            r"^\s+out=\$\(python3 misc/ios/shadercheck/glsl_es_check\.py\s+\\$",
+            (r'^\s+out=\$\(feedback_stage "stage::shader::glsl-es" python3 misc/ios/shadercheck/glsl_es_check\.py\s+\\$',
+             r'^\s*misc/ios/shadercheck/glsl_es_check\.py\)\n'
+             r'\s*if \[\[ " \$\* " = \*" --strict "\* \]\]; then\n'
+             r'\s*shift\n\s*feedback_selected_python "\$@"\n\s*return \$\?$',),
             ["shaders", "device", "full", "fast"],
         ),
         "shader::link": (
-            r"^\s+out=\$\(python3 misc/ios/shadercheck/link_check\.py --strict 2>&1\)\s+\\$",
+            (r'^\s+out=\$\(feedback_stage "stage::shader::link" python3 misc/ios/shadercheck/link_check\.py --strict 2>&1\)\s+\\$',
+             r'^\s*misc/ios/shadercheck/link_check\.py\)\n'
+             r'\s*if \[\[ " \$\* " = \*" --strict "\* \]\]; then\n'
+             r'\s*shift\n\s*feedback_selected_python "\$@"\n\s*return \$\?$',),
             ["shaders", "device", "full", "fast"],
         ),
     }
     result: dict[str, list[str]] = {}
-    for identifier, (pattern, profiles) in patterns.items():
-        matches = re.findall(pattern, text, re.MULTILINE)
-        if len(matches) != 1:
-            raise CatalogError(f"gate family entrypoint drift: {identifier} matches={len(matches)}")
+    for identifier, (required_patterns, profiles) in patterns.items():
+        counts = [len(re.findall(pattern, text, re.MULTILINE)) for pattern in required_patterns]
+        if counts != [1] * len(required_patterns):
+            raise CatalogError(f"gate family entrypoint drift: {identifier} matches={counts}")
         result[identifier] = profiles
     return result
 
@@ -445,11 +1835,13 @@ def validate_build_stage_exclusions(catalog: dict[str, Any], root: Path = ROOT) 
             position = match.start() + match.group(0).index("python3")
             covered_lines.add(text.count("\n", 0, position) + 1)
     for pattern in (
-        r"^\s*python3\s+misc/ios/test_[^\s\\]+\.py",
-        r'^\s+openal_fields=\$\(python3 "\$REPO_ROOT/misc/ios/openal_provider_contract\.py" (?:configured|artifact)',
-        r"^python3 misc/ios/ui_contract_check\.py",
-        r"^\s+python3 misc/ios/shadercheck/glsl_es_check\.py --macro-contract",
-        r"^\s+out=\$\(python3 misc/ios/shadercheck/(?:glsl_es_check|link_check)\.py",
+        r'^\s*(?:feedback_stage\s+"[^"]+"\s+)?(?:python3|feedback_selected_python)\s+misc/ios/test_[^\s\\]+\.py',
+        r'^\s+openal_fields=\$\(feedback_stage "[^"]+" python3 "\$REPO_ROOT/misc/ios/openal_provider_contract\.py" (?:configured|artifact)',
+        r'^feedback_stage "[^"]+" python3 misc/ios/ui_contract_check\.py',
+        r'^\s+feedback_stage "[^"]+" python3 misc/ios/shadercheck/glsl_es_check\.py --macro-contract',
+        r'^\s+out=\$\(feedback_stage "[^"]+" python3 misc/ios/shadercheck/(?:glsl_es_check|link_check)\.py',
+        r'^\s*(?:env\s+(?:PYTHONPATH="[^"]+"|-u PYTHONPATH)\s+)?python3 "\$@"',
+        r'^\s*python3 "\$REPO_ROOT/misc/ios/test_feedback\.py" "\$@"',
     ):
         for match in re.finditer(pattern, text, re.MULTILINE):
             position = match.start() + match.group(0).index("python3")
@@ -794,9 +2186,50 @@ def validate(catalog: dict[str, Any], root: Path = ROOT) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("validate", "json"))
+    parser.add_argument("command", choices=("validate", "json", "emit", "cache-certificate", "ingest"))
     parser.add_argument("--catalog", type=Path, default=CATALOG_PATH)
+    parser.add_argument("--id", dest="identifier")
+    parser.add_argument("--entrypoint-id")
+    parser.add_argument("--result", choices=("PASS", "FAIL", "ERROR", "SKIP", "TIMEOUT", "PLATFORM_SKIP"))
+    parser.add_argument("--kind", choices=("case", "stage"), default="stage")
+    parser.add_argument("--started-ns", type=int)
+    parser.add_argument("--ended-ns", type=int)
+    parser.add_argument("--exit-code", type=int)
+    parser.add_argument("--cache-hit", choices=("true", "false", "none"), default="none")
+    parser.add_argument("--detail")
+    parser.add_argument("--stage", choices=("compile", "link"))
+    parser.add_argument("--cache-key")
+    parser.add_argument("--output-file", type=Path)
+    parser.add_argument("--input-before", default="")
+    parser.add_argument("--input-after", default="")
+    parser.add_argument("--raw-events", type=Path)
+    parser.add_argument("--raw-fd", type=int)
     args = parser.parse_args()
+    if args.command == "emit":
+        if not args.identifier or not args.entrypoint_id or not args.result or args.started_ns is None:
+            parser.error("emit requires --id, --entrypoint-id, --result and --started-ns")
+        # The exit status is deliberately always zero.  Shell instrumentation
+        # is observational and cannot be allowed to trip set -e / pipefail.
+        runtime_event(args.identifier, args.result, args.started_ns, entrypoint_id=args.entrypoint_id,
+                      kind=args.kind, exit_code=args.exit_code,
+                      cache_hit={"true": True, "false": False, "none": None}[args.cache_hit],
+                      detail=args.detail, ended_ns=args.ended_ns)
+        return 0
+    if args.command == "cache-certificate":
+        if not args.stage or not args.entrypoint_id or not args.cache_key or args.output_file is None:
+            parser.error("cache-certificate requires --stage, --entrypoint-id, --cache-key and --output-file")
+        runtime_cache_certificate(args.stage, args.cache_key, args.output_file,
+                                  args.input_before, args.input_after,
+                                  entrypoint_id=args.entrypoint_id)
+        return 0
+    if args.command == "ingest":
+        if (not args.entrypoint_id
+                or (args.raw_events is None) == (args.raw_fd is None)):
+            parser.error("ingest requires --entrypoint-id and exactly one raw transport")
+        runtime_ingest(args.entrypoint_id, args.raw_events, raw_fd=args.raw_fd)
+        # Ingestion is observer-only: malformed raw data becomes private
+        # INCOMPLETE/ERROR evidence rather than a second gate authority.
+        return 0
     try:
         report = validate(read_catalog(args.catalog))
     except CatalogError as error:

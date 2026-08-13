@@ -16,10 +16,33 @@ that name carries a compatible type, so this is an approximation that surfaces t
 mismatches (which is what the port needs) rather than a proof.
 """
 from __future__ import annotations
-import argparse, json, os, re, sys
+import argparse, json, os, re, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import glsl_es_check as g  # reuse assemble()
+
+FEEDBACK_EMIT = None
+
+
+def install_shader_feedback() -> object | None:
+    """Install the non-secret raw sink for this strict checker, if supplied."""
+    try:
+        ios_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if ios_dir not in sys.path:
+            sys.path.insert(0, ios_dir)
+        from test_feedback_unittest import install_from_environment
+        return install_from_environment("shader::link", sys.argv)
+    except BaseException:
+        return None
+
+
+def feedback_case(identifier: str, result: str, started_ns: int) -> None:
+    if FEEDBACK_EMIT is None:
+        return
+    try:
+        FEEDBACK_EMIT(identifier, result, started_ns)
+    except BaseException:
+        pass
 
 BEGIN = re.compile(r'shader\s*:\s*begin\s*\(\s*"([^"]+)"\s*,\s*"([^"]+)"')
 VARY = re.compile(r'VARYING\(\w+\)\s*(out|in)\s+(\w+)\s+(xrvary\d+)')
@@ -87,11 +110,17 @@ def main() -> int:
             ap.error("--list-json accepts only --shaders")
         print(list_pairs_json(root))
         return 0
+    global FEEDBACK_EMIT
+    if args.strict and os.environ.get("XRAY_FEEDBACK_RAW_EVENT_FD"):
+        if install_shader_feedback() is not None:
+            from test_feedback_unittest import emit_raw
+            FEEDBACK_EMIT = emit_raw
     pairs = discover_pairs(root)
 
     ok = 0
     bad: list[tuple[str, str, list[str]]] = []
     for vs, fs in pairs:
+        started_ns = time.monotonic_ns()
         vp, fp = os.path.join(root, vs + ".vs"), os.path.join(root, fs + ".ps")
         if not (os.path.isfile(vp) and os.path.isfile(fp)):
             continue
@@ -99,7 +128,9 @@ def main() -> int:
             vo = varyings(vp, "vert", roots)
             fi = varyings(fp, "frag", roots)
         except Exception as e:  # noqa: BLE001
-            bad.append((vs, fs, [f"[error] {e}"])); continue
+            bad.append((vs, fs, [f"[error] {e}"]))
+            feedback_case(f"shader-link:{vs}|{fs}", "ERROR", started_ns)
+            continue
         problems = []
         for name, types in sorted(fi.items()):
             if name not in vo:
@@ -108,8 +139,10 @@ def main() -> int:
                 problems.append(f"{name}: FS in {'/'.join(types)} vs VS out {'/'.join(vo[name])} — type mismatch")
         if problems:
             bad.append((vs, fs, problems))
+            feedback_case(f"shader-link:{vs}|{fs}", "FAIL", started_ns)
         else:
             ok += 1
+            feedback_case(f"shader-link:{vs}|{fs}", "PASS", started_ns)
             if args.verbose:
                 print(f"  OK   {vs} | {fs}")
 

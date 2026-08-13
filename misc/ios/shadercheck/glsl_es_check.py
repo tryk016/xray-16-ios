@@ -40,8 +40,32 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 INCLUDE_RE = re.compile(r'^\s*#\s*include\s*"([^"]+)"', re.MULTILINE)
+FEEDBACK_EMIT = None
+
+
+def install_shader_feedback() -> object | None:
+    """Install the non-secret raw sink for this strict checker, if supplied."""
+    try:
+        ios_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if ios_dir not in sys.path:
+            sys.path.insert(0, ios_dir)
+        from test_feedback_unittest import install_from_environment
+        return install_from_environment("shader::glsl-es", sys.argv)
+    except BaseException:
+        return None
+
+
+def feedback_case(identifier: str, result: str, started_ns: int) -> None:
+    """Optional Phase 0B observer; never changes ordinary checker behavior."""
+    if FEEDBACK_EMIT is None:
+        return
+    try:
+        FEEDBACK_EMIT(identifier, result, started_ns)
+    except BaseException:
+        pass
 
 # Minimal, representative define set. The engine derives these from caps/settings
 # at runtime; here we compile each shader's default path. SMAP_size is the one
@@ -956,6 +980,13 @@ def main() -> int:
         return 2
     if args.macro_contract:
         return 0 if report_numeric_feature_macro_contract(root) else 1
+    # Only the exact strict gate command is allowlisted for per-shader events.
+    # list-json and macro-only modes remain entirely telemetry-free.
+    global FEEDBACK_EMIT
+    if args.strict and os.environ.get("XRAY_FEEDBACK_RAW_EVENT_FD"):
+        if install_shader_feedback() is not None:
+            from test_feedback_unittest import emit_raw
+            FEEDBACK_EMIT = emit_raw
     roots = [root, os.path.join(root, "shared"), os.path.join(root, "iostructs")]
 
     # Files with a main() the engine nevertheless never compiles in the GL tree — dead/
@@ -977,18 +1008,22 @@ def main() -> int:
             return list(executor.map(function, items))
 
     def validate_baseline(item: tuple[str, str]) -> tuple[str, str, str]:
+        started_ns = time.monotonic_ns()
         path, stage = item
         rel = os.path.relpath(path, root)
         try:
             src = assemble(path, stage, roots)
         except Exception as e:  # noqa: BLE001 — report, don't abort the sweep
+            feedback_case(f"shader:baseline:{rel}", "ERROR", started_ns)
             return "assemble-fail", rel, f"[assemble error] {e}"
         if not ENTRY_RE.search(src):
             return "skip", rel, ""
         try:
             ok, report = validate(args.glslang, stage, src)
         except Exception as e:  # noqa: BLE001
+            feedback_case(f"shader:baseline:{rel}", "ERROR", started_ns)
             return "fail", rel, f"[shadercheck exception] {e}"
+        feedback_case(f"shader:baseline:{rel}", "PASS" if ok else "FAIL", started_ns)
         return ("pass" if ok else "fail"), rel, report
 
     print(f"GLSL ES 3.00 shader workers: {jobs}")
@@ -1042,12 +1077,14 @@ def main() -> int:
     low_failed: list[tuple[str, str]] = []
 
     def validate_variant(item):
-        label, path, stage, overrides = item
+        started_ns = time.monotonic_ns()
+        label, path, stage, overrides, identifier = item
         try:
             src = assemble(path, stage, roots, overrides)
             ok, report = validate(args.glslang, stage, src)
         except Exception as e:  # noqa: BLE001
             ok, report = False, f"[shadercheck exception] {e}"
+        feedback_case(identifier, "PASS" if ok else "FAIL", started_ns)
         return label, ok, report
 
     low_variants = [
@@ -1056,6 +1093,7 @@ def main() -> int:
             path,
             stage,
             {"SSAO_QUALITY": "1"},
+            f"shader:low:{os.path.relpath(path, root)}",
         )
         for path, stage in shaders
         if os.path.basename(path) in low_settings_targets
@@ -1092,9 +1130,10 @@ def main() -> int:
         target = shader_targets_by_name.get(target_name)
         if target is None:
             ssao_failed.append((profile_name, f"{target_name} missing"))
+            feedback_case(f"shader:ssao:{profile_name}", "ERROR", time.monotonic_ns())
             continue
         path, stage = target
-        ssao_variants.append((profile_name, path, stage, overrides))
+        ssao_variants.append((profile_name, path, stage, overrides, f"shader:ssao:{profile_name}"))
     for profile_name, ok, report in ordered_map(validate_variant, ssao_variants):
         if ok:
             ssao_passed += 1
@@ -1115,9 +1154,10 @@ def main() -> int:
         target = shader_targets_by_name.get(target_name)
         if target is None:
             ssr_failed.append((profile_name, f"{target_name} missing"))
+            feedback_case(ssr_case_id(profile_name), "ERROR", time.monotonic_ns())
             continue
         path, stage = target
-        ssr_variants.append((profile_name, path, stage, overrides))
+        ssr_variants.append((profile_name, path, stage, overrides, ssr_case_id(profile_name)))
     for profile_name, ok, report in ordered_map(validate_variant, ssr_variants):
         if ok:
             ssr_passed += 1

@@ -7,6 +7,15 @@ The engine side is emulated solely by deterministic local file writes.
 
 from __future__ import annotations
 
+import os as _test_feedback_os
+if _test_feedback_os.environ.get("XRAY_FEEDBACK_RAW_EVENT_FD"):
+    try:
+        import sys as _test_feedback_sys
+        import test_feedback_unittest as _test_feedback_unittest
+        _test_feedback_unittest.install_from_environment("python::misc/ios/test_simulator_ui_navigation.py", _test_feedback_sys.argv)
+    except BaseException:
+        pass
+
 import importlib.util
 import io
 import json

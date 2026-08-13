@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Allowlisted, private full-log runner for OpenXRay iOS gates."""
 from __future__ import annotations
-import argparse, fcntl, hashlib, json, os, re, signal, stat, subprocess, sys, time
+import argparse, fcntl, hashlib, importlib.util, json, os, re, secrets, signal, stat, subprocess, sys, time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -87,15 +87,91 @@ def bound_log_path(path:Path,descriptor:int)->bool:
  try: named=path.lstat(); opened=os.fstat(descriptor)
  except FileNotFoundError: return False
  return stat.S_ISREG(named.st_mode) and (named.st_dev,named.st_ino)==(opened.st_dev,opened.st_ino)
-def run(spec:GateSpec, log_dir:Path, command:Sequence[str]|None=None)->int:
+def feedback_module():
+ """Load observation support without allowing a .pyc side effect in the repo."""
+ path=ROOT/"misc/ios/test_feedback.py"; spec=importlib.util.spec_from_file_location(f"_openxray_feedback_{secrets.token_hex(8)}",path)
+ if spec is None or spec.loader is None: raise RuntimeError("test feedback loader unavailable")
+ prior=sys.dont_write_bytecode
+ try:
+  sys.dont_write_bytecode=True; module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module); return module
+ finally: sys.dont_write_bytecode=prior
+def feedback_context_fd(directory:Path, profile:str, run_id:str, nonce:str)->int:
+ """Create an unlinked read-only mode-0600 context for one top-level Bash."""
+ path=directory/f".gate-context-{os.getpid()}-{secrets.token_hex(12)}"
+ descriptor=-1; reader=-1
+ try:
+  descriptor=os.open(path,os.O_RDWR|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+  payload=(f"{directory}\n{nonce}\n{run_id}\n{profile}\n").encode("utf-8")
+  offset=0
+  while offset<len(payload):
+   written=os.write(descriptor,payload[offset:])
+   if written<=0: raise OSError("zero context write")
+   offset+=written
+  os.fsync(descriptor)
+  written_details=os.fstat(descriptor)
+  named=path.lstat()
+  reader=os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
+  read_details=os.fstat(reader)
+  if (not stat.S_ISREG(written_details.st_mode) or written_details.st_uid!=os.getuid()
+      or stat.S_IMODE(written_details.st_mode)!=0o600 or written_details.st_size!=len(payload)
+      or (written_details.st_dev,written_details.st_ino)!=(named.st_dev,named.st_ino)
+      or (read_details.st_dev,read_details.st_ino)!=(named.st_dev,named.st_ino)):
+   raise RuntimeError("unsafe telemetry context file")
+  os.unlink(path)
+  os.close(descriptor); descriptor=-1
+  return reader
+ except BaseException:
+  if reader>=0: os.close(reader)
+  if descriptor>=0: os.close(descriptor)
+  try: path.unlink()
+  except FileNotFoundError: pass
+  raise
+def run(spec:GateSpec, log_dir:Path, command:Sequence[str]|None=None,
+        telemetry:bool=True)->int:
  private_dir(log_dir); lock_path=log_dir/f".{hashlib.sha256(str(spec.build_tree).encode()).hexdigest()}.lock"; lock_fd=os.open(lock_path,os.O_WRONLY|os.O_CREAT,0o600); inspect_fd=-1
  try:
   try: fcntl.flock(lock_fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
   except BlockingIOError: print(f"GATE_LOG BUSY gate={spec.name} build_tree={spec.build_tree}",file=sys.stderr); return 75
   log,log_fd=reserve_unique(log_dir,".log"); inspect_fd=os.dup(log_fd); meta=log.with_suffix(".json"); before=state(); detail=log_dir/f"detail-{log.stem}"; private_dir(detail)
-  selected=tuple(command) if command is not None else tuple(str(ROOT/item) if index == 0 and item.startswith("misc/") else item for index,item in enumerate(spec.command)); started=time.time()
+  selected=tuple(command) if command is not None else tuple(str(ROOT/item) if index == 0 and item.startswith("misc/") else item for index,item in enumerate(spec.command))
+  if selected and selected[0].endswith(".sh"):
+   selected=("/bin/bash",*selected)
+  started=time.time()
+  telemetry_dir=detail/"test-feedback"; telemetry_run=f"gate-{time.time_ns()}-{os.getpid()}"; telemetry_nonce=secrets.token_hex(32); feedback=None
+  telemetry_ready=False
+  if telemetry:
+   try:
+    feedback=feedback_module(); telemetry_ready=feedback.runtime_initialize(telemetry_dir,spec.name,telemetry_run,telemetry_nonce) is True
+   except BaseException:
+    feedback=None; telemetry_ready=False
+  # Both modes remove Bash startup/tracing controls before Bash starts.  That
+  # is deterministic gate safety rather than telemetry behaviour: a startup
+  # hook or inherited ``allexport:xtrace`` state must never see an observer
+  # context, and OFF has the identical startup environment.
+  child_env={**os.environ,"OPENXRAY_GATE_DETAIL_DIR":str(detail)}
+  for key in ("SHELLOPTS","BASHOPTS","PS4","BASH_XTRACEFD","BASH_ENV","ENV"):
+   child_env.pop(key,None)
+  for key in tuple(child_env):
+   # Bash imports ``BASH_FUNC_name%%`` before the first line of a script.
+   # They are executable startup state, not ordinary command environment, so
+   # drop every dynamically named exported function in both telemetry modes.
+   if (key.startswith("OPENXRAY_TEST_FEEDBACK_")
+       or key in {"XRAY_FEEDBACK_CONTEXT_FD","XRAY_FEEDBACK_RAW_EVENT_FD"}
+       or (key.startswith("BASH_FUNC_") and key.endswith("%%"))):
+    child_env.pop(key,None)
+  context_fd=-1
+  trusted_shells={str(ROOT/"misc/ios/build_check.sh"),str(ROOT/"misc/ios/build_fast_device.sh")}
+  if telemetry_ready and len(selected)>=2 and selected[0]=="/bin/bash" and selected[1] in trusted_shells:
+   try:
+    context_fd=feedback_context_fd(telemetry_dir,spec.name,telemetry_run,telemetry_nonce)
+    child_env["XRAY_FEEDBACK_CONTEXT_FD"]=str(context_fd)
+   except BaseException:
+    telemetry_ready=False; feedback=None
   log_handle=os.fdopen(log_fd,"wb")
-  child=subprocess.Popen(selected,cwd=ROOT,stdout=log_handle,stderr=subprocess.STDOUT,start_new_session=True,env={**os.environ,"OPENXRAY_GATE_DETAIL_DIR":str(detail)})
+  try:
+   child=subprocess.Popen(selected,cwd=ROOT,stdout=log_handle,stderr=subprocess.STDOUT,start_new_session=True,env=child_env,close_fds=True,pass_fds=(() if context_fd<0 else (context_fd,)))
+  finally:
+   if context_fd>=0: os.close(context_fd)
   forwarded={"code":None}
   def forward(signum,frame):
    forwarded["code"]=130 if signum==signal.SIGINT else 143
@@ -110,6 +186,12 @@ def run(spec:GateSpec, log_dir:Path, command:Sequence[str]|None=None)->int:
   stamp=None
   if mismatch: code=1
   if code==0 and spec.stamp is not None and spec.stamp.is_file() and not spec.stamp.is_symlink(): stamp={"path":str(spec.stamp),"sha256":sha(spec.stamp)}
+  if telemetry_ready:
+   try:
+    feedback.runtime_finalize(telemetry_dir,spec.name,telemetry_run,telemetry_nonce,code)
+   except BaseException: pass
+  # Receipt v2 is an archival authorization contract.  Telemetry discovery is
+  # deliberately private at detail_dir/test-feedback/run.json, never a field here.
   payload={"schema":"openxray.gate-log.v2","gate":spec.name,"started_unix":started,"ended_unix":time.time(),"exit_code":code,"before":before,"after":after,"log_path":None if mismatch else str(log),"log_sha256":None if mismatch else fd_sha256(inspect_fd),"log_identity_mismatch":mismatch,"detail_dir":str(detail),"underlying_stamp":stamp}
   write_atomic(meta,json.dumps(payload,sort_keys=True,separators=(",",":" )).encode()+b"\n")
   if code==0: print(f"GATE_LOG PASS gate={spec.name} log={log} metadata={meta}")
@@ -120,5 +202,5 @@ def run(spec:GateSpec, log_dir:Path, command:Sequence[str]|None=None)->int:
   if inspect_fd>=0: os.close(inspect_fd)
   os.close(lock_fd)
 def main()->int:
- parser=argparse.ArgumentParser(); parser.add_argument("--log-dir",default=os.environ.get("OPENXRAY_GATE_LOG_DIR",str(DEFAULT_LOG_DIR))); parser.add_argument("gate",choices=sorted(GATES)); args=parser.parse_args(); return run(GATES[args.gate],Path(args.log_dir))
+ parser=argparse.ArgumentParser(); parser.add_argument("--log-dir",default=os.environ.get("OPENXRAY_GATE_LOG_DIR",str(DEFAULT_LOG_DIR))); parser.add_argument("--telemetry",choices=("on","off"),default="on"); parser.add_argument("gate",choices=sorted(GATES)); args=parser.parse_args(); return run(GATES[args.gate],Path(args.log_dir),telemetry=args.telemetry=="on")
 if __name__=="__main__": sys.exit(main())

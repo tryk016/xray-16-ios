@@ -17,8 +17,60 @@
 # configuration so source-list changes cannot be skipped, but a missing tree is
 # still a hard error rather than a silent dependency rebuild.
 
+# The supported observer boundary is run_gate_logged.py: it scrubs Bash startup
+# state and exported functions before launching this trusted shell, then passes
+# the unlinked mode-0600 context FD.  A direct invocation still runs the gate,
+# but is not a supported telemetry trust boundary.  Once started by the runner,
+# Bash validates the FD before finite reads and closes it before ordinary tools.
+set +a +x
+# Retain the two descriptor numbers only after tracing/export is disabled, then
+# erase every inherited feedback name before assigning the trusted context.
+feedback_inherited_xtrace_fd="${BASH_XTRACEFD:-}"
+feedback_context_marker="${XRAY_FEEDBACK_CONTEXT_FD:-}"
+unset BASH_ENV ENV PS4 BASH_XTRACEFD
+unset feedback_context_fd feedback_dir feedback_nonce feedback_run_id feedback_profile
+unset XRAY_FEEDBACK_CONTEXT_FD XRAY_FEEDBACK_RAW_EVENT_FD
+# Unsetting BASH_XTRACEFD stops Bash tracing but does not promise to close an
+# inherited descriptor.  Retire it unless it is the actual trusted context FD.
+if [[ "$feedback_inherited_xtrace_fd" =~ ^[3-9][0-9]*$ ]] \
+        && [ "$feedback_inherited_xtrace_fd" != "$feedback_context_marker" ]; then
+    eval "exec ${feedback_inherited_xtrace_fd}>&-" 2>/dev/null || true
+fi
+feedback_context_fd="$feedback_context_marker"
+unset feedback_context_marker feedback_inherited_xtrace_fd
 set -u -o pipefail
 export PYTHONDONTWRITEBYTECODE=1
+
+feedback_dir=""
+feedback_nonce=""
+feedback_run_id=""
+feedback_profile=""
+if [[ "$feedback_context_fd" =~ ^[3-9][0-9]*$ ]]; then
+    # ``[[ -f /dev/fd/N ]]`` is a Bash-internal descriptor stat, so no helper
+    # process inherits the secret FD.  Four bounded reads plus one EOF probe
+    # reject FIFOs, oversized fields and trailing bytes without blocking.
+    if [ -f "/dev/fd/$feedback_context_fd" ] \
+            && IFS= read -r -n 4096 -u "$feedback_context_fd" feedback_dir \
+            && IFS= read -r -n 4096 -u "$feedback_context_fd" feedback_nonce \
+            && IFS= read -r -n 4096 -u "$feedback_context_fd" feedback_run_id \
+            && IFS= read -r -n 4096 -u "$feedback_context_fd" feedback_profile; then
+        if IFS= read -r -n 1 -u "$feedback_context_fd"; then
+            feedback_dir=""; feedback_nonce=""; feedback_run_id=""; feedback_profile=""
+        fi
+    fi
+    eval "exec ${feedback_context_fd}<&-" 2>/dev/null || true
+fi
+feedback_enabled=0
+if [ -n "$feedback_dir" ] && [ -n "$feedback_nonce" ] && [ -n "$feedback_run_id" ] \
+        && [ -n "$feedback_profile" ]; then
+    feedback_enabled=1
+fi
+for feedback_environment_name in "${!OPENXRAY_TEST_FEEDBACK_@}"; do
+    unset "$feedback_environment_name"
+done
+# One selected entrypoint runs at a time.  Keep its non-secret raw sink name so
+# the existing EXIT cleanup also retires it if the enclosing gate is interrupted.
+feedback_raw_cleanup_path=""
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT" || exit 1
@@ -58,7 +110,269 @@ esac
 GLSLANG="$REPO_ROOT/tools/glslang/bin/glslangValidator"
 [ -x "$GLSLANG" ] || GLSLANG="$(command -v glslangValidator || true)"
 
-fail() { echo ""; echo "FAIL: $*"; echo "DO NOT PUSH."; exit 1; }
+feedback_manual_stage_id=""
+feedback_manual_stage_started=""
+feedback_manual_stage_fail() {
+    [ -n "$feedback_manual_stage_id" ] || return 0
+    [ -n "$feedback_manual_stage_started" ] || return 0
+    feedback_observer emit --kind stage --id "$feedback_manual_stage_id" \
+        --result FAIL --started-ns "$feedback_manual_stage_started" --exit-code 1 >/dev/null 2>&1 || true
+    feedback_manual_stage_id=""
+    feedback_manual_stage_started=""
+}
+fail() { feedback_manual_stage_fail; echo ""; echo "FAIL: $*"; echo "DO NOT PUSH."; exit 1; }
+
+# Phase 0B is only an observer.  The context is sent only to the trusted
+# ``python3 -S`` observer below.  Selected commands get a separate raw append
+# sink with no directory, nonce, run ID, profile or authenticated capability.
+feedback_python_name='python''3'
+feedback_with_context() {
+    [ "$feedback_enabled" = 1 ] || { "$@"; return $?; }
+    BASH_ENV='' XRAY_FEEDBACK_CONTEXT_FD=9 "$feedback_python_name" -S \
+        "$REPO_ROOT/misc/ios/test_feedback.py" "$@" 9<<EOF
+$feedback_dir
+$feedback_nonce
+$feedback_run_id
+$feedback_profile
+EOF
+}
+feedback_origin_for_event() {
+    local kind="$1" identifier="$2" source
+    if [ "$kind" = case ]; then
+        case "$identifier" in
+            cpp:*) printf '%s\n' "${identifier%%@*}" ;;
+            sh:*) printf '%s\n' 'shell::ui-log-oracle' ;;
+            shader-link:*) printf '%s\n' 'shader::link' ;;
+            shader:*) printf '%s\n' 'shader::glsl-es' ;;
+            py:*) printf '%s\n' "python::${identifier#py:}" | sed 's/::.*//' ;;
+            *) return 1 ;;
+        esac
+        return
+    fi
+    source="${identifier#stage::}"
+    case "$source" in
+        python::*|shader::glsl-es|shader::link|shell::ui-log-oracle) printf '%s\n' "$source" ;;
+        cpp:*) printf '%s\n' "${source%%@*}" ;;
+        validation::*|build-stage::*|build-stage*) printf '%s\n' "observer::$feedback_profile" ;;
+        *) printf '%s\n' "observer::$feedback_profile" ;;
+    esac
+}
+feedback_observer() {
+    [ "$feedback_enabled" = 1 ] || return 0
+    local command="${1:-}" kind=stage identifier="" origin
+    local -a original=("$@")
+    shift || true
+    if [ "$command" = emit ]; then
+        while [ "$#" -gt 1 ]; do
+            case "$1" in --kind) kind="$2"; shift 2 ;; --id) identifier="$2"; shift 2 ;; *) shift ;; esac
+        done
+    elif [ "$command" = cache-certificate ]; then
+        while [ "$#" -gt 1 ]; do
+            case "$1" in --stage) kind=stage; identifier="stage::shader::$2"; shift 2 ;; *) shift ;; esac
+        done
+        [ "$identifier" = 'stage::shader::compile' ] && identifier='stage::shader::glsl-es'
+    fi
+    origin=$(feedback_origin_for_event "$kind" "$identifier") || return 0
+    feedback_with_context "${original[@]}" --entrypoint-id "$origin"
+}
+
+feedback_ingest_raw() {
+    local origin="$1" raw_fd="$2"
+    [ "$feedback_enabled" = 1 ] || return 0
+    feedback_with_context ingest --entrypoint-id "$origin" --raw-fd "$raw_fd" \
+        >/dev/null 2>&1 || true
+}
+
+feedback_selected_command() {
+    # Preserve the same ordinary-child environment in OFF and ON modes.  A
+    # selected entrypoint receives neither the enclosing gate detail directory
+    # nor any Bash startup/tracing or trusted-context capability; ON adds only
+    # its non-secret raw append descriptor below.
+    env -u OPENXRAY_GATE_DETAIL_DIR -u SHELLOPTS -u BASHOPTS -u PS4 \
+        -u BASH_XTRACEFD -u BASH_ENV -u ENV -u XRAY_FEEDBACK_CONTEXT_FD \
+        -u XRAY_FEEDBACK_RAW_EVENT_FD "$@"
+}
+
+feedback_selected_raw() {
+    local origin="$1"
+    shift
+    if [ "$feedback_enabled" = 0 ]; then
+        feedback_selected_command "$@"
+        return $?
+    fi
+    local raw_path raw_fd=8 status
+    raw_path=$(mktemp "$feedback_dir/raw-events.XXXXXX" 2>/dev/null) \
+        || { feedback_selected_command "$@"; return $?; }
+    chmod 600 "$raw_path" 2>/dev/null \
+        || { rm -f "$raw_path" 2>/dev/null || true; feedback_selected_command "$@"; return $?; }
+    feedback_raw_cleanup_path="$raw_path"
+    # Keep one read/write description in the trusted parent, unlink its name
+    # before the child can inherit it, and later ingest with pread(2) via that
+    # descriptor.  An exposed raw FD therefore has no pathname for F_GETPATH
+    # or /proc/self/fd to lead an untrusted child into test-feedback siblings.
+    if ! { exec 8<>"$raw_path"; } 2>/dev/null; then
+        rm -f "$raw_path" 2>/dev/null || true
+        feedback_raw_cleanup_path=""
+        feedback_selected_command "$@"
+        return $?
+    fi
+    if ! rm -f "$raw_path" 2>/dev/null; then
+        # Scope the diagnostic redirect to the group.  A redirect attached
+        # directly to a no-command ``exec`` would persist and silence the
+        # selected child.
+        { exec 8>&-; } 2>/dev/null || true
+        # The child must never start with a still-named protected sink.  This
+        # observer failure is intentionally fail-open for the actual gate.
+        feedback_raw_cleanup_path=""
+        feedback_selected_command "$@"
+        return $?
+    fi
+    feedback_raw_cleanup_path=""
+    env -u OPENXRAY_GATE_DETAIL_DIR -u SHELLOPTS -u BASHOPTS -u PS4 \
+        -u BASH_XTRACEFD -u BASH_ENV -u ENV -u XRAY_FEEDBACK_CONTEXT_FD \
+        XRAY_FEEDBACK_RAW_EVENT_FD="$raw_fd" "$@"
+    status=$?
+    feedback_ingest_raw "$origin" "$raw_fd"
+    { exec 8>&-; } 2>/dev/null || true
+    return "$status"
+}
+
+feedback_selected_python() {
+    local relative="$1" origin
+    shift
+    case "$relative" in
+        misc/ios/shadercheck/glsl_es_check.py) origin='shader::glsl-es' ;;
+        misc/ios/shadercheck/link_check.py) origin='shader::link' ;;
+        *) origin="python::$relative" ;;
+    esac
+    feedback_selected_raw "$origin" "$feedback_python_name" "$relative" "$@"
+}
+
+feedback_selected_shell() {
+    feedback_selected_raw 'shell::ui-log-oracle' "$@"
+}
+
+feedback_stage_command() {
+    if [ "${1:-}" = "$feedback_python_name" ]; then
+        case "${2:-}" in
+            misc/ios/test_active_gate.py|misc/ios/test_run_gate_logged.py|\
+            misc/ios/test_openal_provider_contract.py|\
+            misc/ios/test_sdl2_scene_contract.py|misc/ios/test_install_device_contract.py|\
+            misc/ios/test_lighting_ab_evidence.py|misc/ios/test_capture_v2_host_tools.py|\
+            misc/ios/test_capture_state_source_contract.py|misc/ios/test_sector_startup_oracle.py|\
+            misc/ios/test_sector_marker_contract.py|misc/ios/test_lifecycle_marker_contract.py|\
+            misc/ios/test_ui_contract_check.py|misc/ios/test_activity_trace_summary.py|\
+            misc/ios/test_ui_state_marker_contract.py|misc/ios/test_pda_map_hotkey_contract.py|\
+            misc/ios/test_simulator_ui_navigation.py|misc/ios/test_ui_capture_evidence.py|\
+            misc/ios/test_ios_quickload_input_contract.py|misc/ios/test_simulator_quickload_evidence.py|\
+            misc/ios/test_retail_import.py|misc/ios/test_retail_clone_staging.py|\
+            misc/ios/test_archive_completed_artifacts.py|misc/ios/test_locator_registration_contract.py|\
+            misc/ios/test_retail_simulator.py|misc/ios/test_shader_macro_contract.py|\
+            misc/ios/test_shader_resource_contract.py)
+                shift
+                feedback_selected_python "$@"
+                return $?
+                ;;
+            misc/ios/shadercheck/glsl_es_check.py)
+                if [[ " $* " = *" --strict "* ]]; then
+                    shift
+                    feedback_selected_python "$@"
+                    return $?
+                fi
+                ;;
+            misc/ios/shadercheck/link_check.py)
+                if [[ " $* " = *" --strict "* ]]; then
+                    shift
+                    feedback_selected_python "$@"
+                    return $?
+                fi
+                ;;
+        esac
+    elif [ "${1:-}" = misc/ios/ui_automation/test_log_oracles.sh ]; then
+        feedback_selected_shell "$@"
+        return $?
+    fi
+    "$@"
+}
+
+feedback_now() {
+    "$feedback_python_name" -c 'import time; print(time.monotonic_ns())' 2>/dev/null
+}
+
+feedback_case() {
+    local identifier="$1"
+    shift
+    local started status
+    if [ "$feedback_enabled" = 1 ]; then
+        started=$(feedback_now || true)
+    else
+        started=""
+    fi
+    # C++ binaries are selected entrypoints too.  They never receive a raw
+    # sink because their trusted parent emits the case event, but OFF and ON
+    # both get the same scrubbed ordinary-child environment.
+    feedback_selected_command "$@"
+    status=$?
+    if [ "$feedback_enabled" = 1 ] && [ -n "$started" ]; then
+        feedback_observer emit --kind case --id "$identifier" \
+            --result "$([ "$status" -eq 0 ] && printf PASS || printf FAIL)" \
+            --started-ns "$started" --exit-code "$status" >/dev/null 2>&1 || true
+        feedback_observer emit --kind stage --id "stage::$identifier" \
+            --result "$([ "$status" -eq 0 ] && printf PASS || printf FAIL)" \
+            --started-ns "$started" --exit-code "$status" >/dev/null 2>&1 || true
+    fi
+    return "$status"
+}
+
+feedback_stage() {
+    local identifier="$1"
+    shift
+    local started status
+    if [ "$feedback_enabled" = 1 ]; then
+        started=$(feedback_now || true)
+    else
+        started=""
+    fi
+    # Dispatch selected Python/shell/shader entrypoints in both modes.  OFF
+    # remains observationally inert, but does not give selected children a
+    # broader environment than ON.
+    feedback_stage_command "$@"
+    status=$?
+    if [ "$feedback_enabled" = 1 ] && [ -n "$started" ]; then
+        feedback_observer emit --kind stage --id "$identifier" \
+            --result "$([ "$status" -eq 0 ] && printf PASS || printf FAIL)" \
+            --started-ns "$started" --exit-code "$status" \
+            --cache-hit "$([ "$identifier" = 'stage::shader::glsl-es' ] || [ "$identifier" = 'stage::shader::link' ] && printf false || printf none)" \
+            >/dev/null 2>&1 || true
+    fi
+    return "$status"
+}
+
+feedback_mark_stage() {
+    local identifier="$1" started="$2" cache_hit="${3:-none}"
+    [ "$feedback_enabled" = 1 ] || return 0
+    [ -n "$started" ] || return 0
+    feedback_observer emit --kind stage --id "$identifier" \
+        --result PASS --started-ns "$started" --exit-code 0 --cache-hit "$cache_hit" \
+        >/dev/null 2>&1 || true
+}
+
+feedback_cached_stage() {
+    local started
+    started=$(feedback_now || true)
+    feedback_mark_stage "$1" "$started" true
+}
+
+feedback_begin_manual_stage() {
+    feedback_manual_stage_id="$1"
+    feedback_manual_stage_started=$(feedback_now || true)
+}
+
+feedback_complete_manual_stage() {
+    feedback_mark_stage "$feedback_manual_stage_id" "$feedback_manual_stage_started" "${1:-none}"
+    feedback_manual_stage_id=""
+    feedback_manual_stage_started=""
+}
 
 archive_gate_detail_log() {
     local source="$1"
@@ -83,14 +397,14 @@ openal_fields=""
 OPENAL_PROVIDER=""
 OPENAL_SHA256=""
 run_openal_configured() {
-    openal_fields=$(python3 "$REPO_ROOT/misc/ios/openal_provider_contract.py" configured \
+    openal_fields=$(feedback_stage "stage::validation::python::openal-configured" python3 "$REPO_ROOT/misc/ios/openal_provider_contract.py" configured \
         --cache "$BUILD_DIR/CMakeCache.txt" --prefix "$PREFIX_DIR" \
         --project "$BUILD_DIR/OpenXRay.xcodeproj" --platform iphoneos) \
         || fail "OpenAL provider configured contract failed"
 }
 run_openal_artifact() {
     local binary="$1"
-    openal_fields=$(python3 "$REPO_ROOT/misc/ios/openal_provider_contract.py" artifact \
+    openal_fields=$(feedback_stage "stage::validation::python::openal-artifact" python3 "$REPO_ROOT/misc/ios/openal_provider_contract.py" artifact \
         --prefix "$PREFIX_DIR" --binary "$binary" --platform iphoneos) \
         || fail "OpenAL provider artifact contract failed"
     OPENAL_PROVIDER=$(printf '%s\n' "$openal_fields" | awk -F= '$1 == "openal_provider" {print $2}')
@@ -117,6 +431,10 @@ diagnostic_input_state_sanitized_test=""
 gate_start=$(mktemp "${TMPDIR:-/tmp}/ios-gate-start.XXXXXX") \
     || fail "could not create gate start marker"
 cleanup() {
+    # This is only the unlinked/raw telemetry sink's interruption fallback.
+    # Its diagnostic must never alter the gate's authoritative stderr; leave
+    # the ordinary cleanup calls below unchanged.
+    [ -z "$feedback_raw_cleanup_path" ] || rm -f "$feedback_raw_cleanup_path" 2>/dev/null || true
     rm -f "$gate_start"
     [ -z "$policy_test" ] || rm -f "$policy_test"
     [ -z "$lifecycle_test" ] || rm -f "$lifecycle_test"
@@ -136,35 +454,35 @@ cleanup() {
 trap cleanup EXIT
 
 echo "== iOS active-gate capsule and private logging contracts =="
-python3 misc/ios/test_active_gate.py \
+feedback_stage "stage::python::misc/ios/test_active_gate.py" python3 misc/ios/test_active_gate.py \
     || fail "active-gate capsule regression tests failed"
-python3 misc/ios/test_run_gate_logged.py \
+feedback_stage "stage::python::misc/ios/test_run_gate_logged.py" python3 misc/ios/test_run_gate_logged.py \
     || fail "private gate-log regression tests failed"
-bash -n misc/ios/run_gate_logged.sh \
+feedback_stage "stage::validation::bash-n::run-gate-launcher" bash -n misc/ios/run_gate_logged.sh \
     || fail "private gate-log launcher syntax check failed"
 
 echo "== iOS OpenAL provider contract unit gate =="
-python3 misc/ios/test_openal_provider_contract.py \
+feedback_stage "stage::python::misc/ios/test_openal_provider_contract.py" python3 misc/ios/test_openal_provider_contract.py \
     || fail "OpenAL provider contract regression tests failed"
 
 echo "== iOS SDL2 UIKit UIScene contract gate =="
-python3 misc/ios/test_sdl2_scene_contract.py \
+feedback_stage "stage::python::misc/ios/test_sdl2_scene_contract.py" python3 misc/ios/test_sdl2_scene_contract.py \
     || fail "SDL2 UIKit UIScene contract regression tests failed"
 
 echo "== iOS install preflight contract gate =="
-python3 misc/ios/test_install_device_contract.py \
+feedback_stage "stage::python::misc/ios/test_install_device_contract.py" python3 misc/ios/test_install_device_contract.py \
     || fail "iOS install preflight contract regression tests failed"
 
 echo "== iOS capture-v2 host tooling gate =="
-bash -n misc/ios/device_lease.sh misc/ios/input.sh misc/ios/shot.sh misc/ios/lighting_ab_capture.sh \
+feedback_stage "stage::validation::bash-n::capture-tools" bash -n misc/ios/device_lease.sh misc/ios/input.sh misc/ios/shot.sh misc/ios/lighting_ab_capture.sh \
     || fail "capture-v2 shell syntax check failed"
-shellcheck -x misc/ios/device_lease.sh misc/ios/input.sh misc/ios/shot.sh misc/ios/lighting_ab_capture.sh \
+feedback_stage "stage::validation::shellcheck::capture-tools" shellcheck -x misc/ios/device_lease.sh misc/ios/input.sh misc/ios/shot.sh misc/ios/lighting_ab_capture.sh \
     || fail "capture-v2 ShellCheck failed"
-python3 misc/ios/test_lighting_ab_evidence.py \
+feedback_stage "stage::python::misc/ios/test_lighting_ab_evidence.py" python3 misc/ios/test_lighting_ab_evidence.py \
     || fail "capture-v2 parser/evidence regression tests failed"
-python3 misc/ios/test_capture_v2_host_tools.py \
+feedback_stage "stage::python::misc/ios/test_capture_v2_host_tools.py" python3 misc/ios/test_capture_v2_host_tools.py \
     || fail "capture-v2 mock host-tool regression tests failed"
-python3 misc/ios/test_capture_state_source_contract.py \
+feedback_stage "stage::python::misc/ios/test_capture_state_source_contract.py" python3 misc/ios/test_capture_state_source_contract.py \
     || fail "capture-v2 source contract regression tests failed"
 
 # Hash paths and their contents in one Python process. The salt carries tool
@@ -276,7 +594,7 @@ publish_cache() {
 artifact_salt="ios-device-artifact-v2"
 artifact_hash_before=""
 if [ "$run_shaders" = 1 ] && [ "$run_engine" = 1 ]; then
-    artifact_hash_before=$(python3 "$REPO_ROOT/misc/ios/gate_hash.py" \
+    artifact_hash_before=$(feedback_stage "build-stage::artifact-input-hash-before" python3 "$REPO_ROOT/misc/ios/gate_hash.py" \
         --salt "$artifact_salt" --build-context-root "$REPO_ROOT" \
         --ios-artifact-root "$REPO_ROOT") \
         || fail "could not hash device artifact inputs"
@@ -307,7 +625,7 @@ capture_state_test=$(mktemp "${TMPDIR:-/tmp}/ios-capture-state.XXXXXX") \
     -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Werror \
     misc/ios/ios_capture_state_v2_test.cpp -o "$capture_state_test" \
     || fail "capture-v2 serializer test did not compile"
-"$capture_state_test" || fail "capture-v2 serializer test failed"
+feedback_case "cpp:misc/ios/ios_capture_state_v2_test@strict" "$capture_state_test" || fail "capture-v2 serializer test failed"
 rm -f "$capture_state_test"
 capture_state_test=""
 
@@ -318,7 +636,7 @@ capture_state_sanitized_test=$(mktemp "${TMPDIR:-/tmp}/ios-capture-state-sanitiz
     -fsanitize=address,undefined -fno-omit-frame-pointer \
     misc/ios/ios_capture_state_v2_test.cpp -o "$capture_state_sanitized_test" \
     || fail "sanitized capture-v2 serializer test did not compile"
-ASAN_OPTIONS="$capture_v2_asan_options" UBSAN_OPTIONS=halt_on_error=1 "$capture_state_sanitized_test" \
+feedback_case "cpp:misc/ios/ios_capture_state_v2_test@asan-ubsan" env ASAN_OPTIONS="$capture_v2_asan_options" UBSAN_OPTIONS=halt_on_error=1 "$capture_state_sanitized_test" \
     || fail "sanitized capture-v2 serializer test failed"
 rm -f "$capture_state_sanitized_test"
 capture_state_sanitized_test=""
@@ -329,7 +647,7 @@ diagnostic_input_state_test=$(mktemp "${TMPDIR:-/tmp}/ios-diagnostic-input-state
     -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Werror \
     misc/ios/ios_diagnostic_input_state_test.cpp -o "$diagnostic_input_state_test" \
     || fail "diagnostic input-state test did not compile"
-"$diagnostic_input_state_test" || fail "diagnostic input-state test failed"
+feedback_case "cpp:misc/ios/ios_diagnostic_input_state_test@strict" "$diagnostic_input_state_test" || fail "diagnostic input-state test failed"
 rm -f "$diagnostic_input_state_test"
 diagnostic_input_state_test=""
 
@@ -340,15 +658,15 @@ diagnostic_input_state_sanitized_test=$(mktemp "${TMPDIR:-/tmp}/ios-diagnostic-i
     -fsanitize=address,undefined -fno-omit-frame-pointer \
     misc/ios/ios_diagnostic_input_state_test.cpp -o "$diagnostic_input_state_sanitized_test" \
     || fail "sanitized diagnostic input-state test did not compile"
-ASAN_OPTIONS="$capture_v2_asan_options" UBSAN_OPTIONS=halt_on_error=1 "$diagnostic_input_state_sanitized_test" \
+feedback_case "cpp:misc/ios/ios_diagnostic_input_state_test@asan-ubsan" env ASAN_OPTIONS="$capture_v2_asan_options" UBSAN_OPTIONS=halt_on_error=1 "$diagnostic_input_state_sanitized_test" \
     || fail "sanitized diagnostic input-state test failed"
 rm -f "$diagnostic_input_state_sanitized_test"
 diagnostic_input_state_sanitized_test=""
 
 echo "== iOS startup-sector evidence oracle gate =="
-python3 misc/ios/test_sector_startup_oracle.py \
+feedback_stage "stage::python::misc/ios/test_sector_startup_oracle.py" python3 misc/ios/test_sector_startup_oracle.py \
     || fail "iOS startup-sector evidence oracle regression tests failed"
-python3 misc/ios/test_sector_marker_contract.py \
+feedback_stage "stage::python::misc/ios/test_sector_marker_contract.py" python3 misc/ios/test_sector_marker_contract.py \
     || fail "iOS startup-sector marker source contract failed"
 
 echo "== iOS sector fallback policy gate =="
@@ -358,7 +676,7 @@ sector_fallback_test=$(mktemp "${TMPDIR:-/tmp}/ios-sector-fallback-policy.XXXXXX
     -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Werror \
     misc/ios/sector_fallback_policy_test.cpp -o "$sector_fallback_test" \
     || fail "iOS sector fallback policy test did not compile"
-"$sector_fallback_test" || fail "iOS sector fallback policy test failed"
+feedback_case "cpp:misc/ios/sector_fallback_policy_test@strict" "$sector_fallback_test" || fail "iOS sector fallback policy test failed"
 rm -f "$sector_fallback_test"
 sector_fallback_test=""
 
@@ -376,7 +694,7 @@ if [ "$(uname -s)" = "Darwin" ]; then
 else
     sector_fallback_asan_options=detect_leaks=1
 fi
-ASAN_OPTIONS="$sector_fallback_asan_options" UBSAN_OPTIONS=halt_on_error=1 "$sector_fallback_sanitized_test" \
+feedback_case "cpp:misc/ios/sector_fallback_policy_test@asan-ubsan" env ASAN_OPTIONS="$sector_fallback_asan_options" UBSAN_OPTIONS=halt_on_error=1 "$sector_fallback_sanitized_test" \
     || fail "sanitized iOS sector fallback policy test failed"
 rm -f "$sector_fallback_sanitized_test"
 sector_fallback_sanitized_test=""
@@ -387,7 +705,7 @@ policy_test=$(mktemp "${TMPDIR:-/tmp}/ios-graphics-policy.XXXXXX") \
 "${policy_compile[@]}" -std=c++17 -I "$REPO_ROOT" \
     misc/ios/graphics_profile_policy_test.cpp -o "$policy_test" \
     || fail "iOS graphics profile policy test did not compile"
-"$policy_test" || fail "iOS graphics profile policy test failed"
+feedback_case "cpp:misc/ios/graphics_profile_policy_test@strict" "$policy_test" || fail "iOS graphics profile policy test failed"
 rm -f "$policy_test"
 policy_test=""
 
@@ -397,12 +715,12 @@ lifecycle_test=$(mktemp "${TMPDIR:-/tmp}/ios-lifecycle-policy.XXXXXX") \
 "${policy_compile[@]}" -std=c++17 -I "$REPO_ROOT" \
     misc/ios/lifecycle_policy_test.cpp -o "$lifecycle_test" \
     || fail "iOS lifecycle policy test did not compile"
-"$lifecycle_test" || fail "iOS lifecycle policy test failed"
+feedback_case "cpp:misc/ios/lifecycle_policy_test@strict" "$lifecycle_test" || fail "iOS lifecycle policy test failed"
 rm -f "$lifecycle_test"
 lifecycle_test=""
 
 echo "== iOS lifecycle marker contract gate =="
-python3 misc/ios/test_lifecycle_marker_contract.py \
+feedback_stage "stage::python::misc/ios/test_lifecycle_marker_contract.py" python3 misc/ios/test_lifecycle_marker_contract.py \
     || fail "iOS lifecycle marker contract regression tests failed"
 
 echo "== iOS audio interruption policy gate =="
@@ -412,7 +730,7 @@ audio_interruption_test=$(mktemp "${TMPDIR:-/tmp}/ios-audio-interruption-policy.
     -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Werror \
     misc/ios/audio_interruption_policy_test.cpp -o "$audio_interruption_test" \
     || fail "iOS audio interruption policy test did not compile"
-"$audio_interruption_test" || fail "iOS audio interruption policy test failed"
+feedback_case "cpp:misc/ios/audio_interruption_policy_test@strict" "$audio_interruption_test" || fail "iOS audio interruption policy test failed"
 rm -f "$audio_interruption_test"
 audio_interruption_test=""
 
@@ -422,7 +740,7 @@ texture_memory_test=$(mktemp "${TMPDIR:-/tmp}/ios-texture-memory.XXXXXX") \
 "${policy_compile[@]}" -std=c++17 -I "$REPO_ROOT" \
     misc/ios/texture_memory_policy_test.cpp -o "$texture_memory_test" \
     || fail "iOS texture memory policy test did not compile"
-"$texture_memory_test" || fail "iOS texture memory policy test failed"
+feedback_case "cpp:misc/ios/texture_memory_policy_test@strict" "$texture_memory_test" || fail "iOS texture memory policy test failed"
 rm -f "$texture_memory_test"
 texture_memory_test=""
 
@@ -434,7 +752,7 @@ texture_bc_fallback_test=$(mktemp "${TMPDIR:-/tmp}/ios-texture-bc-fallback.XXXXX
     -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Werror \
     misc/ios/texture_bc_fallback_test.cpp -o "$texture_bc_fallback_test" \
     || fail "iOS BC texture fallback test did not compile"
-"$texture_bc_fallback_test" || fail "iOS BC texture fallback test failed"
+feedback_case "cpp:misc/ios/texture_bc_fallback_test@strict" "$texture_bc_fallback_test" || fail "iOS BC texture fallback test failed"
 rm -f "$texture_bc_fallback_test"
 texture_bc_fallback_test=""
 
@@ -451,7 +769,7 @@ if [ "$(uname -s)" = "Darwin" ]; then
 else
     texture_bc_fallback_asan_options=detect_leaks=1
 fi
-ASAN_OPTIONS="$texture_bc_fallback_asan_options" UBSAN_OPTIONS=halt_on_error=1 "$texture_bc_fallback_sanitized_test" \
+feedback_case "cpp:misc/ios/texture_bc_fallback_test@asan-ubsan" env ASAN_OPTIONS="$texture_bc_fallback_asan_options" UBSAN_OPTIONS=halt_on_error=1 "$texture_bc_fallback_sanitized_test" \
     || fail "sanitized iOS BC texture fallback test failed"
 rm -f "$texture_bc_fallback_sanitized_test"
 texture_bc_fallback_sanitized_test=""
@@ -463,7 +781,7 @@ ui_focus_geometry_test=$(mktemp "${TMPDIR:-/tmp}/ios-ui-focus-geometry.XXXXXX") 
     -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Werror \
     misc/ios/ui_focus_geometry_policy_test.cpp -o "$ui_focus_geometry_test" \
     || fail "iOS UI focus geometry policy test did not compile"
-"$ui_focus_geometry_test" || fail "iOS UI focus geometry policy test failed"
+feedback_case "cpp:misc/ios/ui_focus_geometry_policy_test@strict" "$ui_focus_geometry_test" || fail "iOS UI focus geometry policy test failed"
 rm -f "$ui_focus_geometry_test"
 ui_focus_geometry_test=""
 
@@ -479,72 +797,72 @@ if [ "$(uname -s)" = "Darwin" ]; then
 else
     ui_focus_geometry_asan_options=detect_leaks=1
 fi
-ASAN_OPTIONS="$ui_focus_geometry_asan_options" UBSAN_OPTIONS=halt_on_error=1 "$ui_focus_geometry_sanitized_test" \
+feedback_case "cpp:misc/ios/ui_focus_geometry_policy_test@asan-ubsan" env ASAN_OPTIONS="$ui_focus_geometry_asan_options" UBSAN_OPTIONS=halt_on_error=1 "$ui_focus_geometry_sanitized_test" \
     || fail "sanitized iOS UI focus geometry policy test failed"
 rm -f "$ui_focus_geometry_sanitized_test"
 ui_focus_geometry_sanitized_test=""
 
 echo "== iOS UI contract gate =="
-python3 misc/ios/test_ui_contract_check.py \
+feedback_stage "stage::python::misc/ios/test_ui_contract_check.py" python3 misc/ios/test_ui_contract_check.py \
     || fail "iOS UI contract regression tests failed"
-misc/ios/ui_automation/test_log_oracles.sh \
+feedback_stage "stage::shell::ui-log-oracle" misc/ios/ui_automation/test_log_oracles.sh \
     || fail "iOS UI automation log-oracle regression tests failed"
-python3 misc/ios/ui_contract_check.py \
+feedback_stage "stage::validation::python::ui-contract" python3 misc/ios/ui_contract_check.py \
     || fail "iOS menu/Options contract failed"
 
 echo "== iOS Activity Monitor trace parser gate =="
-python3 misc/ios/test_activity_trace_summary.py \
+feedback_stage "stage::python::misc/ios/test_activity_trace_summary.py" python3 misc/ios/test_activity_trace_summary.py \
     || fail "iOS Activity Monitor trace parser regression tests failed"
 
 echo "== iOS rendered UI-state marker gate =="
-python3 misc/ios/test_ui_state_marker_contract.py \
+feedback_stage "stage::python::misc/ios/test_ui_state_marker_contract.py" python3 misc/ios/test_ui_state_marker_contract.py \
     || fail "iOS rendered UI-state marker regression tests failed"
 
 echo "== iOS CoP PDA map-hotkey contract gate =="
-python3 misc/ios/test_pda_map_hotkey_contract.py \
+feedback_stage "stage::python::misc/ios/test_pda_map_hotkey_contract.py" python3 misc/ios/test_pda_map_hotkey_contract.py \
     || fail "iOS CoP PDA map-hotkey contract regression tests failed"
 
 echo "== iOS Simulator semantic UI-navigation gate =="
-python3 misc/ios/test_simulator_ui_navigation.py \
+feedback_stage "stage::python::misc/ios/test_simulator_ui_navigation.py" python3 misc/ios/test_simulator_ui_navigation.py \
     || fail "iOS Simulator semantic UI-navigation regression tests failed"
 
 echo "== iOS Simulator native UI-capture evidence gate =="
-python3 misc/ios/test_ui_capture_evidence.py \
+feedback_stage "stage::python::misc/ios/test_ui_capture_evidence.py" python3 misc/ios/test_ui_capture_evidence.py \
     || fail "iOS Simulator native UI-capture evidence regression tests failed"
 
 echo "== iOS Simulator QuickSave/QuickLoad evidence gate =="
-python3 misc/ios/test_ios_quickload_input_contract.py \
+feedback_stage "stage::python::misc/ios/test_ios_quickload_input_contract.py" python3 misc/ios/test_ios_quickload_input_contract.py \
     || fail "iOS QuickSave/QuickLoad input contract regression tests failed"
-python3 misc/ios/test_simulator_quickload_evidence.py \
+feedback_stage "stage::python::misc/ios/test_simulator_quickload_evidence.py" python3 misc/ios/test_simulator_quickload_evidence.py \
     || fail "iOS Simulator QuickSave/QuickLoad evidence regression tests failed"
 
 echo "== iOS retail import contract gate =="
-python3 misc/ios/test_retail_import.py \
+feedback_stage "stage::python::misc/ios/test_retail_import.py" python3 misc/ios/test_retail_import.py \
     || fail "retail import regression tests failed"
-python3 misc/ios/test_retail_clone_staging.py \
+feedback_stage "stage::python::misc/ios/test_retail_clone_staging.py" python3 misc/ios/test_retail_clone_staging.py \
     || fail "retail clone-staging regression tests failed"
 
 echo "== iOS completed-artifact archive policy gate =="
-python3 misc/ios/test_archive_completed_artifacts.py \
+feedback_stage "stage::python::misc/ios/test_archive_completed_artifacts.py" python3 misc/ios/test_archive_completed_artifacts.py \
     || fail "completed-artifact archive policy regression tests failed"
 
 if [ "$run_shaders" = 1 ]; then
     echo "== iOS Locator registration contract gate =="
-    python3 misc/ios/test_locator_registration_contract.py \
+    feedback_stage "stage::python::misc/ios/test_locator_registration_contract.py" python3 misc/ios/test_locator_registration_contract.py \
         || fail "iOS LocatorAPI registration contract regression tests failed"
 
     echo "== iOS retail Simulator isolation gate =="
-    python3 misc/ios/test_retail_simulator.py \
+    feedback_stage "stage::python::misc/ios/test_retail_simulator.py" python3 misc/ios/test_retail_simulator.py \
         || fail "retail Simulator isolation regression tests failed"
 
     echo "== iOS numeric feature-macro contract gate =="
-    python3 misc/ios/test_shader_macro_contract.py \
+    feedback_stage "stage::python::misc/ios/test_shader_macro_contract.py" python3 misc/ios/test_shader_macro_contract.py \
         || fail "numeric feature-macro regression tests failed"
-    python3 misc/ios/shadercheck/glsl_es_check.py --macro-contract \
+    feedback_stage "stage::validation::shader::macro-contract" python3 misc/ios/shadercheck/glsl_es_check.py --macro-contract \
         || fail "numeric feature-macro contract failed"
 
     echo "== iOS shader resource-permutation contract gate =="
-    python3 misc/ios/test_shader_resource_contract.py \
+    feedback_stage "stage::python::misc/ios/test_shader_resource_contract.py" python3 misc/ios/test_shader_resource_contract.py \
         || fail "shader resource-permutation regression tests failed"
 
     [ -n "$GLSLANG" ] || fail "glslangValidator not found (brew install glslang)"
@@ -605,7 +923,7 @@ if [ "$run_shaders" = 1 ]; then
         compile_cache_hit=1
     else
         echo "cache MISS ($compile_hash)"
-        out=$(python3 misc/ios/shadercheck/glsl_es_check.py \
+        out=$(feedback_stage "stage::shader::glsl-es" python3 misc/ios/shadercheck/glsl_es_check.py \
             --glslang "$GLSLANG" --strict 2>&1) \
             || fail "glsl_es_check.py errored:\n$out"
     fi
@@ -629,6 +947,10 @@ if [ "$run_shaders" = 1 ]; then
     if [ "$compile_cache_hit" = 0 ]; then
         publish_cache "$out" "$compile_output_file" \
             || fail "could not update shader compile cache"
+    elif [ "$feedback_enabled" = 1 ]; then
+        feedback_observer cache-certificate --stage compile \
+            --cache-key "$compile_hash" --output-file "$compile_output_file" \
+            --input-before "$compile_hash" --input-after "$compile_hash_after" >/dev/null 2>&1 || true
     fi
 
     echo "== shader link gate =="
@@ -658,7 +980,7 @@ if [ "$run_shaders" = 1 ]; then
         link_cache_hit=1
     else
         echo "cache MISS ($link_hash)"
-        out=$(python3 misc/ios/shadercheck/link_check.py --strict 2>&1) \
+        out=$(feedback_stage "stage::shader::link" python3 misc/ios/shadercheck/link_check.py --strict 2>&1) \
             || fail "link_check.py errored:\n$out"
     fi
     echo "$out" | tail -1
@@ -671,6 +993,10 @@ if [ "$run_shaders" = 1 ]; then
     if [ "$link_cache_hit" = 0 ]; then
         publish_cache "$out" "$link_output_file" \
             || fail "could not update shader link cache"
+    elif [ "$feedback_enabled" = 1 ]; then
+        feedback_observer cache-certificate --stage link \
+            --cache-key "$link_hash" --output-file "$link_output_file" \
+            --input-before "$link_hash" --input-after "$link_hash_after" >/dev/null 2>&1 || true
     fi
 fi
 
@@ -688,9 +1014,11 @@ if [ "$run_engine" = 1 ]; then
     if [ -n "$cmake_hash_before" ] && [ -f "$CMAKE_CONFIG_STAMP" ] \
             && [ "$(cat "$CMAKE_CONFIG_STAMP")" = "$cmake_hash_before" ]; then
         echo "== symbol-complete iPhoneOS configuration cache HIT =="
+        feedback_cached_stage "build-stage::cmake-configure"
     else
         echo "== refreshing symbol-complete iPhoneOS configuration =="
-        stabilize_cmake_config
+        feedback_stage "build-stage::cmake-configure" stabilize_cmake_config \
+            || fail "symbol-complete CMake configuration stage failed"
         cmake_stamp_tmp="$CMAKE_CONFIG_STAMP.tmp.$$"
         if ! printf '%s\n' "$CMAKE_STABLE_DIGEST" > "$cmake_stamp_tmp" \
                 || ! mv "$cmake_stamp_tmp" "$CMAKE_CONFIG_STAMP"; then
@@ -719,7 +1047,7 @@ if [ "$run_engine" = 1 ]; then
     case "$build_jobs" in
         ''|*[!0-9]*|0) fail "IOS_BUILD_JOBS must be a positive integer" ;;
     esac
-    if ! cmake --build "$BUILD_DIR" --config Release --target xr_3da \
+    if ! feedback_stage "build-stage::release-engine-build" cmake --build "$BUILD_DIR" --config Release --target xr_3da \
             --parallel "$build_jobs" > "$log" 2>&1; then
         archived_log=$(archive_gate_detail_log "$log" "release-build.log") \
             || fail "could not archive failed Release build log"
@@ -752,8 +1080,9 @@ if [ "$run_engine" = 1 ]; then
     dsym="$REPO_ROOT/bin/aarch64/Release/xr_3da.app.dSYM"
     [ -x "$app/xr_3da" ] || fail "symbol-enabled build did not produce $app/xr_3da"
     [ -d "$dsym" ] || fail "symbol-enabled build did not produce $dsym"
-    "$REPO_ROOT/misc/ios/sync_app_resources.sh" "$app" \
+    feedback_stage "build-stage::resource-sync" "$REPO_ROOT/misc/ios/sync_app_resources.sh" "$app" \
         || fail "Release app resource synchronization failed"
+    feedback_begin_manual_stage "build-stage::artifact-platform-debug-verification"
     build_info=$(xcrun vtool -show-build "$app/xr_3da" 2>/dev/null)
     echo "$build_info" | grep -Eq '^[[:space:]]*platform IOS$' \
         || fail "shared output contains a non-device binary (expected platform IOS)"
@@ -774,18 +1103,20 @@ if [ "$run_engine" = 1 ]; then
         || fail "could not hash the Release app bundle"
     validate_digest "$bundle_hash" "Release bundle hash"
     echo "dSYM OK ($debug_info_bytes __debug_info bytes, UUID $bin_uuid)"
+    feedback_complete_manual_stage
     run_openal_artifact "$app/xr_3da"
 fi
 
 echo ""
 if [ "$run_shaders" = 1 ] && [ "$run_engine" = 1 ]; then
-    artifact_hash_after=$(python3 "$REPO_ROOT/misc/ios/gate_hash.py" \
+    artifact_hash_after=$(feedback_stage "build-stage::artifact-input-hash-after" python3 "$REPO_ROOT/misc/ios/gate_hash.py" \
         --salt "$artifact_salt" --build-context-root "$REPO_ROOT" \
         --ios-artifact-root "$REPO_ROOT") \
         || fail "could not rehash device artifact inputs"
     [ "$artifact_hash_after" = "$artifact_hash_before" ] \
         || fail "device artifact inputs changed while the gate was running"
 
+    feedback_begin_manual_stage "build-stage::stamp-publication"
     stamp_tmp="$DEVICE_GATE_STAMP.tmp.$$"
     {
         printf 'source_sha256=%s\n' "$artifact_hash_after"
@@ -828,6 +1159,7 @@ if [ "$run_shaders" = 1 ] && [ "$run_engine" = 1 ]; then
         fi
         echo "PASS — device gate; safe to install. Run --full before push."
     fi
+    feedback_complete_manual_stage
 else
     echo "PASS — selected partial gate only."
 fi

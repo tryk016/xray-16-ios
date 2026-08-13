@@ -1,6 +1,6 @@
 # OpenXRay iOS — operational handoff
 
-**Updated:** 2026-08-12
+**Updated:** 2026-08-13
 **Docs:** [canonical](iOS-Port.md), [active](iOS-Port-Plan.md), [deferred](iOS-Port-Backlog.md).
 
 Read this file completely, then the relevant active task/canonical section;
@@ -57,12 +57,24 @@ verify then failed closed only on the documented removal of Finder's 6,148-byte
 `.DS_Store`; the selected 13-file importer verification remains PASS. An exact
 non-authorizing metadata overlay now binds old/new manifests, sole deletion,
 root inode/metadata and unchanged entries without relaxing production paths.
-Its changes still need review, commit, a fresh clean full gate and real
-`HISTORICAL_PASS` before push or install.
+The overlay is committed in `ba2e07e05` and its inventory supplement in `ab1ba7f45`;
+a fresh clean full gate and real `HISTORICAL_PASS` still remain required before push or install.
 
 The earlier M6-local importer review returned `APPROVE — brak P0/P1/P2`; it did
 not pre-approve the later DevArchive retirement or this documentation closeout.
 IOS-P1-002 is temporarily Backlog-pending until the phone returns.
+
+## Host feedback checkpoint
+
+Phase 0A commit `f7b105b61` froze deterministic IDs/hashes; catalog validation
+is unchanged and tooling remains 24. Reviewed, implemented Phase 0B is fail-open,
+signed-private case/stage telemetry with profile/input/cache/shard fields,
+isolated unlinked raw sink and authoritative OFF/ON parity. Gate
+`gate-1786607468382948000-67713-0.json` passed in 755.539 s: 1,151/1,151 cases,
+48/48 stages, zero errors/residue and 12 receipt fields; no nonce persisted;
+`selection_authority=NONE`, `cache_authority=NONE`. Sol xhigh: `APPROVE — brak P0/P1/P2`. Scope is
+host/shader coverage, not Simulator/device runtime or rendering. Next: 10 warm
+unchanged-selection host measurements for p50/p95, then the one-to-one Phase 1 split.
 
 ## First commands
 
@@ -118,31 +130,21 @@ phone for this host-only M6 evidence.
 
 ## Still pending
 
-- M6 distribution acceptance: authorized-tester path, legal boundary,
-  no-copy/clone decision if proposed, device transfer/container/save
-  preservation across a signed update and remote release. App Store is out of
-  scope.
-- Controlled phone lighting A/B, another outdoor save, indoor/portal, QuickLoad
-  and transition; Simulator evidence does not close iPhone/pixel scope.
-- IOS-P1-002 lifecycle/device acceptance when the phone returns: five Safari
-  cycles, lock/held-touch and OpenAL Soft interruption.
-- Profile frame pacing, 30-minute memory/thermal budget, dense inventory/PDA
-  surfaces, texture/SSR reference frames and remote CI miss/hit.
+- M6: authorized tester, legal boundary, signed-update data preservation and remote release; App Store excluded.
+- Phone lighting A/B, more content/QuickLoad/transition, and IOS-P1-002 lifecycle/audio acceptance.
+- Frame pacing, 30-minute memory/thermal budget, dense UI/texture/SSR frames and remote CI miss/hit.
 
 ## Next slice
 
-1. When the phone returns, restore IOS-P1-002 from Backlog and run its physical
-   lifecycle batch alongside the controlled lighting packet.
-2. Keep M6 active for distribution acceptance; do not treat the cache as legal
-   distribution, device transfer or save-preservation evidence.
+1. Record 10 unchanged-selection warm host telemetry runs and p50/p95; do not claim speedup or alter selection first.
+2. When the phone returns, restore IOS-P1-002 and run its lifecycle batch with controlled lighting.
+3. Keep M6 active; the cache is not legal distribution or device transfer/save-preservation evidence.
 
 ## Safety
 
 - Never restore full level prefetch; it previously caused about a 1.6 GiB spike.
-- Do not conflate sector and SSAO defects or replace them with brightness,
-  streaming, ANGLE or Metal workarounds.
-- Do not revoke certificates, change identity, uninstall or erase the device
-  container.
+- Do not conflate sector and SSAO defects or replace them with brightness, streaming, ANGLE or Metal workarounds.
+- Do not revoke certificates, change identity, uninstall or erase the device container.
 - Rendering claims require an on-device frame or numeric probe; a clean GL log
   is not visual proof.
 - Never install after a stale matching gate; append new evidence to the Journal.

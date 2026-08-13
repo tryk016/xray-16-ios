@@ -4987,3 +4987,30 @@ Final Sol xhigh review returned exactly `APPROVE — brak P0/P1/P2`; commit,
 another clean full gate and real `HISTORICAL_PASS` remain pending. The failed
 verifier attempts were read-only and did not alter CWD, bytecode, prepared
 retail or DevArchive.
+
+## 2026-08-13 — Phase 0A/0B host test-feedback telemetry closeout
+
+Phase 0A commit `f7b105b61` froze the deterministic test catalogue. Exact
+catalogue validation still reports the same IDs/hashes, and the Phase 0 tooling
+count remains 24. The reviewed, implemented Phase 0B adds observational, fail-open
+telemetry without changing selection: private signed per-case/per-stage JSON
+records profile, input hash, cache-hit and shard; a dedicated TestResult adapter
+records Python unittest cases; selection/stage coverage is exact; the raw child
+sink is isolated and unlinked; and OFF/ON preserve their authoritative command
+parity.
+
+Independent local checks passed: runner 9/9 in 25.333 s, Phase 0 tooling 24/24
+in 105.438 s, followed by the focused interruption-parity PASS in 70.586 s
+after a tiny cleanup. Fresh production host/shader gate
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786607468382948000-67713-0.json`
+passed with exit 0 in 755.539 s. Telemetry finalized `COMPLETE`: 1,151/1,151
+cases PASS, 48/48 stages PASS, zero errors/residue and 12 receipt fields; no
+nonce persisted; `selection_authority=NONE`; `cache_authority=NONE`. Its measured stages
+were mocked retail 601.960 s, shader compile 5.968 s and link 2.475 s. Final
+Sol xhigh code review: `APPROVE — brak P0/P1/P2`.
+
+This is host/shader instrumentation and exact coverage evidence, not Simulator
+or device runtime/rendering/streaming evidence and not yet a speedup claim.
+Next is a minimum of ten unchanged-selection warm host runs with p50/p95; only
+then may Phase 1 refactor the retail suite one-to-one into cheap guards and
+mocked-runner integration.

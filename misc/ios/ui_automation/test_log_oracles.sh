@@ -2,6 +2,16 @@
 
 set -euo pipefail
 
+# The selected shell sees only a raw, non-authoritative append sink.  It never
+# receives a telemetry directory, nonce, run ID, profile or context descriptor.
+feedback_raw_fd="${XRAY_FEEDBACK_RAW_EVENT_FD:-}"
+unset XRAY_FEEDBACK_RAW_EVENT_FD XRAY_FEEDBACK_CONTEXT_FD
+feedback_enabled=0
+[[ "$feedback_raw_fd" =~ ^[3-9][0-9]*$ ]] && feedback_enabled=1
+for feedback_environment_name in "${!OPENXRAY_TEST_FEEDBACK_@}"; do
+    unset "$feedback_environment_name"
+done
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=misc/ios/ui_automation/log_oracles.sh
 source "$SCRIPT_DIR/log_oracles.sh"
@@ -19,6 +29,25 @@ cleanup()
 
 trap cleanup EXIT
 
+feedback_python()
+{
+    [ "$feedback_enabled" = 1 ] || return 0
+    BASH_ENV='' XRAY_FEEDBACK_RAW_EVENT_FD="$feedback_raw_fd" \
+        python3 -S "$SCRIPT_DIR/../test_feedback_unittest.py" "$@"
+}
+
+record_case()
+{
+    local name="$1"
+    local status="$2"
+    local started="$3"
+    [ "$feedback_enabled" = 1 ] || return 0
+    feedback_python --raw-emit \
+        "sh:misc/ios/ui_automation/test_log_oracles.sh::$name" \
+        "$([ "$status" -eq 0 ] && printf PASS || printf FAIL)" \
+        "$started" >/dev/null 2>&1 || true
+}
+
 write_fixture()
 {
     local name="$1"
@@ -33,18 +62,27 @@ expect_pass()
     shift 2
     local stderr_path="$TEMP_DIR/$name.stderr"
 
+    local started status
+    if [ "$feedback_enabled" = 1 ]; then
+        started=$(python3 -c 'import time; print(time.monotonic_ns())' 2>/dev/null || true)
+    else
+        started=0
+    fi
     if "$oracle" "$@" > /dev/null 2> "$stderr_path"; then
         if [ -s "$stderr_path" ]; then
             echo "FAIL: $name: PASS oracle wrote stderr" >&2
             sed 's/^/  /' "$stderr_path" >&2
+            record_case "$name" 1 "$started"
             return 1
         fi
         printf 'PASS: %s\n' "$name"
+        record_case "$name" 0 "$started"
         return 0
     fi
 
     echo "FAIL: $name: expected status 0" >&2
     sed 's/^/  /' "$stderr_path" >&2
+    record_case "$name" 1 "$started"
     return 1
 }
 
@@ -55,23 +93,32 @@ expect_fail()
     local oracle="$3"
     shift 3
     local stderr_path="$TEMP_DIR/$name.stderr"
-    local status=0
+    local status=0 started
+    if [ "$feedback_enabled" = 1 ]; then
+        started=$(python3 -c 'import time; print(time.monotonic_ns())' 2>/dev/null || true)
+    else
+        started=0
+    fi
 
     if "$oracle" "$@" > /dev/null 2> "$stderr_path"; then
         echo "FAIL: $name: expected non-zero status" >&2
+        record_case "$name" 1 "$started"
         return 1
     else
         status=$?
     fi
     if [ "$status" -eq 0 ]; then
         echo "FAIL: $name: expected non-zero status" >&2
+        record_case "$name" 1 "$started"
         return 1
     fi
     if ! diff -u <(printf '%s\n' "$expected_message") "$stderr_path"; then
         echo "FAIL: $name: unexpected diagnostic" >&2
+        record_case "$name" 1 "$started"
         return 1
     fi
     printf 'PASS: %s\n' "$name"
+    record_case "$name" 0 "$started"
 }
 
 lifecycle_group()

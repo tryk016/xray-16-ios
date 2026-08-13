@@ -13,7 +13,7 @@
       "stage_id": "build-stage::cmake-configure"
     },
     {
-      "anchor_regex": "^\\s+artifact_hash_before=\\$\\(python3 \"\\$REPO_ROOT/misc/ios/gate_hash\\.py\" \\\\$",
+      "anchor_regex": "^\\s+artifact_hash_before=\\$\\(feedback_stage \"build-stage::artifact-input-hash-before\" python3 \"\\$REPO_ROOT/misc/ios/gate_hash\\.py\" \\\\$",
       "classification": "build-state",
       "reason": "Computes artifact identity for stamping; it is not a test/validation entrypoint.",
       "stage_id": "build-stage::artifact-input-hash-before"
@@ -44,13 +44,13 @@
       "stage_id": "build-stage::dependency-discovery"
     },
     {
-      "anchor_regex": "^\\s+if ! cmake --build \"\\$BUILD_DIR\" --config Release --target xr_3da \\\\$",
+      "anchor_regex": "^\\s+if ! feedback_stage \"build-stage::release-engine-build\" cmake --build \"\\$BUILD_DIR\" --config Release --target xr_3da \\\\$",
       "classification": "product-build",
       "reason": "Builds the product artifact and is intentionally outside stable test IDs.",
       "stage_id": "build-stage::release-engine-build"
     },
     {
-      "anchor_regex": "^\\s+\"\\$REPO_ROOT/misc/ios/sync_app_resources\\.sh\" \"\\$app\" \\\\$",
+      "anchor_regex": "^\\s+feedback_stage \"build-stage::resource-sync\" \"\\$REPO_ROOT/misc/ios/sync_app_resources\\.sh\" \"\\$app\" \\\\$",
       "classification": "product-packaging",
       "reason": "Packages app resources into the product bundle; it is not a test case.",
       "stage_id": "build-stage::resource-sync"
@@ -99,7 +99,7 @@
       "stage_id": "build-stage::bundle-hash"
     },
     {
-      "anchor_regex": "^\\s+artifact_hash_after=\\$\\(python3 \"\\$REPO_ROOT/misc/ios/gate_hash\\.py\" \\\\$",
+      "anchor_regex": "^\\s+artifact_hash_after=\\$\\(feedback_stage \"build-stage::artifact-input-hash-after\" python3 \"\\$REPO_ROOT/misc/ios/gate_hash\\.py\" \\\\$",
       "classification": "build-state",
       "reason": "Rehashes artifact inputs to detect mutation during the product build.",
       "stage_id": "build-stage::artifact-input-hash-after"
@@ -1093,7 +1093,7 @@
     },
     {
       "entrypoint_id": "python::misc/ios/test_test_feedback.py",
-      "expected_case_count": 11,
+      "expected_case_count": 24,
       "explicit_inputs": [
         {
           "type": "path",

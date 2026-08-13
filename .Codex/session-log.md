@@ -822,3 +822,18 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   Sol approved exact inclusion only; fixtures/mutations and coupled digests now
   require all four. Archive 131/131; final Sol xhigh `APPROVE — brak P0/P1/P2`;
   commit/new full/real PASS pending.
+
+## 2026-08-13 — Phase 0A/0B test-feedback telemetry
+
+- Phase 0A commit `f7b105b61` froze deterministic IDs/hashes; validation is
+  unchanged and the Phase 0 tooling count remains 24. Reviewed, implemented Phase 0B is
+  fail-open host telemetry only: signed private case/stage JSON, exact
+  coverage/parity and isolated unlinked child raw sink.
+- Runner 9/9 PASS (25.333 s), Phase 0 tooling 24/24 PASS (105.438 s) and
+  focused interruption parity PASS (70.586 s). Fresh shaders gate
+  `gate-1786607468382948000-67713-0.json`: exit 0/755.539 s, telemetry
+  COMPLETE, 1,151/1,151 cases and 48/48 stages PASS, zero errors/residue and
+  12 receipt fields; no nonce persisted; `selection_authority=NONE`; `cache_authority=NONE`.
+- Sol xhigh: `APPROVE — brak P0/P1/P2`. Next: at least ten unchanged-selection
+  warm host runs for p50/p95; this is not Simulator/device/rendering proof or a
+  measured optimization yet. No phone, Simulator or device runtime activity.

@@ -537,6 +537,27 @@ ASTC is a future optimization, not an implemented feature.
 
 ## Build and device loop
 
+### Phase 0 test-feedback telemetry
+
+Phase 0A commit `f7b105b61` froze the deterministic test inventory: the
+catalogue's exact IDs and hashes remain unchanged and the Phase 0 tooling count
+is 24. The reviewed Phase 0B implementation is deliberately observational
+and fail-open: it records signed private per-case/per-stage JSON with profile,
+input hash, cache-hit and shard fields, while preserving the authoritative
+OFF/ON command parity and exact selection/stage coverage. Its child raw sink is
+isolated and unlinked; an adapter supplies the Python unittest records. The
+fresh host/shader receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786607468382948000-67713-0.json`
+is PASS (exit 0, 755.539 s): telemetry `COMPLETE`, 1,151/1,151 cases and 48/48
+stages PASS, zero errors/residue and 12 receipt fields; no nonce persisted;
+`selection_authority=NONE` and `cache_authority=NONE`. Mocked retail took 601.960 s, shader compilation
+5.968 s and linking 2.475 s. Final Sol xhigh review: `APPROVE — brak P0/P1/P2`.
+
+This proves host/shader instrumentation and complete observed coverage only. It
+does not yet prove an optimization, Simulator or device runtime, rendering, or
+streaming behavior. The next host-only action is an unchanged-selection baseline
+of at least ten warm runs with p50/p95 before Phase 1's one-to-one retail split.
+
 The local Apple Silicon toolchain was rebuilt and revalidated from source on
 2026-07-24, then requalified after the macOS 27/Xcode 27 update. Both device and
 simulator dependency prefixes contain arm64 SDL2, OpenAL Soft,
@@ -761,8 +782,9 @@ the importer contract. The 13 selected retail files still pass
 metadata-overlay policy binding both complete manifests, the sole removed file,
 root inode/metadata, unchanged records and the importer verifier. No generic
 prepared/production path is relaxed. These overlay changes make the `8b265b07b`
-gate historical; they require final review, commit, a new clean full gate and a
-real `HISTORICAL_PASS` before push.
+gate historical. The overlay is committed in `ba2e07e05`; the historical-proof
+inventory supplement is committed in `ab1ba7f45`. A new clean full gate and a
+real `HISTORICAL_PASS` remain required before push.
 
 ### Historical code-artifact full-gate stamp (stale)
 

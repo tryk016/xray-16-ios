@@ -1,6 +1,6 @@
 # OpenXRay iOS — active roadmap
 
-**Last synchronized:** 2026-08-12
+**Last synchronized:** 2026-08-13
 
 **Canonical contract:** [iOS-Port.md](iOS-Port.md)
 
@@ -20,6 +20,12 @@ its physical-device acceptance remains active IOS-P1-010 plus backlogged
 IOS-P1-002. IOS-P0-003's
 stationary branch is corrected and its real iOS 27 capture-v2 publication
 passes; wider save/level and physical-device evidence is now the active edge.
+
+**Host test-feedback Phase 0:** commit `f7b105b61` froze the deterministic
+inventory. Phase 0B is reviewed, implemented observational telemetry; it does
+not select fewer tests or establish a runtime claim. Its immediate acceptance
+step is at least ten unchanged-selection warm host runs with recorded p50/p95;
+only then may the one-to-one Phase 1 retail guard/integration split begin.
 
 This file intentionally contains no more than five active tasks. Historical
 evidence belongs in [iOS-Port-Journal.md](iOS-Port-Journal.md). Work not listed
