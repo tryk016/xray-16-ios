@@ -21,17 +21,18 @@ IOS-P1-002. IOS-P0-003's
 stationary branch is corrected and its real iOS 27 capture-v2 publication
 passes; wider save/level and physical-device evidence is now the active edge.
 
-**Host test-feedback:** Phase 0 is complete. Phase 1A is also complete: a
-versioned fail-closed manifest freezes the existing 102 byte/AST-identical IDs
-as 53 guards and 49 integration cases; `host-fast` is all guards plus two exact
-smokes (55). `shaders/device/full/fast` still run all 102; `engine` keeps its
-non-shader scope, while the new contract runs in all five. Authority is `NONE`; no
-FastDevice switch, fixture extraction, parallelism or cache planner exists.
-Single local 55/55 and 49/49 timings are not speedup acceptance. Phase 1B next
-extracts fixtures with bodies/IDs preserved, then requires 20 warm `host-fast`
-PASS runs targeting p50 60–90 s and p95 ≤120 s. Do not wire the partial lane to
-production FastDevice before later profile/cache safety acceptance;
-checkpoint/full remain complete.
+**Host test-feedback:** Optimization Phase 1 is complete. Phase 1A's static
+partition remains: 102 frozen byte/AST-identical IDs, 53 guards, 49 integration
+cases and `host-fast` 55. Phase 1B now supplies a fail-closed component fixture,
+96-record golden and persisted 13/13 contract without changing those profile
+hashes or the 102 test bodies. Acceptance is host-only: integration 49/49 in
+526.322 s, complete 102/102 in 564.422 s, and 20/20 serial fresh-process
+`host-fast` passes with p50 47.472 s/p95 49.323 s. `shaders/device/full/fast`
+still run all 102; `engine` retains its non-shader scope. No production
+FastDevice switch, local concurrency or cache planner exists; checkpoint/full
+remain complete. Phase 2 begins with OS-level shader-cache exclusion or
+immutable namespaces, then explicit conservative profiles/planner. Full remains
+semantically complete and shader-uncached.
 
 **Latest pushed code checkpoint:** exact clean commit `9aad5df0` received a full
 PASS before push and now equals `origin/ios-port`: telemetry `COMPLETE`, all

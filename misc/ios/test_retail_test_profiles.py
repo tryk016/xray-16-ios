@@ -22,6 +22,11 @@ if _test_feedback_os.environ.get("XRAY_FEEDBACK_RAW_EVENT_FD"):
         pass
 
 import retail_test_profiles as profiles
+from test_retail_fixture_contract import RetailFixtureContract
+
+# The support class is deliberately executed by this established entrypoint.
+# Keep its stable telemetry origin here too; it has no direct gate command.
+RetailFixtureContract.__module__ = __name__
 
 
 class RetailTestProfilesContract(unittest.TestCase):

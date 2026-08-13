@@ -950,11 +950,19 @@
     },
     {
       "entrypoint_id": "python::misc/ios/test_retail_test_profiles.py",
-      "expected_case_count": 5,
+      "expected_case_count": 13,
       "explicit_inputs": [
         {
           "type": "path",
           "value": "misc/ios/test_retail_test_profiles.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/test_retail_fixture_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/retail_fixture_contract.json"
         },
         {
           "type": "path",

@@ -1,0 +1,732 @@
+{
+  "schema": "openxray-phase1b-fixture-contract-v1",
+  "approved_modified_helpers": [
+    "_mock",
+    "_retail_file",
+    "_write_diagnostic_guard_wrapper",
+    "_write_mocks",
+    "_write_navigation_controller",
+    "_write_quickload_evidence_mock",
+    "_write_retail_manifests",
+    "prepare_retail_fixture",
+    "run_guard",
+    "run_launch_proof",
+    "run_runner",
+    "setUp",
+    "stage_runtime_fixture"
+  ],
+  "baseline": {
+    "commit": "77801820f72098a137bf34ea8726ae6bdef6dcca",
+    "snapshot_sha256": "5c63928c98f57cd9b263855cf34cc565f0ec16da097823dd9875590d0c11126f",
+    "source_sha256": "70a4e469335dccba94033ca66879d7b00d20eded748d156a496269be9a5088ee"
+  },
+  "snapshot_provenance": "snapshot_sha256 is SHA-256 of the external historical JSON snapshot bytes used to derive this checked-in golden; runtime tests deliberately verify the copied provenance value rather than depend on the external file.",
+  "helper_ast_sha256": {
+    "RetailSimulatorTests.assert_runner_rejects_post_stop_log_change": "71adc948d67354794f7d49aaede62012d675c06a97cd4d634973b371b3222614",
+    "RetailSimulatorTests.autoload_config": "e31adfb06491e189ce239d8afdc2554d6f1fc96b950f82fbee99835a909409a6",
+    "RetailSimulatorTests.run_finalize_log": "c7bd2c2618816ac5a0dc12b5310cd17bd66dd9aea433cdf43270316cdb0ed081",
+    "RetailSimulatorTests.runner_environment": "01f1fdddfbbba177708e5de84226ee7bfa87547f93f0fa16bfad14ccf1380398",
+    "RetailSimulatorTests.tearDown": "6ac7fa0ff5dd7500a82d28030c38daee589d6b8090878ff7dfd034f9bf5b3678"
+  },
+  "runner_fixture": {
+    "canonical_json_sha256": "c0db5732e2545c8ef11be1f882aa867eaf6533777c7ddeddea0305643687a8c3",
+    "fixture_pc": {
+      "normalized_bytes": 98,
+      "normalized_sha256": "633bac2001469a73608ca7461f6ba9b02dd8a9927415cdf8288dbf3214a2c43d"
+    },
+    "record_count": 96,
+    "records": [
+      {
+        "mode": "0755",
+        "path": "backup",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "backup/_appdata_",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "backup/_appdata_/cdb_cache",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "backup/_appdata_/cdb_cache/zaton",
+        "type": "dir"
+      },
+      {
+        "bytes": 9,
+        "mode": "0644",
+        "path": "backup/_appdata_/cdb_cache/zaton/objspace.bin",
+        "sha256": "93b1a65a8d98e57107a81024ec5764f778e811f6a077ace304535bfe83f1c684",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "backup/_appdata_/savedgames",
+        "type": "dir"
+      },
+      {
+        "bytes": 10,
+        "mode": "0644",
+        "path": "backup/_appdata_/savedgames/other.scop",
+        "sha256": "90d6195fc5e51c3fff712e007bcd14ac4cd05066117cc0212980e95402a844f2",
+        "type": "file"
+      },
+      {
+        "bytes": 4,
+        "mode": "0644",
+        "path": "backup/_appdata_/savedgames/save.scop",
+        "sha256": "157dca92e4250458339d4b835250d44c238f3355e1b7986195188ee434e9baff",
+        "type": "file"
+      },
+      {
+        "bytes": 13,
+        "mode": "0644",
+        "path": "backup/_appdata_/user.ltx",
+        "sha256": "741982021a266663c140584a5792aad5f3e2b89322e849126dc3337431cdcccf",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "backup/levels",
+        "type": "dir"
+      },
+      {
+        "bytes": 9,
+        "mode": "0644",
+        "path": "backup/levels/levels.db0",
+        "sha256": "e36a07d3928e2ede61aa491a5ce3a2ed0b057a0f5a6d7b88b0d751c1e9b2bdaa",
+        "type": "file"
+      },
+      {
+        "bytes": 9,
+        "mode": "0644",
+        "path": "backup/levels/levels.db1",
+        "sha256": "59e8523fcfe307e36d4ba3acf5e0880b413857e355bbea3948a1748c4a8ce558",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "backup/localization",
+        "type": "dir"
+      },
+      {
+        "bytes": 11,
+        "mode": "0644",
+        "path": "backup/localization/base_sounds.db",
+        "sha256": "190cfcbb80e23bf4bb8f2389c70697c043126d1b72b08582f17449a62cc071fd",
+        "type": "file"
+      },
+      {
+        "bytes": 12,
+        "mode": "0644",
+        "path": "backup/localization/xefis_movies.db",
+        "sha256": "354d3f296c35d97f4f7f2887a8caa1eba5d55c323559f72a28c1498155818355",
+        "type": "file"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "backup/localization/xenglish.db",
+        "sha256": "a4ef304ba42a200bafd78b046e0869af9183f6eee5524aead5dcb3a5ab5f8f3f",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "backup/patches",
+        "type": "dir"
+      },
+      {
+        "bytes": 5,
+        "mode": "0644",
+        "path": "backup/patches/xpatch_02.db",
+        "sha256": "a4895eb44afc336fecbba6e520cd67e178dace0276655d102fceffa8e5f70570",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "backup/resources",
+        "type": "dir"
+      },
+      {
+        "bytes": 9,
+        "mode": "0644",
+        "path": "backup/resources/resources.db0",
+        "sha256": "ec8b144e1d5bd0bbf5e47ce883f42d37f7c006424ceebe3539152a066d5193cb",
+        "type": "file"
+      },
+      {
+        "bytes": 9,
+        "mode": "0644",
+        "path": "backup/resources/resources.db1",
+        "sha256": "510e3dbd33aab02ab240110ad683235b3727b8b0137c839ad67ddbf8a9af7b4d",
+        "type": "file"
+      },
+      {
+        "bytes": 9,
+        "mode": "0644",
+        "path": "backup/resources/resources.db2",
+        "sha256": "91aefb9dca9d37459ecca2773e7d74c7e51b0470c123109c91c6f7256cc2fe30",
+        "type": "file"
+      },
+      {
+        "bytes": 9,
+        "mode": "0644",
+        "path": "backup/resources/resources.db3",
+        "sha256": "eea74ddb9787719572414e65b695c75e8180ad281faaf9836b805c7d0bfeee40",
+        "type": "file"
+      },
+      {
+        "bytes": 9,
+        "mode": "0644",
+        "path": "backup/resources/resources.db4",
+        "sha256": "80ddc5842b190b1c2c81f4804a2831268d85d7f65cbbe9737eef9a2cca4f60f4",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "backup.manifest",
+        "type": "dir"
+      },
+      {
+        "bytes": 425,
+        "mode": "0644",
+        "path": "backup.manifest/files.tsv",
+        "sha256": "3b0ac97218004cae9c8fe3017074ec51bb1d7121cd3697cc556ee3ef5af299f2",
+        "type": "file"
+      },
+      {
+        "bytes": 1140,
+        "mode": "0644",
+        "path": "backup.manifest/large-files-sha256.tsv",
+        "sha256": "d358afeb68e763ad6d53bf735c2f8f0c89bffd7d0daf1217c37f7c308d341433",
+        "type": "file"
+      },
+      {
+        "bytes": 671,
+        "mode": "0644",
+        "path": "backup.manifest/required-archives.tsv",
+        "sha256": "f24432517eeff97267cf4d41633c2c0bcfeb0a796cb178b1728cee1463a63e54",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "handoff",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "home",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "home/Library",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "home/Library/Developer",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "home/Library/Developer/CoreSimulator",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "home/Library/Developer/CoreSimulator/Devices",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "home/Library/Developer/CoreSimulator/Devices/00000000-0000-0000-0000-000000000001",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "home/Library/Developer/CoreSimulator/Devices/00000000-0000-0000-0000-000000000001/data",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "home/Library/Developer/CoreSimulator/Devices/00000000-0000-0000-0000-000000000001/data/Containers",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "home/Library/Developer/CoreSimulator/Devices/00000000-0000-0000-0000-000000000001/data/Containers/Data",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "home/Library/Developer/CoreSimulator/Devices/00000000-0000-0000-0000-000000000001/data/Containers/Data/Application",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "lifecycle-mocks",
+        "type": "dir"
+      },
+      {
+        "bytes": 1834,
+        "mode": "0755",
+        "path": "lifecycle-mocks/ps",
+        "sha256": "d799cc9e8f8217df0eb68325d0260e291641be67adc121dac1d2dd1ba61e2254",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "mocks",
+        "type": "dir"
+      },
+      {
+        "bytes": 285,
+        "mode": "0755",
+        "path": "mocks/ar",
+        "sha256": "da83c90063c0dc33012379c868b805da7dc74133e68e0c77eeb8059b1284c2a6",
+        "type": "file"
+      },
+      {
+        "bytes": 1833,
+        "mode": "0755",
+        "path": "mocks/cmake",
+        "sha256": "bf14f32067feb5439381d1ec3bec2c11215b350d3f2dd7874d91d1ec98d1ac8c",
+        "type": "file"
+      },
+      {
+        "bytes": 84,
+        "mode": "0755",
+        "path": "mocks/git",
+        "sha256": "d908f7995aaf9743e588c4e90bda740976bd8d3c36f6e5a5c801eac8867ca71f",
+        "type": "file"
+      },
+      {
+        "bytes": 232,
+        "mode": "0755",
+        "path": "mocks/lipo",
+        "sha256": "e6263423b235dd63ccfa9f5c71df81081abb7dd76fd484404ae074b1f5a6729d",
+        "type": "file"
+      },
+      {
+        "bytes": 601,
+        "mode": "0755",
+        "path": "mocks/nm",
+        "sha256": "af42c783a0186f709e1e5823e23e2b21e222d2d01ba5131ba34759ae7d0c7f05",
+        "type": "file"
+      },
+      {
+        "bytes": 1205,
+        "mode": "0755",
+        "path": "mocks/otool",
+        "sha256": "406e2a45de7416ad2d2ab2a01651ddd4d49e6d8c807fb9f6a039238d77ead167",
+        "type": "file"
+      },
+      {
+        "bytes": 316,
+        "mode": "0755",
+        "path": "mocks/rsync",
+        "sha256": "4bdf55f00b1c392dd95161c2bcca7a06c83d5da10686e091cebc44422a4bbe0f",
+        "type": "file"
+      },
+      {
+        "bytes": 835,
+        "mode": "0755",
+        "path": "mocks/xcodebuild",
+        "sha256": "32916d54b9f2d2b9b93d214f4ac9c1da87eea61ec08068545b247f5653a24809",
+        "type": "file"
+      },
+      {
+        "bytes": 19532,
+        "mode": "0755",
+        "path": "mocks/xcrun",
+        "sha256": "3886d4b2e7fdc4eeebb10433127ea947f7ed72b930187b12cd22b46db35b8481",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "repo",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/bin",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/bin/aarch64",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/bin/aarch64/FastDevice",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/bin/aarch64/FastDevice/xr_3da.app",
+        "type": "dir"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "repo/bin/aarch64/FastDevice/xr_3da.app/device",
+        "sha256": "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/bin/aarch64/Release",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/bin/aarch64/Release/xr_3da.app",
+        "type": "dir"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "repo/bin/aarch64/Release/xr_3da.app/device",
+        "sha256": "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/build",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/build/ios-engine-fastdevice-iphoneos",
+        "type": "dir"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "repo/build/ios-engine-fastdevice-iphoneos/.ios_cmake_inputs.sha256",
+        "sha256": "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f",
+        "type": "file"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "repo/build/ios-engine-fastdevice-iphoneos/.ios_fast_device_gate_ok",
+        "sha256": "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f",
+        "type": "file"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "repo/build/ios-engine-fastdevice-iphoneos/object.o",
+        "sha256": "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/build/ios-engine-iphoneos",
+        "type": "dir"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "repo/build/ios-engine-iphoneos/.ios_cmake_inputs.sha256",
+        "sha256": "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f",
+        "type": "file"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "repo/build/ios-engine-iphoneos/.ios_device_gate_ok",
+        "sha256": "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f",
+        "type": "file"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "repo/build/ios-engine-iphoneos/.ios_full_gate_ok",
+        "sha256": "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f",
+        "type": "file"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "repo/build/ios-engine-iphoneos/object.o",
+        "sha256": "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/build/ios-engine-iphonesimulator",
+        "type": "dir"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "repo/build/ios-engine-iphonesimulator/cache",
+        "sha256": "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/build/ios-prefix-iphonesimulator",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/build/ios-prefix-iphonesimulator/include",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/build/ios-prefix-iphonesimulator/include/AL",
+        "type": "dir"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "repo/build/ios-prefix-iphonesimulator/include/AL/al.h",
+        "sha256": "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f",
+        "type": "file"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "repo/build/ios-prefix-iphonesimulator/include/AL/alc.h",
+        "sha256": "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f",
+        "type": "file"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "repo/build/ios-prefix-iphonesimulator/include/AL/alext.h",
+        "sha256": "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/build/ios-prefix-iphonesimulator/lib",
+        "type": "dir"
+      },
+      {
+        "bytes": 8,
+        "mode": "0644",
+        "path": "repo/build/ios-prefix-iphonesimulator/lib/dependency.a",
+        "sha256": "e80b71cd14d3cbd65f4173abcbfcf01a545dbca32a72d575108b553a648cc96f",
+        "type": "file"
+      },
+      {
+        "bytes": 14,
+        "mode": "0644",
+        "path": "repo/build/ios-prefix-iphonesimulator/lib/libopenal.a",
+        "sha256": "0c59048bd53cfb3bec9769810615819a38200637d9aa77b4976ff65d79bbc9e8",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/build/ios-prefix-iphonesimulator/lib/pkgconfig",
+        "type": "dir"
+      },
+      {
+        "bytes": 98,
+        "mode": "0644",
+        "path": "repo/build/ios-prefix-iphonesimulator/lib/pkgconfig/fixture.pc",
+        "sha256": "633bac2001469a73608ca7461f6ba9b02dd8a9927415cdf8288dbf3214a2c43d",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/cmake",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/cmake/toolchains",
+        "type": "dir"
+      },
+      {
+        "bytes": 10,
+        "mode": "0644",
+        "path": "repo/cmake/toolchains/ios.toolchain.cmake",
+        "sha256": "faa5b4816800b8cbe1595e5533fe36c53f396c0c26a3a876dd3e4085232348a1",
+        "type": "file"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/misc",
+        "type": "dir"
+      },
+      {
+        "mode": "0755",
+        "path": "repo/misc/ios",
+        "type": "dir"
+      },
+      {
+        "bytes": 59580,
+        "mode": "0755",
+        "path": "repo/misc/ios/lighting_ab_evidence.py",
+        "sha256": "47d74d0b6174d84f7b86c87ddc53079109cf3e9f198c7ae1b4e82036439b1a36",
+        "type": "file"
+      },
+      {
+        "bytes": 21896,
+        "mode": "0644",
+        "path": "repo/misc/ios/openal_provider_contract.py",
+        "sha256": "c65146b6dc08b1dee12ee5464bda9b9f8c21a0d3060270fa4dd8a37653bae443",
+        "type": "file"
+      },
+      {
+        "bytes": 73681,
+        "mode": "0644",
+        "path": "repo/misc/ios/retail_import.py",
+        "sha256": "18d07a1ba03790d04cdb41a6419ba1525390a6e7e7a338277eb74688fab75cc7",
+        "type": "file"
+      },
+      {
+        "bytes": 37747,
+        "mode": "0755",
+        "path": "repo/misc/ios/retail_simulator.sh",
+        "sha256": "35c51350ae42992ee187388bdcc1651bc6c1f3db7d1ed2c7ab17ae6ff49b6b02",
+        "type": "file"
+      },
+      {
+        "bytes": 1137,
+        "mode": "0755",
+        "path": "repo/misc/ios/retail_simulator_guard.py",
+        "sha256": "d2fc98161175e3c7516c97ff70dd2e18107b157c15a98ea44569b2d02c11aaa8",
+        "type": "file"
+      },
+      {
+        "bytes": 296516,
+        "mode": "0644",
+        "path": "repo/misc/ios/retail_simulator_guard_impl.py",
+        "sha256": "9700bc079884fdb5dd2b2b9edc0b85223ec5657ad04b1eb5c8d9820f5ba8a493",
+        "type": "file"
+      },
+      {
+        "bytes": 6325,
+        "mode": "0755",
+        "path": "repo/misc/ios/simulator_quickload_evidence.py",
+        "sha256": "0c3a92938f5cd26d5ee627ee763feb4347e947847ec95a4d5ac8e64ff16a2be7",
+        "type": "file"
+      },
+      {
+        "bytes": 3032,
+        "mode": "0644",
+        "path": "repo/misc/ios/simulator_ui_navigation.py",
+        "sha256": "984beed457ebc70740bd8058547e87a91f92ac112a276be1f2812fac7d13d5c7",
+        "type": "file"
+      }
+    ]
+  },
+  "schema": "openxray-phase1b-fixture-contract-v1",
+  "test_method_ast_sha256": {
+    "RetailSimulatorTests.test_actual_missing_system_ltx_fails": "d07f3e2d7ff360b9e330498c9835f413e5350b64e5dd58fba3640299f30f868a",
+    "RetailSimulatorTests.test_archive_count_must_be_exactly_twelve": "0f64c9a63ada0ce19aab798fcd9862397ad587c45a16e17032c09fea53c61054",
+    "RetailSimulatorTests.test_autoload_config_is_exact_and_never_copies_backup_user_ltx": "18ed524372925d60a42223cc63f0f9b97f8661027e1c86630a3ea1fe39c05b89",
+    "RetailSimulatorTests.test_autoload_happy_path_generates_exact_private_config_and_sync_complete_proof": "813955aed242006f7102d177e756ae653a3d11c58a06f0219281a3d921da1524",
+    "RetailSimulatorTests.test_autoload_oracle_requires_ordered_sync_complete_markers": "676621f9195bfe193953213a74fe4c4ff684cc19c0495eda8c95f2f42bef2431",
+    "RetailSimulatorTests.test_autoload_rejects_symlinked_evidence_parent": "fccb64bfce0be83472e086287475daec8f3c623f6e32a6726694e4fd6ec0bbb8",
+    "RetailSimulatorTests.test_autoload_rejects_symlinked_generated_config_parent": "b302e468ab5b15c4cbe6a217707415ae0e95740928f9534fb42d192aa9af529f",
+    "RetailSimulatorTests.test_autoload_requires_process_stop_before_save_hash_and_pass_report": "2698a3a86ce9ad105c9fe63b77cfa07832b9020fa51bc60c4795de90cb553758",
+    "RetailSimulatorTests.test_autoload_requires_saves_and_rejects_unsafe_or_uppercase_names": "57341f0bf3c115cf747fb2dfb182c1a59a6e27713ca2f09f3ce1fe5f693a3206",
+    "RetailSimulatorTests.test_autoload_save_must_be_exact_direct_nonempty_regular_and_case_unique": "113fc9933e2d030a3c3128e035eedfeab5cfaa5d25b12dfce92f03f665cf96e0",
+    "RetailSimulatorTests.test_backup_mutation_is_detected": "7386bebf8980da3c99d082d1825741e4a16d68fd14f720b6153b52890f12b886",
+    "RetailSimulatorTests.test_binary_contract_rejects_fat_mixed_and_device_platforms": "2c27d697095fc999903e61ec17c0744b63f652baf78da65377e763e4830f60c3",
+    "RetailSimulatorTests.test_capture_t0_retries_race_and_writes_null_only_for_explicit_absent": "d49f7346c08cd181a8016e668ae9e88fdf51da2f778c91707766028b393cbf6d",
+    "RetailSimulatorTests.test_capture_v2_accepts_loading_t0_and_loading_t1_before_exact_gameplay_t2": "f35e86674d0e7b7f626bddaa43d0b1f25bef2bfa4915522f3d2eb241849b5c0c",
+    "RetailSimulatorTests.test_capture_v2_happy_path_keeps_capture_extras_outside_staged_retail_and_reports_after_cleanup": "bda6c7c8af9162e0e80433391ec8a2c999c1c1a3f0dc33ac6f067de88baddefa",
+    "RetailSimulatorTests.test_capture_v2_persistent_loading_uses_original_timeout_without_proof_or_report": "d17bbe40f8e14730cff8b8b5be63f57b0e18b31ee03f0b5d6059b9fa7d63e7d1",
+    "RetailSimulatorTests.test_capture_v2_post_launch_ppm_or_proof_mutation_never_publishes_report": "2d879b7e9d6ed02f9015aab8d6ba16499baf548a7d98040cbf65bdc9012bbd7e",
+    "RetailSimulatorTests.test_capture_v2_rejects_a_coherent_jupiter_checkpoint_without_report": "36c16e3dfc52a925987bc0faef9d87ae197d35758411150895c56c451bed86ab",
+    "RetailSimulatorTests.test_capture_v2_rejects_wrong_pid_without_pass_report_and_cleans_simulator": "f96e710a1fe1cd149856366282d4a84e8ac18d8dd27e3e0c719acf207d9feb43",
+    "RetailSimulatorTests.test_capture_v2_requires_autoload_conflicts_with_navigation_and_uses_exact_config": "1d671df357ac372e2ceb2c5d83111ec34048457500ddee82cc0103bb21f52381",
+    "RetailSimulatorTests.test_clone_metadata_diagnostic_failures_preserve_only_dn_and_delete_simulator": "e2d401a5a841c8e28d8298a49f8d3d2bcf6aed8e338e665c26b67ca446145761",
+    "RetailSimulatorTests.test_clone_save_metadata_diagnostics_is_closed_and_orders_d0_through_d4_before_pass": "17af46b5889e68f9bc14589aa18b28b58c8b921be7619170c153485cfe58aeaf",
+    "RetailSimulatorTests.test_clone_without_metadata_diagnostics_reports_final_only_v2": "8f0372c6e01b324a27ccbac89460ddbcbfe0cf1e5d345446556fbc66ee1a3eea",
+    "RetailSimulatorTests.test_crash_during_screenshot_fails_stability_check": "d3077b1a6e033dbfaf602c9ea0e397b3595624b5448b9bd43f39d6c3908f8369",
+    "RetailSimulatorTests.test_data_container_equal_to_repo_is_rejected": "1854ae2692d8d4cefe1fdfa7e2fc0b22a4fb280ab5132af8dd46fb6cc4915652",
+    "RetailSimulatorTests.test_data_container_outside_coresimulator_is_rejected": "d4de7d0390adb8a448545bbacecb1e3369037c372b3f9ffd2124dbc1e27cb74c",
+    "RetailSimulatorTests.test_deferred_app_death_during_stability_interval_fails": "a61f92776070eabd9361fc1f7db1d8317b081cebdd07502680370e345434e64f",
+    "RetailSimulatorTests.test_empty_screenshot_fails": "469302104b954f515e59637e1ffd56d02ae51e4ac64b759ed60ecf3b4f3d744c",
+    "RetailSimulatorTests.test_every_protected_stamp_uses_a_real_single_file_contract": "842fa9fe0aeb44a8c5c5fd730274fd90e6b3cd24ce4b8222175c8ffd9d5e6c4f",
+    "RetailSimulatorTests.test_failure_cleanup_records_delete_failure_without_masking_status": "9fc3d31e7a7db61148dff605cdff0b33a4c8c6321c8a7c6643d47e897920ef13",
+    "RetailSimulatorTests.test_final_log_snapshot_positive_path_preserves_runtime_boundary": "76ca607e8d7e037fc23bc0e6365e962a8e6d39a321da840c6da13e4150db180a",
+    "RetailSimulatorTests.test_final_log_snapshot_rejects_late_fatal_while_pid_remains_alive": "74019216dc0b36eb52e0cacd076b04415931657bede262d97716c11e705b384f",
+    "RetailSimulatorTests.test_finalize_marker_exception_accepts_only_one_canonical_second_load": "528a58875864aab571f8c9a6738304c6dd7d0a9b7cf57bad29e87192279ff01c",
+    "RetailSimulatorTests.test_finalize_marker_exception_rejects_wrong_second_load": "88055c811069eeff23bcb0f4f954276e28c08870084ad0f472fa3e404c5087b4",
+    "RetailSimulatorTests.test_finalize_ordinary_autoload_still_rejects_quickload_marker": "34bdf9d0002a98ef64578ecfb69c1d273d88ae5053b23ea869f729f3e080930c",
+    "RetailSimulatorTests.test_finalize_rejects_existing_proof_output": "9dfa4745f314c4e76ef837027559bc1b6ed24249c9dd8a86dfb02ad1c0f4c53f",
+    "RetailSimulatorTests.test_finalize_rejects_symlinked_proof_output": "3d9523fcd9612aaba538c45260eff56bd353e10851b0bcaa0874d3120202afd3",
+    "RetailSimulatorTests.test_finalize_rejects_symlinked_snapshot_manifest": "c5e6fd6a79368acb51391b11abcf97373fd8cfdc0f90478f7f9af2a99db1fedd",
+    "RetailSimulatorTests.test_foreground_cycle_accepts_delayed_split_polling_and_non_one_anchor": "429e704a2e791ccfb25edcadc2c7c53e14e3253d649fdfddaa5cce9482c419c5",
+    "RetailSimulatorTests.test_foreground_cycle_accepts_one_shot_menu_marker_without_repeating_it": "bd1598b737a45c32dff0302a4ba70b6e3c7dc480ce8e737691c0fd22531eaed1",
+    "RetailSimulatorTests.test_foreground_cycle_rejects_a_preexisting_recovery_screenshot": "6a47b63187a741355ce1dee19282c7e1d68a6200eac2dc685f5d57e56ba0fde6",
+    "RetailSimulatorTests.test_foreground_cycle_rejects_invalid_lifecycle_prefixes_before_or_after_recovery": "46a80436ecb7b1a6ae4e3e6add450f7a03cb484f4eb007b14842051240c07ffc",
+    "RetailSimulatorTests.test_foreground_cycle_rejects_second_engine_menu_and_log_mutation": "004b50ba776766fb92382c14567d33265c0a23d00ae9bfe9df43e1c4d28e9917",
+    "RetailSimulatorTests.test_foreground_cycle_uses_two_phase_timeouts_and_same_pid": "18ee02457c80ba4ddd12de2d2ae05798ba2a4cb299fccb26d1b79574999027f0",
+    "RetailSimulatorTests.test_foreground_cycle_waits_for_background_before_recovery_launch": "a8451a319c1667867220ec299587008ca16aa4b819ea91ae53939c92d296625b",
+    "RetailSimulatorTests.test_hanging_screenshot_is_bounded_by_original_launch_deadline": "1bc67638205eae56a8ff698c2b0a683733b5515e5dac9e1495447b0aaee33c8c",
+    "RetailSimulatorTests.test_ios27_forbidden_scene_marker_and_recovery_screenshot_fail_closed": "df0c77d733e190da2adad57f330b42cbee908d12bac8effc021c17d386b0380e",
+    "RetailSimulatorTests.test_ios_build_jobs_must_be_positive_integer": "0212ffa2aee7be6e0daebdacbf70690a2da84460a4a2f40329546d94fe57154e",
+    "RetailSimulatorTests.test_large_manifest_rejects_same_size_noncore_backup_corruption": "2a0aa9261a6c29d8f3d707e0f58a3da7a68d922cca24776ea879e6607df4e9e8",
+    "RetailSimulatorTests.test_large_save_policy_tracks_with_saves_and_protects_ordinary_save": "e06de378c7a3df0669db8ed328331ee9a5b443621bc4ea05a84490dc54984bdd",
+    "RetailSimulatorTests.test_launch_proof_rejects_incomplete_ui_navigation_arguments_before_launch": "a76c4bc76ecc0e8a4cedc23cd63b018f8c4e914cd3ffd9dbce5e1631a21e5cb8",
+    "RetailSimulatorTests.test_launch_rejects_preexisting_snapshot_output": "adb6aa592af8b87d35eb54c9828a82de75e233e1451b7e9862c5a4881e9c6849",
+    "RetailSimulatorTests.test_launch_timeout_is_failure_and_cleans_own_simulator": "a7a5faa8c53be390cd60951d5cf8b19470541f3be2858f4e866211e396032faf",
+    "RetailSimulatorTests.test_lifecycle_state_machine_accepts_only_the_two_phase_prefix": "d336d85c64ff34862fadccb375073e46c2996da8bd3f6ef52410d5d5666ec384",
+    "RetailSimulatorTests.test_live_runtime_log_snapshot_accepts_append_between_lstat_and_open": "e3e9d04a763ea2666662931751b04773fe057cf39f454d596b41644d79fe1869",
+    "RetailSimulatorTests.test_live_runtime_log_snapshot_accepts_append_but_final_read_stays_strict": "1bf7be377c9d45cebc6a895c5afe49c736e8f00526e738da536f52641948639b",
+    "RetailSimulatorTests.test_malformed_or_ambiguous_launch_output_fails_closed": "55c0c584dff02e3cb14b89d5de9de6e1c604851b61e7e8a75c2ff92ceacc141d",
+    "RetailSimulatorTests.test_manifest_tampering_is_rejected_before_tools": "d602eb235bfa65342a88991891613526872452b989abb6f142dead177c81bd65",
+    "RetailSimulatorTests.test_menu_marker_grammar_and_pid_are_fail_closed": "08f1ccaf07e268b2cca2cc5607dad66944e68a4b7de69c9471c417cbefa44b4c",
+    "RetailSimulatorTests.test_mocked_happy_path_isolated_and_deletes_only_own_uuid": "825ea7f89b92a1bc99c9d94edcab3b9171c8673b495efbe5502af0c651bc0a00",
+    "RetailSimulatorTests.test_native_ui_capture_cli_is_opt_in_and_guarded": "3c1a6a5771354fdf4874bb28936f2d6e023359ce7934ec6553b2809f88e61bbd",
+    "RetailSimulatorTests.test_native_ui_capture_failures_never_publish_report_or_pass_claim": "2e3d7612bad363194f3fee50195b22ace2df09e456b68a442e73466c1a6b81d7",
+    "RetailSimulatorTests.test_native_ui_capture_full_runner_wiring_publishes_only_post_stop": "06f742ce025c3faaf5b8839eeac08fe659c06cf1fd0658184d347a994486d886",
+    "RetailSimulatorTests.test_native_ui_capture_manifest_state_binds_identity_and_publish_revalidates_it": "1fa9bac00a144cd25cc9b10e2a704ca76fe86afa6c201a9d60c912b3055537f1",
+    "RetailSimulatorTests.test_native_ui_capture_renderer_and_manifest_mutations_never_publish_report": "f244c627b7fcdde529bbdc0d736d9b0575cf58c2aa7956cf95578189bf010e59",
+    "RetailSimulatorTests.test_native_ui_capture_renderer_is_measured_from_sync_snapshot": "48dff1c24d36c25d9fa43ae27b9345facbe86cc56391971cbd606b271cdb9947",
+    "RetailSimulatorTests.test_openal_runtime_provider_mutations_never_publish_a_pass_report": "9322aade9d48ba0e800ba0702ff1494814f0c3b68e997c52027b2a271df83200",
+    "RetailSimulatorTests.test_ordinary_autoload_still_allows_only_the_selected_save_to_change": "6d18ee0b1656d2d98f3ab3eb68ef6aff3153cf7bfe0112cd8bf8042a673c15af",
+    "RetailSimulatorTests.test_prepared_requires_explicit_runtime_270_before_work_build_or_simctl": "8a4fdb79e5f7c384144aa435f1ee231e97738e1ec8c44eb086f97e1396cd9e64",
+    "RetailSimulatorTests.test_process_exit_after_valid_markers_fails": "45d9ddb5c90d526de86f03119d80d0e592fffd177571a81329f04094d1d2f550",
+    "RetailSimulatorTests.test_protected_artifact_mutation_is_detected_after_build": "1636e159802d6a6f4b5c51f157f01fda725b7f4d4b9fbef7d6ae9d35b5dd1c5a",
+    "RetailSimulatorTests.test_quickload_evidence_cli_is_opt_in_conflicted_and_generates_exact_config": "6e4715a0dedbc916ead5d1a3dd2ca4193fbeb25e13500cc2b6d3b6811e1cfe1f",
+    "RetailSimulatorTests.test_real_backslash_log_with_unrelated_error_passes": "9608f7c7365167946903155c7b5d2fcef9a36043ff7ea372341f28052966bc7d",
+    "RetailSimulatorTests.test_report_candidate_and_atomic_publish_fail_closed_without_partial_report": "af4691122921845a2b022edf07ed188777058ad4ab1de5d6f1e731ca9bea20b5",
+    "RetailSimulatorTests.test_required_archive_set_rejects_one_missing_entry": "e93783c7001e31561b3cb012d93717c91c91317c5f77baac25d8142c62882b0c",
+    "RetailSimulatorTests.test_required_result_writes_are_fail_closed": "d243eb2d4c79b0c43240c6af8c18a72b4aeb901b525f1d4cb54fd9ce2e4955ee",
+    "RetailSimulatorTests.test_runner_is_executable": "d5caaad4e404c5c350442625167e0ab79a1f754acb88453a28dbe66c235135af",
+    "RetailSimulatorTests.test_runner_post_stop_log_check_rejects_late_fatal": "07eb908091afa85c1859e749719af08fe59a3609086a2c84938cc643d588759f",
+    "RetailSimulatorTests.test_runner_post_stop_log_check_rejects_rotation": "2bcf0ab422f8d43b3209c2e3d5d57a8b1e59f388e61ea1e280f063529be040d8",
+    "RetailSimulatorTests.test_runner_post_stop_log_check_rejects_same_target_symlink": "8646406317c7d4bb60d6379f67376636f4ca95ef202ad207668eec4f0771a56e",
+    "RetailSimulatorTests.test_runner_post_stop_log_check_rejects_truncation": "1a6c4492751aa3e0e79fcfcf90e0912cef01c9557e2669df557d563d94c9976f",
+    "RetailSimulatorTests.test_runner_quickload_report_uses_real_closed_production_validator": "9eac0357cae4695f48ccf1468b84ceee9712420d8d76af715328fbff1b6d0e85",
+    "RetailSimulatorTests.test_runtime_270_uses_only_its_exact_id_and_reports_both_fields": "76c521e8400c2a26cd1dde065272d71abe41d8fd6dfb227d78f8a02b062c138c",
+    "RetailSimulatorTests.test_runtime_allowlist_is_exact_and_rejects_before_work_or_simctl": "077039e099e01873f22db4628a2c39f8fde1d31273b7e40af11424f8545ac1e4",
+    "RetailSimulatorTests.test_runtime_deletion_of_staged_archive_is_rejected": "cc29c4fd26169e3424f3a7414d8dafd399e8ca2f960b8dc17d2e7928b0ca94a6",
+    "RetailSimulatorTests.test_runtime_mutation_of_staged_archive_is_rejected": "fc757d916ec2b9b67c2ec8cc497755a71e591aa368fa4fafc7c6f927d0d24ae8",
+    "RetailSimulatorTests.test_runtime_same_size_mutation_of_noncore_large_file_is_rejected": "202b2a0cb1ec483abb1cba65ae4aa65de549566981f757adcd637fb1a46cdd6c",
+    "RetailSimulatorTests.test_save_is_opt_in": "baada7446331de236fc37f0baccbe8ff26cbd3345a3e212c1f495aa3d0e4200c",
+    "RetailSimulatorTests.test_selected_save_deletion_or_empty_state_fails_closed": "2804f2c3cbff79a1e3d2dddc80298e9191d23adf95c7df19e09cf2d568b5ce93",
+    "RetailSimulatorTests.test_selected_save_is_the_only_allowed_runtime_mutation": "718fbb70764e823f2a7353d2dead6cfe86c9bd6345959d336a49f53e80d10293",
+    "RetailSimulatorTests.test_snapshot_manifest_rejects_symlinks": "0068d60914336c1dc78507f5d926fd2f784b4f34140c96c0be336c4c2fd0ce0b",
+    "RetailSimulatorTests.test_source_contains_no_device_escape_hatches": "dd8a36d75ef44d8deb9deacb3aafb4f7ca993909470d37184c2da2e41d2c9013",
+    "RetailSimulatorTests.test_stage_destination_inside_repo_is_rejected": "b45dbe474748ca930daa3bab9de17842a5503930fdeb8b322a90b989da758b6d",
+    "RetailSimulatorTests.test_staging_rejects_symlinked_source_file": "6fdf49e71ae0c5ddcdee86e1d2fc3729685267e84590fb790b156f287bea0237",
+    "RetailSimulatorTests.test_successful_path_rejects_delete_failure_and_never_prints_pass": "5211fe465fef3da54f996bfe3cb22d1682a14f08609f03ac6a34797e1c5a73d4",
+    "RetailSimulatorTests.test_ui_navigation_controller_or_post_stop_finalizer_failure_never_reports_pass": "907f1d3968e540a8032b862470307dec18c94d2288ecea0e451a89acbe63edd5",
+    "RetailSimulatorTests.test_ui_navigation_failure_refreshes_log_with_exact_production_budget": "d3cc82f7c2c8ee42349a87022adc7d74955e73d624e0979f2e5f2190f91393a8",
+    "RetailSimulatorTests.test_ui_navigation_happy_path_uses_one_launch_exact_pid_and_correct_order": "d61fd9429d853c7f909ac54030bfeefb597c697d92817e635f614f310e37dbba",
+    "RetailSimulatorTests.test_ui_navigation_post_stop_guards_reject_late_fatal_marker_and_rotation": "1295e3e10a602efcd2d16122f51c1d196cd663379c8dde010d0e5400ca06b42d",
+    "RetailSimulatorTests.test_ui_navigation_requires_save_and_autoload_and_enables_autoinput_only_there": "992d64214d3be0afb9c9e6f2f31ffe4e8dd11460dfe7548cedc8f3399442d145",
+    "RetailSimulatorTests.test_ui_navigation_termination_failure_prevents_both_finalizers_and_staged_mutation_report": "c070cf28b60f98194e8855544f594e186b12e4e46db17a6a4440f725e63cf883",
+    "RetailSimulatorTests.test_work_base_may_be_parent_of_backup_and_manifest_but_work_root_is_disjoint": "bb54cfcb4b2acd5c300303553f922c547d6bb1e6d78d05f0d1dab16744d2c073"
+  }
+}

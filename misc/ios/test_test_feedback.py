@@ -182,7 +182,9 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
         for path in ("misc/ios/test_feedback.py", "misc/ios/test_feedback_catalog.json",
                      "misc/ios/test_feedback_unittest.py", "misc/ios/test_test_feedback.py",
                      "misc/ios/retail_test_profiles.py", "misc/ios/retail_test_profiles.json",
-                     "misc/ios/test_retail_test_profiles.py"):
+                     "misc/ios/test_retail_test_profiles.py",
+                     "misc/ios/test_retail_fixture_contract.py",
+                     "misc/ios/retail_fixture_contract.json"):
             with self.subTest(path=path):
                 self.assertIn(f'"{path}"', gate_hash)
 
@@ -231,8 +233,7 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
             "xctest::OpenXRayUITests",
         ):
             self.assertEqual(by_id[identifier]["selected_profiles"], [])
-        profile_contract_ids = feedback.parse_python_methods(
-            feedback.ROOT / "misc/ios/test_retail_test_profiles.py")
+        profile_contract_ids = feedback.profile_ids()["host-feedback-tooling"]
         for profile in all_five:
             with self.subTest(runtime_profile=profile):
                 self.assertTrue(set(profile_contract_ids) <= set(feedback.runtime_profile_ids(profile)))

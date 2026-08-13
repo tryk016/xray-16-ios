@@ -33,6 +33,7 @@ PYTHON_COMMAND = re.compile(
     r"(?:python3|feedback_selected_python)\s+(misc/ios/test_(?!feedback\.py)[^\s\\]+\.py)"
 )
 HOST_FEEDBACK_TOOLING_PATH = "misc/ios/test_retail_test_profiles.py"
+HOST_FEEDBACK_SUPPORT_PATH = "misc/ios/test_retail_fixture_contract.py"
 CASE_RANGE = re.compile(r"^([A-Z]+)-\{index:02d\}$")
 EXPECTED_BUILD_STAGE_EXCLUSIONS = frozenset({
     "build-stage::artifact-input-hash-after",
@@ -655,9 +656,12 @@ def runtime_profile_ids(profile: str) -> list[str]:
     unconditional, shader_only = parse_build_check_python()
     selected: list[str] = []
     for path in unconditional + ([] if profile == "engine" else shader_only):
-        selected.extend(parse_archive_generated_methods(ROOT / path)
-                        if path.endswith("test_archive_completed_artifacts.py")
-                        else parse_python_methods(ROOT / path))
+        if path == HOST_FEEDBACK_TOOLING_PATH:
+            selected.extend(host_feedback_tooling_ids(ROOT))
+        else:
+            selected.extend(parse_archive_generated_methods(ROOT / path)
+                            if path.endswith("test_archive_completed_artifacts.py")
+                            else parse_python_methods(ROOT / path))
     selected.extend(groups["cpp"])
     selected.extend(groups["shell"])
     if profile != "engine":
@@ -1948,6 +1952,20 @@ def validate_shader_shared_specs(path: Path) -> None:
             raise CatalogError(f"shader list/execution do not share {shared}")
 
 
+def host_feedback_tooling_ids(root: Path = ROOT) -> list[str]:
+    """Map imported fixture-contract cases to their sole gate entrypoint."""
+    identifiers = parse_python_methods(root / HOST_FEEDBACK_TOOLING_PATH)
+    identifiers.extend(
+        identifier.replace(
+            f"py:{HOST_FEEDBACK_SUPPORT_PATH}::",
+            f"py:{HOST_FEEDBACK_TOOLING_PATH}::",
+            1,
+        )
+        for identifier in parse_python_methods(root / HOST_FEEDBACK_SUPPORT_PATH)
+    )
+    return identifiers
+
+
 def profile_ids(root: Path = ROOT) -> dict[str, list[str]]:
     unconditional, shader_only = parse_build_check_python(root)
     python_ids: list[str] = []
@@ -1968,7 +1986,7 @@ def profile_ids(root: Path = ROOT) -> dict[str, list[str]]:
         + parse_python_methods(root / "misc/ios/ui_automation/test_prepare_scheme.py")
     )
     phase0 = parse_python_methods(root / "misc/ios/test_test_feedback.py")
-    retail_profiles = parse_python_methods(root / "misc/ios/test_retail_test_profiles.py")
+    retail_profiles = host_feedback_tooling_ids(root)
     baseline, variants, links = parse_shader_cases(root)
     return {
         "central-python": python_ids,
@@ -2112,11 +2130,14 @@ def validate(catalog: dict[str, Any], root: Path = ROOT) -> dict[str, Any]:
     catalog_by_id = {entry["entrypoint_id"]: entry for entry in catalog["entrypoints"]}
     unconditional, shader_only = parse_build_check_python(root)
     for path in unconditional + shader_only:
-        identifiers = (
-            parse_archive_generated_methods(root / path)
-            if path.endswith("test_archive_completed_artifacts.py")
-            else parse_python_methods(root / path)
-        )
+        if path == HOST_FEEDBACK_TOOLING_PATH:
+            identifiers = host_feedback_tooling_ids(root)
+        else:
+            identifiers = (
+                parse_archive_generated_methods(root / path)
+                if path.endswith("test_archive_completed_artifacts.py")
+                else parse_python_methods(root / path)
+            )
         if catalog_by_id[f"python::{path}"].get("expected_case_count") != len(identifiers):
             raise CatalogError(f"Python entrypoint case count drift: {path}")
     for path in (

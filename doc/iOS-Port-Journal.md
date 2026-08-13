@@ -5160,3 +5160,39 @@ It authorized and closed only the push of `9aad5df0`; the following docs commit
 changes the HEAD-bound artifact hash, so a fresh matching device/full gate is
 required before any install. No phone, Simulator/device runtime or rendering
 evidence was produced. Phase 1B remains next.
+
+## 2026-08-13 — Host test-feedback Phase 1B fixture decomposition complete
+
+Phase 1B completes optimization Phase 1 while preserving all 102 original
+`RetailSimulatorTests` IDs and method bodies AST-identically. The retained
+Phase 1A partition is unchanged: complete 102 SHA-256
+`c46c5ac58a477b21a9217f5df477a2e42e9c4649060d184f38fddd6cd6786b36`,
+integration 49 `b0df68952a9f912cac236fa1725a46b170de1c0017b665dda1cf9f65cca5d9ee`,
+and `host-fast` 55 `c4b8fd6b853e964488c9edba9b7ca69aebb39e00e3ccf0f07f2aa0ec314a47ae`.
+
+The extracted fixture has a terminal fail-closed component state machine,
+cycle/reassignment rejection, no repair after a retail/stamp/mock mutation,
+all-ten-mock type/mode/bytes/SHA/inode validation and shared sole `xcrun`/`lipo`
+writers. A versioned 96-record golden covers path, type, mode, bytes, SHA-256
+and symlink target, normalizing only root-dependent `fixture.pc`. Persisted
+contracts execute via the existing profile entrypoint and passed 13/13.
+
+Acceptance: retail-integration 49/49 in 526.322 s (wrapper 526.437 s), complete
+102/102 in 564.422 s (wrapper 564.553 s), and 20 serial fresh-process
+`host-fast` runs all 55/55, p50 47.472 s, nearest-rank p95 49.323 s, min/max
+46.472/49.519 s and mean 47.500 s. Continuation evidence:
+`/Users/patryk/openxray-handoff/phase1b-fixture-evidence-20260813-162948-continuation/final-continuation-evidence.json`,
+SHA-256 `6c9030fd565814989739255385f0b03648eb32f03a6743566dac95cef5cbd05a`.
+The source integration stderr has SHA-256
+`563ca32fdfef9490a546d0dd1eb66e17d6e3e081a4125096452aa005efc45e91`; its
+surrounding helper JSON made a false FAIL classification by looking only at
+stdout, whereas the command rc=0 and unittest's stderr says 49/49 OK. The
+duplicate was stopped and is not acceptance evidence. Repository hashes before
+and after evidence were identical. Final Sol xhigh review:
+`APPROVE — brak P0/P1/P2`.
+
+This closes host-only fixture/test-feedback Phase 1. It is not production,
+Simulator, device, rendering, streaming, distribution or FastDevice proof. No
+commit, full gate or push is claimed. Phase 2 is next: first OS-level release
+shader-cache exclusion or immutable namespaces, then conservative profiles and
+an affected-test planner; full stays semantically complete and shader-uncached.

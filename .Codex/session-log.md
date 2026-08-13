@@ -915,3 +915,20 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
 - Receipt closed only that push. This docs change makes it historical for any
   install; a fresh matching device/full gate is required. No phone, Simulator/
   device runtime or rendering proof. Phase 1B remains next.
+
+## 2026-08-13 — Phase 1B host fixture closeout
+
+- Complete: 102 original IDs/bodies AST-identical; 96-record versioned golden,
+  terminal fail-closed fixture state, all 10 mocks content/type/mode/inode
+  validated, shared `xcrun`/`lipo` writers and minimal guard dependencies.
+  Persisted profile contracts: 13/13 PASS. Frozen complete/integration/
+  host-fast hashes and 102/49/55 counts unchanged.
+- Acceptance: integration 49/49 526.322 s (526.437 wrapper), complete 102/102
+  564.422 s (564.553 wrapper), 20/20 fresh-process host-fast 55/55; p50 47.472
+  s, p95 49.323 s, range 46.472–49.519 s, mean 47.500 s. Continuation evidence
+  SHA `6c9030fd…bd05a`; integration stderr `563ca32f…5e91` is authoritative
+  after helper's stdout-only false FAIL. Repo before/after hashes identical.
+- Sol xhigh: `APPROVE — brak P0/P1/P2`. Host-only, no production/Simulator/
+  device/rendering/streaming/distribution/FastDevice claim. Commit/full/push
+  remain. Next Phase 2: OS lock or immutable shader-cache namespaces, then
+  conservative profiles/planner; full complete and shader-uncached.

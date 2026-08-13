@@ -58,6 +58,8 @@ IOS_ARTIFACT_INPUTS = (
     "misc/ios/retail_test_profiles.py",
     "misc/ios/retail_test_profiles.json",
     "misc/ios/test_retail_test_profiles.py",
+    "misc/ios/test_retail_fixture_contract.py",
+    "misc/ios/retail_fixture_contract.json",
     "misc/ios/retail_import.py",
     "misc/ios/test_retail_import.py",
     "misc/ios/test_retail_clone_staging.py",

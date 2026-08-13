@@ -54,21 +54,22 @@ committed; real `HISTORICAL_PASS` remains read-only closeout work. `9aad5df0`
 closed its push gate but is stale for install. IOS-P1-002 is Backlog-pending.
 
 ## Host feedback checkpoint
+Optimization Phase 1 is complete. Phase 1A's manifest still freezes 102
+byte/AST-identical retail IDs: 53 guards, 49 integration and `host-fast` 55.
+Phase 1B adds a fail-closed fixture state machine, all-ten-mock inode/content
+validation, shared `xcrun`/`lipo` writers and a versioned 96-record golden
+(path/type/mode/bytes/SHA/symlink target; normalized `fixture.pc`). Existing
+profile contracts pass 13/13; all original test body/ID hashes are unchanged.
 
-Phase 0 is complete. Phase 1A freezes all 102 byte/AST-identical retail IDs in
-a versioned fail-closed manifest: 53 guards, 49 integration, and `host-fast` 55
-(guards plus exact happy/fail-closed smokes). Profiles are `complete` (default),
-`host-fast`, `retail-integration`; authority is `NONE`, input mapping false.
-`shaders/device/full/fast` still run all 102; `engine` retains non-shader scope,
-and the new contract runs in all five. No FastDevice switch, fixture extraction,
-parallelism or cache planner exists.
-
-Focused 5/5, 24/24, 14/14 PASS; single runs: `host-fast` 55/55 in 48.164 s,
-integration 49/49 in 529.911 s, full 102/102 in 590.178 s. Fast receipt
-`gate-1786626921163957000-41895-0.json` passed in 767.549 s on unchanged dirty
-HEAD `14d8973e`: COMPLETE, 1,156 cases/58 stages, zero errors; not a clean
-commit/full/push/install stamp. Sol xhigh: `APPROVE — brak P0/P1/P2`. These are
-not p50/p95, speedup, phone, Simulator/runtime or rendering proof.
+Acceptance: integration 49/49 in 526.322 s (526.437 s wrapper), complete
+102/102 in 564.422 s (564.553 s wrapper), 20/20 serial fresh-process
+`host-fast` 55/55, p50 47.472 s, nearest-rank p95 49.323 s, range
+46.472–49.519 s, mean 47.500 s. Continuation evidence SHA-256:
+`6c9030fd565814989739255385f0b03648eb32f03a6743566dac95cef5cbd05a`.
+Integration stderr `563ca32fdfef9490a546d0dd1eb66e17d6e3e081a4125096452aa005efc45e91`;
+helper stdout classification was false, but rc=0 and stderr says 49/49 OK.
+Sol xhigh: `APPROVE — brak P0/P1/P2`. Host-only: no production, Simulator,
+device, rendering, streaming, distribution or FastDevice speed claim.
 
 Pushed exact clean `9aad5df0` receipt `gate-1786629614658776000-66873-0.json`:
 818.681 s, unchanged source, COMPLETE, 1,156 cases/58 stages PASS, profile 5/5,
@@ -78,7 +79,6 @@ that push only; this docs change makes it historical for install, requiring a
 fresh matching device/full gate. No phone/runtime/rendering evidence.
 
 ## First commands
-
 ```bash
 git status --short && (python3 misc/ios/active_gate.py check || { python3 misc/ios/active_gate.py generate && python3 misc/ios/active_gate.py check; })
 ./misc/ios/run_gate_logged.sh fast
@@ -137,7 +137,7 @@ phone for this host-only M6 evidence.
 
 ## Next slice
 
-1. Phase 1B: extract fixtures preserving bodies/IDs, then 20 warm `host-fast` PASS targeting p50 60–90 s/p95 ≤120 s.
+1. Phase 2: establish OS-level shader-cache exclusion or immutable namespaces, then conservative profiles and an affected-test planner; full stays complete and shader-uncached.
 2. When the phone returns, restore IOS-P1-002 and run its lifecycle batch with controlled lighting.
 3. Keep M6 active; the cache is not legal distribution or device transfer/save-preservation evidence.
 

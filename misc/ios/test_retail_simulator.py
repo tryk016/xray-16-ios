@@ -85,67 +85,291 @@ class RetailSimulatorTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix="openxray-retail-sim-", dir="/tmp")
         self.root = Path(self.temp.name).resolve()
-        self.repo = self.root / "repo"
-        (self.repo / "misc/ios").mkdir(parents=True)
-        shutil.copy2(RUNNER, self.repo / "misc/ios/retail_simulator.sh")
-        shutil.copy2(GUARD, self.repo / "misc/ios/retail_simulator_guard.py")
-        shutil.copy2(RETAIL_IMPORT, self.repo / "misc/ios/retail_import.py")
-        shutil.copy2(OPENAL_CONTRACT, self.repo / "misc/ios/openal_provider_contract.py")
-        shutil.copy2(CAPTURE_EVIDENCE, self.repo / "misc/ios/lighting_ab_evidence.py")
-        self._write_diagnostic_guard_wrapper()
-        self._write_quickload_evidence_mock()
-        (self.repo / "cmake/toolchains").mkdir(parents=True)
-        (self.repo / "cmake/toolchains/ios.toolchain.cmake").write_text("# fixture\n")
-        for path in (
-            "bin/aarch64/Release/xr_3da.app/device", "bin/aarch64/FastDevice/xr_3da.app/device",
-            *STAMP_PATHS, "build/ios-engine-iphoneos/object.o",
-            "build/ios-engine-fastdevice-iphoneos/object.o", "build/ios-engine-iphonesimulator/cache",
-            "build/ios-prefix-iphonesimulator/lib/dependency.a",
-        ):
-            candidate = self.repo / path
-            candidate.parent.mkdir(parents=True, exist_ok=True)
-            candidate.write_text("fixture\n")
-        prefix = self.repo / "build/ios-prefix-iphonesimulator"
-        (prefix / "lib/libopenal.a").write_bytes(b"fixture-openal")
-        for header in ("al.h", "alc.h", "alext.h"):
-            target = prefix / "include/AL" / header
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text("fixture\n")
-        pkgconfig = prefix / "lib/pkgconfig"
-        pkgconfig.mkdir(parents=True)
-        (pkgconfig / "fixture.pc").write_text(f"prefix={prefix}\nlibdir={prefix}/lib\n")
-        self.backup = self.root / "backup"
-        self.backup.mkdir()
-        self.manifest = self.root / "backup.manifest"
-        self.manifest.mkdir()
-        for index, relative in enumerate(REQUIRED_ARCHIVES):
-            self._retail_file(relative, f"archive-{index}".encode())
-        self._retail_file("localization/xenglish.db", b"language")
-        self._retail_file("localization/base_sounds.db", b"base-sounds")
-        self._retail_file("localization/xefis_movies.db", b"xefis-movies")
-        self._retail_file("patches/xpatch_02.db", b"patch")
-        self._retail_file("_appdata_/cdb_cache/zaton/objspace.bin", b"cdb-cache")
-        self._retail_file("_appdata_/savedgames/save.scop", b"save")
-        self._retail_file("_appdata_/savedgames/other.scop", b"other-save")
-        self._retail_file("_appdata_/user.ltx", b"must-not-copy")
-        self._write_retail_manifests()
-        self.work_base = self.root / "handoff"
-        self.work_base.mkdir()
+        self._repo_path = self.root / "repo"
+        self._backup_path = self.root / "backup"
+        self._manifest_path = self.root / "backup.manifest"
+        self._work_base_path = self.root / "handoff"
+        self._mocks_path = self.root / "mocks"
+        self._lifecycle_mocks_path = self.root / "lifecycle-mocks"
+        self._commands_path = self.root / "commands.log"
+        self._mock_home_path = self.root / "home"
         self.simulator_uuid = "00000000-0000-0000-0000-000000000001"
-        self.mock_home = self.root / "home"
-        self.simulator_application_root = (
-            self.mock_home / "Library/Developer/CoreSimulator/Devices" / self.simulator_uuid
+        self._simulator_application_root_path = (
+            self._mock_home_path / "Library/Developer/CoreSimulator/Devices" / self.simulator_uuid
             / "data/Containers/Data/Application"
         )
-        self.simulator_application_root.mkdir(parents=True)
-        self.sim_data = self.simulator_application_root / "11111111-1111-1111-1111-111111111111"
-        self.commands = self.root / "commands.log"
-        self.mocks = self.root / "mocks"
-        self.mocks.mkdir()
-        self.lifecycle_mocks = self.root / "lifecycle-mocks"
-        self.lifecycle_mocks.mkdir()
-        self._write_navigation_controller()
-        self._write_mocks()
+        self._sim_data_path = self._simulator_application_root_path / "11111111-1111-1111-1111-111111111111"
+        self._fixture_state = {
+            name: "UNSEEN" for name in (
+                "repo", "retail", "work-base", "sim-data", "mocks-dir",
+                "lifecycle-mocks", "xcrun", "lipo", "launch", "binary", "runner",
+            )
+        }
+        self._fixture_failure: dict[str, BaseException] = {}
+        self._mock_publication: dict[Path, tuple[bytes, str, int, int, int]] = {}
+
+    def _ensure_component(self, name: str, build: object, validate: object) -> None:
+        state = self._fixture_state[name]
+        if state == "READY":
+            try:
+                validate()  # type: ignore[operator]
+            except BaseException as error:
+                self._fixture_state[name] = "FAILED"
+                self._fixture_failure[name] = error
+                raise
+            return
+        if state == "FAILED":
+            raise RuntimeError(f"fixture component {name} previously failed") from self._fixture_failure[name]
+        if state == "BUILDING":
+            error = RuntimeError(f"fixture component dependency cycle at {name}")
+            self._fixture_state[name] = "FAILED"
+            self._fixture_failure[name] = error
+            raise error
+        if state != "UNSEEN":
+            raise RuntimeError(f"fixture component {name} has invalid state {state}")
+        self._fixture_state[name] = "BUILDING"
+        try:
+            build()  # type: ignore[operator]
+            validate()  # type: ignore[operator]
+        except BaseException as error:
+            self._fixture_state[name] = "FAILED"
+            self._fixture_failure[name] = error
+            raise
+        self._fixture_state[name] = "READY"
+
+    @staticmethod
+    def _validate_directory(path: Path, label: str) -> None:
+        details = path.lstat()
+        if not stat.S_ISDIR(details.st_mode) or path.is_symlink():
+            raise RuntimeError(f"fixture {label} is not a private directory: {path}")
+
+    def _ensure_repo_fixture(self) -> None:
+        def build() -> None:
+            destination = self._repo_path / "misc/ios"
+            destination.mkdir(parents=True)
+            for source in (RUNNER, GUARD, RETAIL_IMPORT, OPENAL_CONTRACT, CAPTURE_EVIDENCE):
+                shutil.copy2(source, destination / source.name)
+            self._write_diagnostic_guard_wrapper()
+            self._write_quickload_evidence_mock()
+            self._write_navigation_controller()
+            toolchain = self._repo_path / "cmake/toolchains"
+            toolchain.mkdir(parents=True)
+            (toolchain / "ios.toolchain.cmake").write_text("# fixture\n")
+            for relative in (
+                "bin/aarch64/Release/xr_3da.app/device", "bin/aarch64/FastDevice/xr_3da.app/device",
+                *STAMP_PATHS, "build/ios-engine-iphoneos/object.o",
+                "build/ios-engine-fastdevice-iphoneos/object.o", "build/ios-engine-iphonesimulator/cache",
+                "build/ios-prefix-iphonesimulator/lib/dependency.a",
+            ):
+                candidate = self._repo_path / relative
+                candidate.parent.mkdir(parents=True, exist_ok=True)
+                candidate.write_text("fixture\n")
+            prefix = self._repo_path / "build/ios-prefix-iphonesimulator"
+            (prefix / "lib/libopenal.a").write_bytes(b"fixture-openal")
+            for header in ("al.h", "alc.h", "alext.h"):
+                target = prefix / "include/AL" / header
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("fixture\n")
+            pkgconfig = prefix / "lib/pkgconfig"
+            pkgconfig.mkdir(parents=True)
+            (pkgconfig / "fixture.pc").write_text(f"prefix={prefix}\nlibdir={prefix}/lib\n")
+        self._ensure_component(
+            "repo", build,
+            lambda: self._validate_directory(self._repo_path, "repo"),
+        )
+
+    def _ensure_retail_fixture(self) -> None:
+        def build() -> None:
+            self._backup_path.mkdir()
+            self._manifest_path.mkdir()
+            for index, relative in enumerate(REQUIRED_ARCHIVES):
+                self._retail_file(relative, f"archive-{index}".encode())
+            self._retail_file("localization/xenglish.db", b"language")
+            self._retail_file("localization/base_sounds.db", b"base-sounds")
+            self._retail_file("localization/xefis_movies.db", b"xefis-movies")
+            self._retail_file("patches/xpatch_02.db", b"patch")
+            self._retail_file("_appdata_/cdb_cache/zaton/objspace.bin", b"cdb-cache")
+            self._retail_file("_appdata_/savedgames/save.scop", b"save")
+            self._retail_file("_appdata_/savedgames/other.scop", b"other-save")
+            self._retail_file("_appdata_/user.ltx", b"must-not-copy")
+            self._write_retail_manifests()
+        self._ensure_component(
+            "retail", build,
+            lambda: (self._validate_directory(self._backup_path, "backup"),
+                     self._validate_directory(self._manifest_path, "manifest")),
+        )
+
+    def _ensure_work_base(self) -> None:
+        self._work_base_assigned_by_test = False
+        self._ensure_component(
+            "work-base", lambda: self._work_base_path.mkdir(parents=True, exist_ok=True),
+            lambda: self._validate_directory(self._work_base_path, "work base"),
+        )
+
+    def _ensure_simulator_data_fixture(self) -> None:
+        self._ensure_component(
+            "sim-data", lambda: self._simulator_application_root_path.mkdir(parents=True),
+            lambda: self._validate_directory(self._simulator_application_root_path, "simulator application root"),
+        )
+
+    def _ensure_mocks_directory(self) -> None:
+        self._ensure_component(
+            "mocks-dir", lambda: self._mocks_path.mkdir(),
+            lambda: self._validate_directory(self._mocks_path, "mock directory"),
+        )
+
+    def _ensure_lifecycle_mocks_directory(self) -> None:
+        self._ensure_component(
+            "lifecycle-mocks", lambda: self._lifecycle_mocks_path.mkdir(),
+            lambda: self._validate_directory(self._lifecycle_mocks_path, "lifecycle mock directory"),
+        )
+
+    @staticmethod
+    def _validate_regular_fixture_file(path: Path, label: str, expected: bytes | None = None,
+                                       mode: int | None = 0o755) -> None:
+        details = path.lstat()
+        if (not stat.S_ISREG(details.st_mode) or path.is_symlink()
+                or (mode is not None and stat.S_IMODE(details.st_mode) != mode)):
+            raise RuntimeError(f"fixture {label} is not an executable regular file: {path}")
+        if expected is not None and path.read_bytes() != expected:
+            raise RuntimeError(f"fixture {label} bytes changed after publication: {path}")
+
+    def _register_mock_publication(self, path: Path, expected: bytes) -> None:
+        self._validate_regular_fixture_file(path, f"{path.name} mock", expected)
+        details = path.lstat()
+        self._mock_publication[path] = (
+            expected, hashlib.sha256(expected).hexdigest(), stat.S_IMODE(details.st_mode),
+            details.st_dev, details.st_ino,
+        )
+
+    def _validate_mock_publication(self, path: Path) -> None:
+        publication = self._mock_publication.get(path)
+        if publication is None:
+            raise RuntimeError(f"mock lacks a publication record: {path}")
+        expected, expected_hash, mode, device, inode = publication
+        self._validate_regular_fixture_file(path, f"{path.name} mock", expected, mode)
+        details = path.lstat()
+        if hashlib.sha256(path.read_bytes()).hexdigest() != expected_hash:
+            raise RuntimeError(f"fixture {path.name} mock hash changed after publication")
+        if (details.st_dev, details.st_ino) != (device, inode):
+            raise RuntimeError(f"fixture {path.name} mock inode changed after publication")
+
+    def _ensure_exclusive_mock(self, name: str, content: str) -> Path:
+        self._ensure_mocks_directory()
+        path = self._mocks_path / name
+        expected = ("#!/usr/bin/env python3\n" + content).encode("utf-8")
+        try:
+            with path.open("xb") as output:
+                output.write(expected)
+            path.chmod(0o755)
+        except FileExistsError:
+            raise RuntimeError(f"exclusive {name} mock already exists before publication")
+        self._register_mock_publication(path, expected)
+        return path
+
+    def _validate_exclusive_mock(self, name: str, content: str) -> None:
+        path = self._mocks_path / name
+        expected = ("#!/usr/bin/env python3\n" + content).encode("utf-8")
+        publication = self._mock_publication.get(path)
+        if publication is None or publication[0] != expected:
+            raise RuntimeError(f"exclusive {name} mock has an invalid publication record")
+        self._validate_mock_publication(path)
+
+    def _validate_runner_mocks(self) -> None:
+        self._ensure_xcrun_mock()
+        self._ensure_lipo_mock()
+        for path in (
+            *(self._mocks_path / name for name in (
+                "git", "rsync", "cmake", "xcrun", "lipo", "xcodebuild", "ar", "nm", "otool",
+            )),
+            self._lifecycle_mocks_path / "ps",
+        ):
+            self._validate_mock_publication(path)
+
+    def _ensure_launch_fixture(self) -> None:
+        self._ensure_repo_fixture()
+        self._ensure_simulator_data_fixture()
+        self._ensure_work_base()
+        self._ensure_component(
+            "launch", self._ensure_xcrun_mock,
+            lambda: self._validate_exclusive_mock("xcrun", self._xcrun_mock_content()),
+        )
+
+    def _ensure_binary_fixture(self) -> None:
+        self._ensure_repo_fixture()
+        self._ensure_component(
+            "binary", self._ensure_binary_mocks,
+            lambda: (self._validate_exclusive_mock("xcrun", self._xcrun_mock_content()),
+                     self._validate_exclusive_mock("lipo", self._lipo_mock_content())),
+        )
+
+    def _ensure_runner_fixture(self) -> None:
+        self._ensure_repo_fixture()
+        self._ensure_retail_fixture()
+        self._ensure_simulator_data_fixture()
+        self._ensure_work_base()
+        self._ensure_component(
+            "runner", self._write_mocks,
+            self._validate_runner_mocks,
+        )
+
+    @property
+    def repo(self) -> Path:
+        self._ensure_repo_fixture()
+        return self._repo_path
+
+    @property
+    def backup(self) -> Path:
+        self._ensure_retail_fixture()
+        return self._backup_path
+
+    @property
+    def manifest(self) -> Path:
+        self._ensure_retail_fixture()
+        return self._manifest_path
+
+    @property
+    def work_base(self) -> Path:
+        if getattr(self, "_work_base_assigned_by_test", False):
+            return self._work_base_path
+        self._ensure_work_base()
+        return self._work_base_path
+
+    @work_base.setter
+    def work_base(self, value: Path) -> None:
+        self._work_base_path = value
+        self._fixture_state["work-base"] = "UNSEEN"
+        self._fixture_failure.pop("work-base", None)
+        self._work_base_assigned_by_test = True
+
+    @property
+    def sim_data(self) -> Path:
+        self._ensure_simulator_data_fixture()
+        return self._sim_data_path
+
+    @property
+    def mock_home(self) -> Path:
+        self._ensure_simulator_data_fixture()
+        return self._mock_home_path
+
+    @property
+    def simulator_application_root(self) -> Path:
+        self._ensure_simulator_data_fixture()
+        return self._simulator_application_root_path
+
+    @property
+    def mocks(self) -> Path:
+        self._ensure_mocks_directory()
+        return self._mocks_path
+
+    @property
+    def lifecycle_mocks(self) -> Path:
+        self._ensure_lifecycle_mocks_directory()
+        return self._lifecycle_mocks_path
+
+    @property
+    def commands(self) -> Path:
+        return self._commands_path
 
     def tearDown(self) -> None:
         # Negative capture-v2 cases deliberately fail while their short-lived
@@ -161,34 +385,36 @@ class RetailSimulatorTests(unittest.TestCase):
                 time.sleep(0.05)
 
     def _retail_file(self, relative: str, content: bytes) -> None:
-        target = self.backup / relative
+        target = self._backup_path / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
 
     def _write_retail_manifests(self) -> None:
-        paths = sorted(path for path in self.backup.rglob("*") if path.is_file())
-        with (self.manifest / "files.tsv").open("w") as output:
+        paths = sorted(path for path in self._backup_path.rglob("*") if path.is_file())
+        with (self._manifest_path / "files.tsv").open("w") as output:
             output.write("bytes\tpath\n")
             for path in paths:
-                output.write(f"{path.stat().st_size}\t{path.relative_to(self.backup).as_posix()}\n")
-        required = [self.backup / relative for relative in REQUIRED_ARCHIVES]
-        with (self.manifest / "required-archives.tsv").open("w") as output:
+                output.write(f"{path.stat().st_size}\t{path.relative_to(self._backup_path).as_posix()}\n")
+        required = [self._backup_path / relative for relative in REQUIRED_ARCHIVES]
+        with (self._manifest_path / "required-archives.tsv").open("w") as output:
             output.write("bytes\tsha256\tpath\tstatus\n")
             for path in required:
-                output.write(f"{path.stat().st_size}\t{digest(path)}\t{path.relative_to(self.backup).as_posix()}\tOK\n")
-        with (self.manifest / "large-files-sha256.tsv").open("w") as output:
+                output.write(f"{path.stat().st_size}\t{digest(path)}\t{path.relative_to(self._backup_path).as_posix()}\tOK\n")
+        with (self._manifest_path / "large-files-sha256.tsv").open("w") as output:
             output.write("sha256\tbytes\tpath\n")
             for relative in LARGE_FILES:
-                path = self.backup / relative
+                path = self._backup_path / relative
                 output.write(f"{digest(path)}\t{path.stat().st_size}\t{relative}\n")
 
     def prepare_retail_fixture(self) -> Path:
+        self._ensure_repo_fixture()
+        self._ensure_retail_fixture()
         prepared = self.root / "prepared-retail"
         result = subprocess.run(
             (
-                sys.executable, str(self.repo / "misc/ios/retail_import.py"),
-                "prepare", "--backup", str(self.backup),
-                "--manifest", str(self.manifest), "--repo", str(self.repo),
+                sys.executable, str(self._repo_path / "misc/ios/retail_import.py"),
+                "prepare", "--backup", str(self._backup_path),
+                "--manifest", str(self._manifest_path), "--repo", str(self._repo_path),
                 "--destination", str(prepared), "--with-saves",
             ),
             text=True, capture_output=True, check=False,
@@ -197,12 +423,28 @@ class RetailSimulatorTests(unittest.TestCase):
         return prepared
 
     def _mock(self, name: str, content: str, directory: Path | None = None) -> None:
-        path = (self.mocks if directory is None else directory) / name
-        path.write_text("#!/usr/bin/env python3\n" + content, encoding="utf-8")
-        path.chmod(0o755)
+        if name in {"xcrun", "lipo"}:
+            raise RuntimeError(f"{name} mock has an exclusive fixture writer")
+        if directory is None:
+            self._ensure_mocks_directory()
+        path = (self._mocks_path if directory is None else directory) / name
+        expected = ("#!/usr/bin/env python3\n" + content).encode("utf-8")
+        publication = self._mock_publication.get(path)
+        if publication is not None:
+            if publication[0] != expected:
+                raise RuntimeError(f"fixture {name} mock publication content changed")
+            self._validate_mock_publication(path)
+            return
+        try:
+            with path.open("xb") as output:
+                output.write(expected)
+            path.chmod(0o755)
+        except FileExistsError:
+            raise RuntimeError(f"mock {name} already exists before publication")
+        self._register_mock_publication(path, expected)
 
     def _write_diagnostic_guard_wrapper(self) -> None:
-        guard = self.repo / "misc/ios/retail_simulator_guard.py"
+        guard = self._repo_path / "misc/ios/retail_simulator_guard.py"
         implementation = guard.with_name("retail_simulator_guard_impl.py")
         guard.replace(implementation)
         guard.write_text(textwrap.dedent("""
@@ -235,7 +477,7 @@ class RetailSimulatorTests(unittest.TestCase):
         guard.chmod(0o755)
 
     def _write_quickload_evidence_mock(self) -> None:
-        target = self.repo / "misc/ios/simulator_quickload_evidence.py"
+        target = self._repo_path / "misc/ios/simulator_quickload_evidence.py"
         target.write_text(textwrap.dedent("""
             #!/usr/bin/env python3
             import hashlib
@@ -387,7 +629,7 @@ class RetailSimulatorTests(unittest.TestCase):
         The real controller has its own exhaustive semantic tests.  This fixture
         exercises only runner wiring, ordering and fail-closed finalization.
         """
-        controller = self.repo / "misc/ios/simulator_ui_navigation.py"
+        controller = self._repo_path / "misc/ios/simulator_ui_navigation.py"
         controller.write_text(textwrap.dedent("""
             import json, os, pathlib, sys
             args=sys.argv[1:]
@@ -442,6 +684,7 @@ class RetailSimulatorTests(unittest.TestCase):
         """), encoding="utf-8")
 
     def _write_mocks(self) -> None:
+        self._ensure_lifecycle_mocks_directory()
         self._mock("git", "import sys\nprint('0ee372005d3818c2239cfb0d72e289fe41b4a5d2')\n")
         self._mock("rsync", textwrap.dedent("""
             import os, shutil, sys
@@ -469,7 +712,119 @@ class RetailSimulatorTests(unittest.TestCase):
                 (build/'CMakeCache.txt').write_text(f'CMAKE_HOME_DIRECTORY:INTERNAL={source}\\nCMAKE_PREFIX_PATH:UNINITIALIZED={prefix}\\nCMAKE_FIND_ROOT_PATH:UNINITIALIZED={find_root}\\n')
                 cache=build/'CMakeCache.txt'; cache.write_text(cache.read_text()+''.join(f'{key}:STRING={value}{chr(10)}' for key,value in openal_cache.items()))
         """))
-        self._mock("xcrun", textwrap.dedent("""
+        self._ensure_xcrun_mock()
+        self._mock("ps", textwrap.dedent("""
+            import json, os, pathlib, subprocess, sys
+
+            args=sys.argv[1:]
+            probe=subprocess.run(('/bin/ps', *args), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                 text=True, check=False)
+            sys.stdout.write(probe.stdout)
+            sys.stderr.write(probe.stderr)
+
+            event_dir=os.environ.get('MOCK_LIFECYCLE_EVENT_DIR')
+            if (probe.returncode == 0 and event_dir is not None and len(args) == 4
+                    and args[0] == '-p' and args[1].isdigit() and args[2:] == ['-o', 'pid=']
+                    and probe.stdout.strip() == args[1]):
+                pid=int(args[1])
+                root=pathlib.Path(event_dir)
+                trace=root/'trace.txt'
+                deactivate_pending=root/'deactivate.pending.json'
+                deactivate_armed=root/'deactivate.armed.json'
+                activate_pending=root/'activate.pending.json'
+                activate_armed=root/'activate.armed.json'
+                if deactivate_pending.exists():
+                    phase, source, release='deactivate', deactivate_pending, False
+                elif deactivate_armed.exists():
+                    phase, source, release='deactivate', deactivate_armed, True
+                elif activate_pending.exists():
+                    phase, source, release='activate', activate_pending, False
+                elif activate_armed.exists():
+                    phase, source, release='activate', activate_armed, True
+                else:
+                    source=None
+                if source is not None:
+                    payload=json.loads(source.read_text())
+                    if payload.get('pid') == pid:
+                        target=root/(phase+('.released.json' if release else '.armed.json'))
+                        if release:
+                            pathlib.Path(payload['log']).open('a').write(payload['marker'])
+                            source.replace(target)
+                            line=phase+' released\\n'
+                        else:
+                            source.replace(target)
+                            line=phase+' armed\\n'
+                        with trace.open('a') as output:
+                            output.write(line)
+            sys.exit(probe.returncode)
+        """), self._lifecycle_mocks_path)
+        self._ensure_lipo_mock()
+        self._mock("xcodebuild", textwrap.dedent("""
+            import os, pathlib, sys
+            open(os.environ['MOCK_LOG'], 'a').write('xcodebuild '+ ' '.join(sys.argv[1:])+'\\n')
+            args=sys.argv[1:]; project=pathlib.Path(args[args.index('-project')+1]); prefix=project.parent.parent/'ios-prefix-iphonesimulator'
+            target=args[args.index('-target')+1]
+            if args[-1] != '-showBuildSettings' or target not in ('xrSound', 'xrEngine', 'xr_3da'): sys.exit(2)
+            if target in ('xrSound', 'xrEngine'):
+                print(f'    HEADER_SEARCH_PATHS = "{prefix}/include" "{prefix}/include/AL"')
+                print('    OTHER_CFLAGS = -DAL_LIBTYPE_STATIC')
+                print('    OTHER_CPLUSPLUSFLAGS = -DAL_LIBTYPE_STATIC')
+                print('    GCC_PREPROCESSOR_DEFINITIONS = AL_LIBTYPE_STATIC=1')
+            else:
+                print(f'    OTHER_LDFLAGS = {prefix}/lib/libopenal.a -framework AudioToolbox -framework CoreFoundation -framework CoreAudio')
+        """))
+        self._mock("ar", textwrap.dedent("""
+            import os, sys
+            open(os.environ['MOCK_LOG'], 'a').write('ar '+ ' '.join(sys.argv[1:])+'\\n')
+            if sys.argv[1] == '-t' and len(sys.argv) == 3: print('__.SYMDEF SORTED\\na.o\\nb.o')
+            elif sys.argv[1] == '-p': sys.stdout.buffer.write(b'fixture-member')
+            else: sys.exit(2)
+        """))
+        self._mock("nm", textwrap.dedent("""
+            import os, pathlib, sys
+            open(os.environ['MOCK_LOG'], 'a').write('nm '+ ' '.join(sys.argv[1:])+'\\n')
+            args=sys.argv[1:]
+            if len(args) == 1:
+                name=pathlib.Path(args[0]).name
+                symbol_type='T' if name == 'libopenal.a' else 't' if name == 'xr_3da' else None
+                if symbol_type is None: sys.exit(2)
+                for symbol in ('alcDevicePauseSOFT', 'alcDeviceResumeSOFT', 'alGetString', 'alcGetProcAddress'):
+                    print(f'00000000 {symbol_type} _{symbol}')
+            elif len(args) == 2 and args[0] == '-u' and pathlib.Path(args[1]).name in ('libopenal.a', 'xr_3da'):
+                pass
+            else: sys.exit(2)
+        """))
+        self._mock("otool", textwrap.dedent("""
+            import os, pathlib, sys
+            open(os.environ['MOCK_LOG'], 'a').write('otool '+ ' '.join(sys.argv[1:])+'\\n')
+            if len(sys.argv) != 3: sys.exit(2)
+            mode, subject = sys.argv[1:]
+            path = pathlib.Path(subject)
+            if not path.is_absolute(): sys.exit(2)
+            if mode == '-l':
+                if path.name != 'libopenal.a': sys.exit(2)
+                print(f'Archive : {path}')
+                for member in ('a.o', 'b.o'):
+                    print(f'{path}({member}):')
+                    print('Load command 0')
+                    print('      cmd LC_BUILD_VERSION')
+                    print('  cmdsize 32')
+                    print(' platform 7')
+                    print('    minos 16.4')
+                sys.exit(0)
+            if mode == '-L':
+                if path.name != 'xr_3da': sys.exit(2)
+                print(f'{path}:')
+                print('\\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)')
+                print('\\t/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox (compatibility version 1.0.0, current version 1.0.0)')
+                print('\\t/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation (compatibility version 1.0.0, current version 1.0.0)')
+                print('\\t/System/Library/Frameworks/CoreAudio.framework/CoreAudio (compatibility version 1.0.0, current version 1.0.0)')
+                sys.exit(0)
+            sys.exit(2)
+        """))
+
+    def _xcrun_mock_content(self) -> str:
+        return textwrap.dedent("""
             import json, os, pathlib, subprocess, sys, time
             log=os.environ['MOCK_LOG']; args=sys.argv[1:]; open(log,'a').write('xcrun '+ ' '.join(args)+'\\n')
             def schedule_delayed_lifecycle(phase, pid, root, marker):
@@ -723,121 +1078,33 @@ class RetailSimulatorTests(unittest.TestCase):
                 manifest.replace(old)
                 manifest.write_text('{"replacement":true}\\n')
             sys.exit(0)
-        """))
-        self._mock("ps", textwrap.dedent("""
-            import json, os, pathlib, subprocess, sys
+        """)
 
-            args=sys.argv[1:]
-            probe=subprocess.run(('/bin/ps', *args), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                 text=True, check=False)
-            sys.stdout.write(probe.stdout)
-            sys.stderr.write(probe.stderr)
+    def _ensure_xcrun_mock(self) -> None:
+        self._ensure_component(
+            "xcrun",
+            lambda: self._ensure_exclusive_mock("xcrun", self._xcrun_mock_content()),
+            lambda: self._validate_exclusive_mock("xcrun", self._xcrun_mock_content()),
+        )
 
-            event_dir=os.environ.get('MOCK_LIFECYCLE_EVENT_DIR')
-            if (probe.returncode == 0 and event_dir is not None and len(args) == 4
-                    and args[0] == '-p' and args[1].isdigit() and args[2:] == ['-o', 'pid=']
-                    and probe.stdout.strip() == args[1]):
-                pid=int(args[1])
-                root=pathlib.Path(event_dir)
-                trace=root/'trace.txt'
-                deactivate_pending=root/'deactivate.pending.json'
-                deactivate_armed=root/'deactivate.armed.json'
-                activate_pending=root/'activate.pending.json'
-                activate_armed=root/'activate.armed.json'
-                if deactivate_pending.exists():
-                    phase, source, release='deactivate', deactivate_pending, False
-                elif deactivate_armed.exists():
-                    phase, source, release='deactivate', deactivate_armed, True
-                elif activate_pending.exists():
-                    phase, source, release='activate', activate_pending, False
-                elif activate_armed.exists():
-                    phase, source, release='activate', activate_armed, True
-                else:
-                    source=None
-                if source is not None:
-                    payload=json.loads(source.read_text())
-                    if payload.get('pid') == pid:
-                        target=root/(phase+('.released.json' if release else '.armed.json'))
-                        if release:
-                            pathlib.Path(payload['log']).open('a').write(payload['marker'])
-                            source.replace(target)
-                            line=phase+' released\\n'
-                        else:
-                            source.replace(target)
-                            line=phase+' armed\\n'
-                        with trace.open('a') as output:
-                            output.write(line)
-            sys.exit(probe.returncode)
-        """), self.lifecycle_mocks)
-        self._mock("lipo", textwrap.dedent("""
+    def _lipo_mock_content(self) -> str:
+        return textwrap.dedent("""
             import os, sys
             open(os.environ['MOCK_LOG'], 'a').write('lipo '+ ' '.join(sys.argv[1:])+'\\n')
             if sys.argv[1:2] != ['-archs'] or len(sys.argv) != 3: sys.exit(2)
             print(os.environ.get('MOCK_LIPO_ARCHS','arm64'))
-        """))
-        self._mock("xcodebuild", textwrap.dedent("""
-            import os, pathlib, sys
-            open(os.environ['MOCK_LOG'], 'a').write('xcodebuild '+ ' '.join(sys.argv[1:])+'\\n')
-            args=sys.argv[1:]; project=pathlib.Path(args[args.index('-project')+1]); prefix=project.parent.parent/'ios-prefix-iphonesimulator'
-            target=args[args.index('-target')+1]
-            if args[-1] != '-showBuildSettings' or target not in ('xrSound', 'xrEngine', 'xr_3da'): sys.exit(2)
-            if target in ('xrSound', 'xrEngine'):
-                print(f'    HEADER_SEARCH_PATHS = "{prefix}/include" "{prefix}/include/AL"')
-                print('    OTHER_CFLAGS = -DAL_LIBTYPE_STATIC')
-                print('    OTHER_CPLUSPLUSFLAGS = -DAL_LIBTYPE_STATIC')
-                print('    GCC_PREPROCESSOR_DEFINITIONS = AL_LIBTYPE_STATIC=1')
-            else:
-                print(f'    OTHER_LDFLAGS = {prefix}/lib/libopenal.a -framework AudioToolbox -framework CoreFoundation -framework CoreAudio')
-        """))
-        self._mock("ar", textwrap.dedent("""
-            import os, sys
-            open(os.environ['MOCK_LOG'], 'a').write('ar '+ ' '.join(sys.argv[1:])+'\\n')
-            if sys.argv[1] == '-t' and len(sys.argv) == 3: print('__.SYMDEF SORTED\\na.o\\nb.o')
-            elif sys.argv[1] == '-p': sys.stdout.buffer.write(b'fixture-member')
-            else: sys.exit(2)
-        """))
-        self._mock("nm", textwrap.dedent("""
-            import os, pathlib, sys
-            open(os.environ['MOCK_LOG'], 'a').write('nm '+ ' '.join(sys.argv[1:])+'\\n')
-            args=sys.argv[1:]
-            if len(args) == 1:
-                name=pathlib.Path(args[0]).name
-                symbol_type='T' if name == 'libopenal.a' else 't' if name == 'xr_3da' else None
-                if symbol_type is None: sys.exit(2)
-                for symbol in ('alcDevicePauseSOFT', 'alcDeviceResumeSOFT', 'alGetString', 'alcGetProcAddress'):
-                    print(f'00000000 {symbol_type} _{symbol}')
-            elif len(args) == 2 and args[0] == '-u' and pathlib.Path(args[1]).name in ('libopenal.a', 'xr_3da'):
-                pass
-            else: sys.exit(2)
-        """))
-        self._mock("otool", textwrap.dedent("""
-            import os, pathlib, sys
-            open(os.environ['MOCK_LOG'], 'a').write('otool '+ ' '.join(sys.argv[1:])+'\\n')
-            if len(sys.argv) != 3: sys.exit(2)
-            mode, subject = sys.argv[1:]
-            path = pathlib.Path(subject)
-            if not path.is_absolute(): sys.exit(2)
-            if mode == '-l':
-                if path.name != 'libopenal.a': sys.exit(2)
-                print(f'Archive : {path}')
-                for member in ('a.o', 'b.o'):
-                    print(f'{path}({member}):')
-                    print('Load command 0')
-                    print('      cmd LC_BUILD_VERSION')
-                    print('  cmdsize 32')
-                    print(' platform 7')
-                    print('    minos 16.4')
-                sys.exit(0)
-            if mode == '-L':
-                if path.name != 'xr_3da': sys.exit(2)
-                print(f'{path}:')
-                print('\\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)')
-                print('\\t/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox (compatibility version 1.0.0, current version 1.0.0)')
-                print('\\t/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation (compatibility version 1.0.0, current version 1.0.0)')
-                print('\\t/System/Library/Frameworks/CoreAudio.framework/CoreAudio (compatibility version 1.0.0, current version 1.0.0)')
-                sys.exit(0)
-            sys.exit(2)
-        """))
+        """)
+
+    def _ensure_lipo_mock(self) -> None:
+        self._ensure_component(
+            "lipo",
+            lambda: self._ensure_exclusive_mock("lipo", self._lipo_mock_content()),
+            lambda: self._validate_exclusive_mock("lipo", self._lipo_mock_content()),
+        )
+
+    def _ensure_binary_mocks(self) -> None:
+        self._ensure_xcrun_mock()
+        self._ensure_lipo_mock()
 
     def runner_environment(self) -> dict[str, str]:
         environment = os.environ.copy()
@@ -879,6 +1146,7 @@ class RetailSimulatorTests(unittest.TestCase):
                    hang_screenshot: bool = False,
                    umask_value: int | None = None,
                    launch_timeout: str = "0.1") -> subprocess.CompletedProcess[str]:
+        self._ensure_runner_fixture()
         environment = self.runner_environment()
         event_index = getattr(self, "_lifecycle_event_run", 0) + 1
         self._lifecycle_event_run = event_index
@@ -970,6 +1238,12 @@ class RetailSimulatorTests(unittest.TestCase):
                               preexec_fn=child_umask if umask_value is not None else None)
 
     def run_guard(self, *arguments: str, environment: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+        self._ensure_repo_fixture()
+        command = arguments[0] if arguments else ""
+        if command == "binary-contract":
+            self._ensure_binary_fixture()
+        elif command in {"stage", "retail-verify"}:
+            self._ensure_retail_fixture()
         return subprocess.run(
             (sys.executable, str(self.repo / "misc/ios/retail_simulator_guard.py"), *arguments),
             text=True,
@@ -991,6 +1265,7 @@ class RetailSimulatorTests(unittest.TestCase):
                          preexisting_recovery_screenshot: bool = False,
                          hang_screenshot: bool = False,
                          launch_timeout: str | None = None) -> subprocess.CompletedProcess[str]:
+        self._ensure_launch_fixture()
         environment = self.runner_environment()
         Path(environment["MOCK_APP_PID_STATE"]).unlink(missing_ok=True)
         environment["MOCK_BOOT_LOG_MODE"] = mode
@@ -1068,6 +1343,9 @@ class RetailSimulatorTests(unittest.TestCase):
         )
 
     def stage_runtime_fixture(self, *, with_saves: bool = False) -> tuple[Path, Path]:
+        self._ensure_repo_fixture()
+        self._ensure_retail_fixture()
+        self._ensure_simulator_data_fixture()
         documents = self.sim_data / "Documents"
         staged_manifest = self.root / f"staged-{len(list(self.root.glob('staged-*.tsv')))}.tsv"
         arguments = [

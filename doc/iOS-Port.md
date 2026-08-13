@@ -626,11 +626,49 @@ source before=after; the profile stage passed 5/5 in 0.862 s. This is not a
 clean commit/full/push/install stamp. Sol medium P1 findings were corrected;
 Sol xhigh code verdict: `APPROVE — brak P0/P1/P2`.
 
-Phase 1 is not complete. Phase 1B next extracts fixtures while preserving all
-bodies and IDs, then requires 20 warm `host-fast` PASS runs targeting p50
-60–90 s and p95 ≤120 s. The partial lane must not be wired into production
-FastDevice before later profile/cache safety acceptance; checkpoint/full remain
-complete. No phone or real Simulator/runtime/rendering evidence exists.
+### Phase 1B fixture decomposition — complete
+
+Phase 1B completes the behavior-preserving fixture decomposition and closes
+optimization Phase 1. All 102 original `RetailSimulatorTests` IDs and method
+bodies remain AST-identical. A versioned 96-record golden fixture freezes each
+path, type, mode, bytes, SHA-256 and symlink target; the root-dependent
+`fixture.pc` record is normalized before comparison. The component state machine
+is fail-closed, terminal after failure and rejects dependency cycles or a later
+`work_base` reassignment. All ten mock publications validate bytes, SHA-256,
+type, mode and inode before runner use; `xcrun` and `lipo` have shared sole
+writers. Guard dependencies are minimal, and no later component repairs a
+mutated retail file, stamp or mock.
+
+Persisted contracts run through the existing profile entrypoint and pass
+13/13. Frozen profile counts and hashes remain unchanged: complete 102
+(`c46c5ac58a477b21a9217f5df477a2e42e9c4649060d184f38fddd6cd6786b36`),
+integration 49
+(`b0df68952a9f912cac236fa1725a46b170de1c0017b665dda1cf9f65cca5d9ee`) and
+`host-fast` 55
+(`c4b8fd6b853e964488c9edba9b7ca69aebb39e00e3ccf0f07f2aa0ec314a47ae`).
+Retail-integration passed 49/49 in 526.322 s (wrapper 526.437 s); complete
+passed 102/102 in 564.422 s (wrapper 564.553 s). Twenty serial fresh-process
+`host-fast` runs all passed 55/55: p50 47.472 s, nearest-rank p95 49.323 s,
+min/max 46.472/49.519 s and mean 47.500 s.
+
+Continuation evidence is
+`/Users/patryk/openxray-handoff/phase1b-fixture-evidence-20260813-162948-continuation/final-continuation-evidence.json`,
+SHA-256 `6c9030fd565814989739255385f0b03648eb32f03a6743566dac95cef5cbd05a`.
+The integration source log is
+`/Users/patryk/openxray-handoff/phase1b-fixture-evidence-20260813-161702/05-retail-integration.stderr`,
+SHA-256 `563ca32fdfef9490a546d0dd1eb66e17d6e3e081a4125096452aa005efc45e91`:
+its surrounding helper JSON incorrectly classified the run as FAIL because it
+examined stdout although unittest writes its summary to stderr. The command
+returned zero and that stderr records 49/49 OK; the duplicate was stopped and
+is not acceptance evidence. Repository hashes before and after evidence are
+identical. Sol xhigh verdict: `APPROVE — brak P0/P1/P2`.
+
+This is host-only fixture and test-feedback evidence. It makes no claim about
+production behavior, real Simulator, device, rendering, streaming, distribution
+or FastDevice speed. No current commit, full gate or push exists. Phase 2 is
+next: first an OS-level release shader-cache lock or immutable namespaces before
+local concurrency, then explicit conservative profiles and an affected-test
+planner. Full remains semantically complete and shaders remain uncached.
 
 ### Phase 1A pushed full-gate artifact
 
