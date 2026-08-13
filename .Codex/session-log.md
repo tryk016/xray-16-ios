@@ -852,3 +852,18 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
 - Sol xhigh: `APPROVE — brak P0/P1/P2`. Commit changes the input hash, so the
   warm baseline restarts at 0/10; runs 1–2 are diagnostic only. No phone,
   Simulator runtime, product or rendering claim.
+
+## 2026-08-13 — Host test-feedback Phase 0 complete
+
+- Exact HEAD `41385b7ed`: 10/10 warm shaders PASS; every run `COMPLETE`, source
+  unchanged, zero errors/residue, 718 direct + 433 cache-certified = 1,151
+  cases and 48 stages. Compile/link were cache-certificate hits.
+- Total p50/p95 769.065/801.651 s (range 737.020–801.651); mocked retail
+  616.241/643.948 s (range 593.494–643.948), median per-run share 80.320%.
+  Private mode-600 manifest SHA-256 `6791a9b9…263f`; all five case/stage/catalog
+  hashes stable.
+- Phase 0 proves host telemetry stability only, not speedup or runtime. Phase 1
+  next freezes 102 retail IDs and preserves every ID/mutation through a 1:1
+  pure-guard/mocked-integration split; `host-fast` keeps cheap guards plus
+  happy/fail-closed smoke, while full retains complete integration. No phone,
+  Simulator/device runtime, rendering or streaming claim.

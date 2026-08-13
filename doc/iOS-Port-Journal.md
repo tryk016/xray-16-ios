@@ -5040,3 +5040,32 @@ Because committing the fixture correction changes the input hash, the warm
 baseline restarts at 0/10; the earlier two PASS runs are diagnostic only. This
 is host fixture/gate evidence, not a phone, Simulator runtime, product behavior
 or rendering claim.
+
+## 2026-08-13 — Host test-feedback Phase 0 warm baseline complete
+
+Phase 0 is complete on exact clean HEAD
+`41385b7edddc163fa6f53f11d3b0a638853eae3f`. Ten of ten warm `shaders` runs
+passed. Every run reported telemetry `COMPLETE`, identical source before/after,
+zero errors/residue, 718 direct cases plus 433 cache-certified cases (1,151
+covered) and 48 stages. Compile and link cases were cache-certificate hits.
+
+Total elapsed p50 by sample median was 769.065 s; nearest-rank p95 was 801.651
+s; range was 737.020–801.651 s. Mocked retail p50 was 616.241 s, nearest-rank
+p95 643.948 s and range 593.494–643.948 s. The median of individual
+retail/total ratios was 80.320%. Stable SHA-256 values were cases
+`8710f7cfbc15235971240a943a297f1cc5b1d1f5a555ec7a6592acca1c77278c`,
+stages `14d9e1f62bb1df496af6d8523c730a1f7d3d10d1713aae9aaf9e0d48e7aee555`,
+catalog `2b557584543307c23a68f3677ad3d154a1c040192d163f38a34dcc2251518591`,
+direct cases `da24445b463334d04d3cd30aafb15165247dfff5c7bea872bad53ae7fd44aee7`
+and cache cases `6a76910b3f2eff7e128f8609c7eb10a11c3aed6b2e9b365e91a088208c14658f`.
+
+The private mode-600 manifest is
+`/Users/patryk/openxray-handoff/gate-logs/phase0-warm-baseline-41385b7ed.json`,
+SHA-256 `6791a9b9970fe4689e3ec50f6167c2ced697d057e107c8ba629358d56813263f`.
+This proves host telemetry stability only—not speedup, Simulator/device runtime,
+rendering or streaming.
+
+Phase 1 must first freeze exactly 102 stable retail IDs. It then refactors them
+one-to-one into cheap pure guards and slow mocked-runner integration without
+dropping any ID or mutation. `host-fast` retains every cheap guard plus a happy
+smoke and representative fail-closed smoke; full retains complete integration.

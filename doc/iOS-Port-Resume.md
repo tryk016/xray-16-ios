@@ -66,15 +66,15 @@ IOS-P1-002 is temporarily Backlog-pending until the phone returns.
 
 ## Host feedback checkpoint
 
-Phase 0A commit `f7b105b61` froze deterministic IDs/hashes; catalog validation
-is unchanged and tooling remains 24. Reviewed, implemented Phase 0B is fail-open,
-signed-private case/stage telemetry with profile/input/cache/shard fields,
-isolated unlinked raw sink and authoritative OFF/ON parity. Gate
-`gate-1786607468382948000-67713-0.json` passed in 755.539 s: 1,151/1,151 cases,
-48/48 stages, zero errors/residue and 12 receipt fields; no nonce persisted;
-`selection_authority=NONE`, `cache_authority=NONE`. Sol xhigh: `APPROVE — brak P0/P1/P2`. Scope is
-host/shader coverage, not Simulator/device runtime or rendering. Next: 10 warm
-unchanged-selection host measurements for p50/p95, then the one-to-one Phase 1 split.
+Phase 0 is complete on `41385b7ed`: 10/10 warm shaders PASS, each with telemetry
+`COMPLETE`, unchanged source, zero errors/residue, 718 direct + 433 certified
+cache cases (1,151 covered) and 48 stages. Total p50/p95 is 769.065/801.651 s;
+mocked retail p50/p95 is 616.241/643.948 s and median share 80.320%. Compile/link
+were cache-certificate hits. This proves host telemetry stability, not speedup,
+Simulator/device runtime, rendering or streaming. Phase 1 next freezes exactly
+102 retail IDs, preserves all IDs/mutations in a one-to-one pure-guard/slow-
+integration split, keeps cheap guards plus happy/fail-closed smoke in
+`host-fast`, and leaves complete integration in full.
 
 ## First commands
 
@@ -136,7 +136,7 @@ phone for this host-only M6 evidence.
 
 ## Next slice
 
-1. Record 10 unchanged-selection warm host telemetry runs and p50/p95; do not claim speedup or alter selection first.
+1. Begin Phase 1 by freezing exactly 102 retail IDs, then split them one-to-one without losing mutations.
 2. When the phone returns, restore IOS-P1-002 and run its lifecycle batch with controlled lighting.
 3. Keep M6 active; the cache is not legal distribution or device transfer/save-preservation evidence.
 

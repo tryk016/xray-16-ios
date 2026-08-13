@@ -21,11 +21,13 @@ IOS-P1-002. IOS-P0-003's
 stationary branch is corrected and its real iOS 27 capture-v2 publication
 passes; wider save/level and physical-device evidence is now the active edge.
 
-**Host test-feedback Phase 0:** commit `f7b105b61` froze the deterministic
-inventory. Phase 0B is reviewed, implemented observational telemetry; it does
-not select fewer tests or establish a runtime claim. Its immediate acceptance
-step is at least ten unchanged-selection warm host runs with recorded p50/p95;
-only then may the one-to-one Phase 1 retail guard/integration split begin.
+**Host test-feedback:** Phase 0 is complete on `41385b7ed`: 10/10 warm shaders
+runs passed with stable 1,151-case/48-stage coverage. Total p50/p95 was
+769.065/801.651 s; mocked retail p50/p95 was 616.241/643.948 s and its median
+per-run share was 80.320%. This is host telemetry stability, not speedup or
+runtime proof. Phase 1 is next: freeze exactly 102 retail IDs, preserve every
+ID/mutation through a one-to-one pure-guard/integration split, keep all cheap
+guards plus happy/fail-closed smoke in `host-fast`, and full integration in full.
 
 This file intentionally contains no more than five active tasks. Historical
 evidence belongs in [iOS-Port-Journal.md](iOS-Port-Journal.md). Work not listed

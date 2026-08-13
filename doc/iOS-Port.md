@@ -2,7 +2,7 @@
 
 Canonical specification for the OpenXRay iOS project.
 
-**Last synchronized:** 2026-08-12
+**Last synchronized:** 2026-08-13
 
 **Status:** playable development build; affected-iPhone startup-sector, known
 SSAO and stationary Simulator startup-sector defects fixed; the later
@@ -537,7 +537,7 @@ ASTC is a future optimization, not an implemented feature.
 
 ## Build and device loop
 
-### Phase 0 test-feedback telemetry
+### Phase 0 test-feedback telemetry — complete
 
 Phase 0A commit `f7b105b61` froze the deterministic test inventory: the
 catalogue's exact IDs and hashes remain unchanged and the Phase 0 tooling count
@@ -545,18 +545,26 @@ is 24. The reviewed Phase 0B implementation is deliberately observational
 and fail-open: it records signed private per-case/per-stage JSON with profile,
 input hash, cache-hit and shard fields, while preserving the authoritative
 OFF/ON command parity and exact selection/stage coverage. Its child raw sink is
-isolated and unlinked; an adapter supplies the Python unittest records. The
-fresh host/shader receipt
-`/Users/patryk/openxray-handoff/gate-logs/gate-1786607468382948000-67713-0.json`
-is PASS (exit 0, 755.539 s): telemetry `COMPLETE`, 1,151/1,151 cases and 48/48
-stages PASS, zero errors/residue and 12 receipt fields; no nonce persisted;
-`selection_authority=NONE` and `cache_authority=NONE`. Mocked retail took 601.960 s, shader compilation
-5.968 s and linking 2.475 s. Final Sol xhigh review: `APPROVE — brak P0/P1/P2`.
+isolated and unlinked; an adapter supplies the Python unittest records.
 
-This proves host/shader instrumentation and complete observed coverage only. It
-does not yet prove an optimization, Simulator or device runtime, rendering, or
-streaming behavior. The next host-only action is an unchanged-selection baseline
-of at least ten warm runs with p50/p95 before Phase 1's one-to-one retail split.
+Phase 0 is complete on source/evidence commit
+`41385b7edddc163fa6f53f11d3b0a638853eae3f`.
+All 10 warm shaders runs passed with telemetry `COMPLETE`, unchanged before/after
+source, zero errors/residue, 718 direct plus 433 cache-certified cases (1,151
+covered) and 48 stages per run. Compile/link observations were cache-certificate
+hits. Total time was 769.065 s p50 (sample median), 801.651 s p95 (nearest
+rank), range 737.020–801.651 s. Mocked retail was 616.241 s p50, 643.948 s p95,
+range 593.494–643.948 s; median per-run retail share was 80.320%. The private
+mode-600 manifest is
+`/Users/patryk/openxray-handoff/gate-logs/phase0-warm-baseline-41385b7ed.json`,
+SHA-256 `6791a9b9970fe4689e3ec50f6167c2ced697d057e107c8ba629358d56813263f`.
+
+This proves stable host telemetry and coverage, not a speedup, Simulator/device
+runtime, rendering or streaming. Phase 1 must first freeze exactly 102 stable
+retail IDs, then refactor them one-to-one into cheap pure guards and slow mocked
+runner integration while preserving every ID and mutation. `host-fast` keeps
+all cheap guards plus happy-path and representative fail-closed smoke; full
+keeps the complete integration suite.
 
 The local Apple Silicon toolchain was rebuilt and revalidated from source on
 2026-07-24, then requalified after the macOS 27/Xcode 27 update. Both device and
