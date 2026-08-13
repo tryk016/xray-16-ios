@@ -5069,3 +5069,30 @@ Phase 1 must first freeze exactly 102 stable retail IDs. It then refactors them
 one-to-one into cheap pure guards and slow mocked-runner integration without
 dropping any ID or mutation. `host-fast` retains every cheap guard plus a happy
 smoke and representative fail-closed smoke; full retains complete integration.
+
+## 2026-08-13 — pushed Phase 0 full-gate artifact
+
+Exact clean HEAD `727c51da6021230893bcf26cf6987c386764aca7` passed the full gate
+and then matched `origin/ios-port` after push. Receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786622784219994000-30295-0.json`
+is PASS in 826.999 s with identical before/after source. Its log SHA-256 is
+`ac5cae5de462fb65d9104d6cd2e224f8d0016ec4015bf39363939eb95df894de`.
+Telemetry finalized `COMPLETE`: all 1,151 case and 57 stage records PASS, with
+zero errors.
+
+Retail passed 102/102 in 591.940 s; archive policy 131/131, uncached shader
+compile 279/279 plus profiles, links 137/137 and the engine build passed with 68
+recompiled TUs. The symbol-complete artifact has source SHA-256
+`d1872a0b1d96ede05986ce3c5d81917c86f8af258353c4d6cb044c6150d7dd92`,
+UUID `8F350949-A69B-3A73-933E-EBC5414055E3`, bundle SHA-256
+`232428958a1ca8d9082d5314d6e4e4af75b1d1f4d486f02a6e143d2583c23e0e`,
+dSYM `__debug_info` 513,889,238 bytes and stamp SHA-256
+`9ac7d8a1b80c63680d5105a8d3c1edff31a3f4ee3b90d9496ef052be04baabaf`.
+
+This receipt authorized and closed only the push of `727c51da`; it did not
+produce an installation. The following documentation commit changes the
+HEAD-bound artifact hash, making this receipt and install stamp historical for
+future installation; a new matching device/full gate is required first.
+Historical receipts retain their original boundaries and real
+`HISTORICAL_PASS` remains separate read-only closeout work. No phone was used,
+and this is not Simulator/device runtime, rendering or streaming evidence.

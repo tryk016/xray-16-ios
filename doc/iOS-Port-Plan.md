@@ -29,6 +29,12 @@ runtime proof. Phase 1 is next: freeze exactly 102 retail IDs, preserve every
 ID/mutation through a one-to-one pure-guard/integration split, keep all cheap
 guards plus happy/fail-closed smoke in `host-fast`, and full integration in full.
 
+**Latest pushed code checkpoint:** commit `727c51da` received a clean full PASS
+before its completed push: 1,151 cases, 57 stages, retail 102/102, archive
+131/131, uncached shaders 279/279 plus profiles, links 137/137 and 68 TUs. This
+later documentation change makes that stamp historical for future installation;
+no install, phone or runtime proof was produced.
+
 This file intentionally contains no more than five active tasks. Historical
 evidence belongs in [iOS-Port-Journal.md](iOS-Port-Journal.md). Work not listed
 here is deferred and must be promoted explicitly from the Backlog.
@@ -73,8 +79,10 @@ UUID `574CACAC-E835-3E81-9919-60F8B93343DE`, bundle
 `c6dbaa33fe9101403b68969264521461160f2f43c3007ef8151f1b43a83e9a0c` and stamp
 `54c54c5c972ef34a4852189a57b2d012eeef6be6ea3634af3bb94c8b5dbb59a5`.
 It is historical after adding the exact prepared `.DS_Store` removal overlay;
-no full receipt currently authorizes install or push. Production equivalence
-remains strict, and the historical verifier remains read-only/non-authorizing.
+commit `727c51da` later received its own clean full receipt and used it for its
+completed push. That stamp is historical for future installation after this
+documentation change. Production equivalence remains strict, and the historical
+verifier remains read-only/non-authorizing.
 
 Real workroot `simulator-work-20260810-015703-14748` exposed and corrected an
 over-strict live-readiness classification: a valid post-T1 `loading` candidate
@@ -257,7 +265,7 @@ Its task-specific host contracts passed and final Sol xhigh verdict is
 `APPROVE — brak P0/P1/P2`. The latest pre-document full source
 `f8727806510005248fb9b92e2c7075fd5c91f66a82af451adfe8baa2d37e587f` and stamp
 `d9cfba1057e29a05fa10937c48da0c43bc7cb896a0b315af44634521d4cc0906` are now
-historical; the exact committed state needs a new full gate before install or push.
+historical; `727c51da` later received a clean full receipt for its own push.
 This is semantic navigation only, not pixel, readability, performance or
 physical-device proof.
 
@@ -348,7 +356,7 @@ implementation and then-current documentation returned
 `APPROVE — brak P0/P1/P2`; that verdict did not pre-approve the later
 DevArchive production retirement or this documentation closeout.
 
-The fresh pre-document full gate `gate-1786563440297027000-96172-0.log` is
+The historical pre-document full gate `gate-1786563440297027000-96172-0.log` is
 PASS: archive policy 125/125, mocked retail Simulator 102/102, numeric macros
 30/30, resources 13/13, SSAO 6/6, SSR 9/9, links 137/137 and 0 rebuilt TUs.
 This archival evidence is host-only and does not close the remaining M6 device,

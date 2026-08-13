@@ -867,3 +867,19 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   pure-guard/mocked-integration split; `host-fast` keeps cheap guards plus
   happy/fail-closed smoke, while full retains complete integration. No phone,
   Simulator/device runtime, rendering or streaming claim.
+
+## 2026-08-13 — pushed Phase 0 full gate
+
+- Exact clean commit `727c51da` passed full and then matched `origin/ios-port`.
+  Receipt
+  `gate-1786622784219994000-30295-0.json` PASS in 826.999 s; log SHA
+  `ac5cae5d…94de`, before=after, telemetry COMPLETE, all 1,151 cases and 57
+  stages PASS, zero errors.
+- Retail 102/102 in 591.940 s; archive 131/131, uncached shaders 279/279 plus
+  profiles, links 137/137 and engine 68 TUs PASS. Source `d1872a0b…dd92`, UUID
+  `8F350949-A69B-3A73-933E-EBC5414055E3`, bundle `23242895…3e0e`, dSYM
+  513,889,238 bytes, stamp `9ac7d8a1…aabaf`.
+- The receipt authorized and closed that push only. This docs change creates a
+  new HEAD-bound artifact hash, so its install stamp is historical and a new
+  matching gate is required before installation. Real `HISTORICAL_PASS` stays
+  separate; no phone or runtime/rendering/streaming claim.

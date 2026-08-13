@@ -48,20 +48,14 @@ immutable. Eight completed archive retirements reclaimed 5,750,628,350 logical
 bytes; the prepared cache remains local and verifier PASS. No phone, Simulator
 or installed app container was touched.
 
-Commit `8b265b07b489f1633e6be17f57fd1578adb11092` received a clean full PASS:
-`gate-1786570175187364000-15196-0`, log `fd07567c…95e71`, source
-`d8b2fc5d…f394`, UUID `574CACAC-E835-3E81-9919-60F8B93343DE`, bundle
-`c6dbaa33…9a0c`, stamp `54c54c5c…b59a5`; archive 131/131, Simulator 102/102
-and established graphics/link contracts passed. Real read-only historical
-verify then failed closed only on the documented removal of Finder's 6,148-byte
-`.DS_Store`; the selected 13-file importer verification remains PASS. An exact
-non-authorizing metadata overlay now binds old/new manifests, sole deletion,
-root inode/metadata and unchanged entries without relaxing production paths.
-The overlay is committed in `ba2e07e05` and its inventory supplement in `ab1ba7f45`;
-a fresh clean full gate and real `HISTORICAL_PASS` still remain required before push or install.
+The historical `8b265b07b` full PASS was followed by the documented removal of
+Finder's 6,148-byte `.DS_Store`; all 13 selected retail files remain verifier
+PASS. The exact non-authorizing overlay is committed in `ba2e07e05` and its
+inventory supplement in `ab1ba7f45`. Commit `727c51da` satisfied the clean gate
+for its push; this docs change makes its install stamp historical. Real
+`HISTORICAL_PASS` remains separate read-only closeout work.
 
-The earlier M6-local importer review returned `APPROVE — brak P0/P1/P2`; it did
-not pre-approve the later DevArchive retirement or this documentation closeout.
+Earlier M6-local approval did not pre-approve later DevArchive/docs closeouts.
 IOS-P1-002 is temporarily Backlog-pending until the phone returns.
 
 ## Host feedback checkpoint
@@ -75,6 +69,13 @@ Simulator/device runtime, rendering or streaming. Phase 1 next freezes exactly
 102 retail IDs, preserves all IDs/mutations in a one-to-one pure-guard/slow-
 integration split, keeps cheap guards plus happy/fail-closed smoke in
 `host-fast`, and leaves complete integration in full.
+
+Pushed `727c51da` receipt `gate-1786622784219994000-30295-0.json`: 826.999 s, unchanged source, COMPLETE,
+1,151 cases/57 stages, retail 102/102 in 591.940 s, archive 131/131, uncached
+shaders 279/279 plus profiles, links 137/137 and 68 TUs PASS. UUID
+`8F350949-A69B-3A73-933E-EBC5414055E3`, stamp `9ac7d8a1…aabaf`. It authorized
+that completed push only and is historical for future install after this docs
+change; no phone/runtime evidence.
 
 ## First commands
 
@@ -145,6 +146,5 @@ phone for this host-only M6 evidence.
 - Never restore full level prefetch; it previously caused about a 1.6 GiB spike.
 - Do not conflate sector and SSAO defects or replace them with brightness, streaming, ANGLE or Metal workarounds.
 - Do not revoke certificates, change identity, uninstall or erase the device container.
-- Rendering claims require an on-device frame or numeric probe; a clean GL log
-  is not visual proof.
+- Rendering claims require an on-device frame or numeric probe; a clean GL log is not visual proof.
 - Never install after a stale matching gate; append new evidence to the Journal.

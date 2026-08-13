@@ -566,6 +566,28 @@ runner integration while preserving every ID and mutation. `host-fast` keeps
 all cheap guards plus happy-path and representative fail-closed smoke; full
 keeps the complete integration suite.
 
+### Phase 0 pushed full-gate artifact
+
+Exact clean commit `727c51da6021230893bcf26cf6987c386764aca7` passed the full
+gate in 826.999 s and then matched `origin/ios-port` after push. Receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786622784219994000-30295-0.json`
+binds identical before/after source, log SHA-256
+`ac5cae5de462fb65d9104d6cd2e224f8d0016ec4015bf39363939eb95df894de`
+and stamp SHA-256
+`9ac7d8a1b80c63680d5105a8d3c1edff31a3f4ee3b90d9496ef052be04baabaf`.
+Telemetry is `COMPLETE`: all 1,151 case and 57 stage records PASS with zero
+errors. Retail passed 102/102 in 591.940 s; archive policy 131/131, uncached
+shader compilation 279/279 plus profiles, links 137/137 and the 68-TU engine
+build passed. The artifact source is
+`d1872a0b1d96ede05986ce3c5d81917c86f8af258353c4d6cb044c6150d7dd92`,
+UUID `8F350949-A69B-3A73-933E-EBC5414055E3`, bundle SHA-256
+`232428958a1ca8d9082d5314d6e4e4af75b1d1f4d486f02a6e143d2583c23e0e`
+and dSYM `__debug_info` 513,889,238 bytes. That receipt authorized and closed
+the push of `727c51da` only. This documentation change creates a new HEAD-bound
+artifact hash, so the receipt and install stamp are historical for any future
+installation; a new matching device/full gate is required first. The artifact
+was not installed or run and supplies no phone/runtime evidence.
+
 The local Apple Silicon toolchain was rebuilt and revalidated from source on
 2026-07-24, then requalified after the macOS 27/Xcode 27 update. Both device and
 simulator dependency prefixes contain arm64 SDL2, OpenAL Soft,
@@ -669,9 +691,9 @@ inputs are unchanged and cleanup completed. The post-binding JSON records
 and exact scope `semantic-ui-navigation-only`.
 
 Its task-specific host contracts passed; historical artifact identifiers for
-that semantic-navigation slice are retained in the append-only Journal. The
-latest pre-document full stamp is recorded below and is now stale; no current
-receipt authorizes install or push.
+that semantic-navigation slice are retained in the append-only Journal. Its
+pre-document stamp remains historical; the later Phase 0 pushed full-gate
+artifact is recorded above and is likewise historical for future installation.
 
 This establishes semantic navigation and saved-game synchronization only. It
 does not prove pixels, readability, performance or physical-device behavior.
@@ -754,9 +776,10 @@ minos=16.4
 shader_cache=forced-off
 ```
 
-The current documentation changes invalidate its install/push authorization.
-A new post-commit full gate is required before either action. This artifact has
-not been installed on a phone.
+At that checkpoint the documentation changes invalidated this artifact's
+install/push authorization and required a new post-commit full gate. It was not
+installed on a phone; the later `727c51da` receipt recorded above is now also
+historical for future installation.
 
 Commit `a355fab834e0e4e1bd06128e65c9d0335306c463` then received a clean
 post-commit full PASS in `gate-1786565992761388000-42873-0.log` (SHA-256
@@ -771,8 +794,9 @@ active-gate fixes. The production archive verifier continues to reject the
 dirty-retirement/clean-commit source and stamp mismatch. A separate exact,
 read-only historical verifier reports only `HISTORICAL_PASS` with
 `mutation_authorization: NONE`; it cannot authorize sibling retirement,
-recovery, publication, install or push. A fresh post-commit full gate remains
-required for the final current tree.
+recovery, publication, install or push. At that checkpoint a fresh post-commit
+full gate remained required; commit `727c51da` later satisfied it for its own
+completed push only.
 
 Commit `8b265b07b489f1633e6be17f57fd1578adb11092` received its own clean full
 PASS in `gate-1786570175187364000-15196-0.log` (SHA-256
@@ -791,8 +815,10 @@ metadata-overlay policy binding both complete manifests, the sole removed file,
 root inode/metadata, unchanged records and the importer verifier. No generic
 prepared/production path is relaxed. These overlay changes make the `8b265b07b`
 gate historical. The overlay is committed in `ba2e07e05`; the historical-proof
-inventory supplement is committed in `ab1ba7f45`. A new clean full gate and a
-real `HISTORICAL_PASS` remain required before push.
+inventory supplement is committed in `ab1ba7f45`. Commit `727c51da` later
+satisfied the clean full-gate requirement for its completed push; its stamp is
+historical for future installation after this documentation change. A real
+`HISTORICAL_PASS` remains a separate read-only historical-verifier closeout.
 
 ### Historical code-artifact full-gate stamp (stale)
 
