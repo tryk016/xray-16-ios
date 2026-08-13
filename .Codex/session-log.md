@@ -837,3 +837,18 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
 - Sol xhigh: `APPROVE — brak P0/P1/P2`. Next: at least ten unchanged-selection
   warm host runs for p50/p95; this is not Simulator/device/rendering proof or a
   measured optimization yet. No phone, Simulator or device runtime activity.
+
+## 2026-08-13 — retail screenshot-stability fixture flake
+
+- After pushed `48e9ce815` and full PASS, warm shaders runs 1–2 passed. Run 3
+  failed after 780.115 s in receipt `gate-1786611424101101000-61281-0.json`:
+  the crash-during-screenshot fixture exhausted its 0.1 s total deadline around
+  an artificial 50 ms screenshot plus 20 ms death.
+- Fixture-only correction: that crash case gets a 1.0 s budget and bounded
+  exact-PID death wait; production guard is unchanged and hanging screenshot
+  keeps the 0.1 s/deadline oracle. Crash 100/100 sequential plus 20/20 parallel,
+  hang 50/50, deferred/positive 2/2, retail 102/102 in 611.739 s and independent
+  4/4 PASS; catalogue hashes unchanged.
+- Sol xhigh: `APPROVE — brak P0/P1/P2`. Commit changes the input hash, so the
+  warm baseline restarts at 0/10; runs 1–2 are diagnostic only. No phone,
+  Simulator runtime, product or rendering claim.

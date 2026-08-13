@@ -671,8 +671,27 @@ class RetailSimulatorTests(unittest.TestCase):
                 trigger=os.environ.get('MOCK_DEFERRED_DEATH_TRIGGER') or os.environ.get('MOCK_LATE_LOG_TRIGGER')
                 if trigger: pathlib.Path(trigger).write_text('screenshot captured')
                 if os.environ.get('MOCK_CRASH_DURING_SCREENSHOT'):
-                    import time
-                    time.sleep(0.05)
+                    pid_file=pathlib.Path(os.environ['MOCK_LAUNCH_PID_FILE'])
+                    try:
+                        pid=int(pid_file.read_text(encoding='utf-8').strip())
+                    except (OSError, ValueError) as error:
+                        print(f'fixture could not read launched PID: {error}', file=sys.stderr)
+                        sys.exit(86)
+                    death_deadline=time.monotonic()+0.5
+                    while True:
+                        probe=subprocess.run(
+                            ('ps','-p',str(pid),'-o','pid='), check=False,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                        )
+                        if probe.returncode != 0 or probe.stdout.strip() != str(pid):
+                            break
+                        if time.monotonic() >= death_deadline:
+                            print(
+                                f'fixture timed out waiting for launched PID {pid} to exit',
+                                file=sys.stderr,
+                            )
+                            sys.exit(86)
+                        time.sleep(0.001)
             elif args[1] == 'terminate':
                 mutation=os.environ.get('MOCK_POST_CAPTURE_MUTATION','')
                 if mutation:
@@ -970,7 +989,8 @@ class RetailSimulatorTests(unittest.TestCase):
                          menu_marker_mode: str | None = None,
                          foreground_cycle: bool = False,
                          preexisting_recovery_screenshot: bool = False,
-                         hang_screenshot: bool = False) -> subprocess.CompletedProcess[str]:
+                         hang_screenshot: bool = False,
+                         launch_timeout: str | None = None) -> subprocess.CompletedProcess[str]:
         environment = self.runner_environment()
         Path(environment["MOCK_APP_PID_STATE"]).unlink(missing_ok=True)
         environment["MOCK_BOOT_LOG_MODE"] = mode
@@ -1008,7 +1028,11 @@ class RetailSimulatorTests(unittest.TestCase):
             environment["MOCK_AUTOLOAD"] = "1"
             environment["MOCK_AUTOLOAD_NAME"] = autoload_save
             environment["MOCK_AUTOLOAD_LOG_MODE"] = autoload_mode
-        timeout = "3.0" if autoload_save is not None and autoload_mode == "normal" else "1.0" if autoload_save else "0.1"
+        default_timeout = (
+            "3.0" if autoload_save is not None and autoload_mode == "normal"
+            else "1.0" if autoload_save else "0.1"
+        )
+        timeout = launch_timeout if launch_timeout is not None else default_timeout
         if deferred_death:
             environment["MOCK_DEFERRED_DEATH_TRIGGER"] = str(evidence / "screenshot.trigger")
         if late_log_payload is not None:
@@ -2616,7 +2640,7 @@ class RetailSimulatorTests(unittest.TestCase):
         # The mock ends the app naturally once the screenshot command starts;
         # the guard itself never signals it.
         result = self.run_launch_proof(
-            deferred_death=True, crash_during_screenshot=True,
+            deferred_death=True, crash_during_screenshot=True, launch_timeout="1.0",
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("not alive after screenshot", result.stderr)

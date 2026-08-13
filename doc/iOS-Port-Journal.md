@@ -5014,3 +5014,29 @@ or device runtime/rendering/streaming evidence and not yet a speedup claim.
 Next is a minimum of ten unchanged-selection warm host runs with p50/p95; only
 then may Phase 1 refactor the retail suite one-to-one into cheap guards and
 mocked-runner integration.
+
+## 2026-08-13 — retail screenshot-stability fixture race corrected
+
+After pushed commit `48e9ce815` and its full PASS, warm shaders baseline runs 1
+and 2 passed. Run 3 failed after 780.115 s; receipt
+`gate-1786611424101101000-61281-0.json` identifies
+`RetailSimulatorTests.test_crash_during_screenshot_fails_stability_check`:
+the fixture expected post-screenshot liveness after exhausting its original
+deadline.
+
+Sol medium isolated a fixture race, not a production-guard defect. The fixture
+had a 0.1 s total budget around an artificial 50 ms screenshot and 20 ms death.
+The production stability guard remains correct and unchanged. The fixture-only
+correction gives this crash case a test-specific 1.0 s budget and waits for the
+exact PID's death within a bound; the hanging-screenshot case retains its 0.1 s
+deadline oracle.
+
+Evidence passed: crash 100/100 sequential and 20/20 parallel, hang 50/50,
+deferred plus positive 2/2, full retail 102/102 in 611.739 s, and focused
+independent 4/4. Catalogue validation and frozen hashes are unchanged. Final
+Sol xhigh review: `APPROVE — brak P0/P1/P2`.
+
+Because committing the fixture correction changes the input hash, the warm
+baseline restarts at 0/10; the earlier two PASS runs are diagnostic only. This
+is host fixture/gate evidence, not a phone, Simulator runtime, product behavior
+or rendering claim.
