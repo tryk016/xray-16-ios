@@ -583,7 +583,18 @@ validate_digest() {
 
 shader_cache_output=""
 shader_cache_hit=0
+shader_cache_direct=0
 shader_cache_output_file=""
+report_shader_cache_result() {
+    local cache_key="$1"
+    case "$shader_cache_direct:$shader_cache_hit" in
+        1:0) echo "cache DIRECT ($cache_key)" ;;
+        0:1) echo "cache HIT ($cache_key)" ;;
+        0:0) echo "cache MISS ($cache_key)" ;;
+        *) fail "invalid shader cache result: direct=$shader_cache_direct hit=$shader_cache_hit" ;;
+    esac
+}
+
 run_shader_cache_stage() {
     # The Python helper is the sole cache authority.  Shell may pass the
     # existing checker command and consume its transcript, but never probes,
@@ -617,6 +628,7 @@ run_shader_cache_stage() {
     case "$cache_hit:$direct" in
         1:0)
             shader_cache_hit=1
+            shader_cache_direct=0
             shader_cache_output_file="$output_file"
             feedback_manual_stage_id=""
             feedback_manual_stage_started=""
@@ -626,8 +638,15 @@ run_shader_cache_stage() {
                     --input-before "$cache_key" --input-after "$cache_key" >/dev/null 2>&1 || true
             fi
             ;;
-        0:0|0:1)
+        0:0)
             shader_cache_hit=0
+            shader_cache_direct=0
+            shader_cache_output_file=""
+            feedback_complete_manual_stage false
+            ;;
+        0:1)
+            shader_cache_hit=0
+            shader_cache_direct=1
             shader_cache_output_file=""
             feedback_complete_manual_stage false
             ;;
@@ -973,7 +992,7 @@ if [ "$run_shaders" = 1 ]; then
         python3 misc/ios/shadercheck/glsl_es_check.py --glslang "$GLSLANG" --strict \
         || fail "glsl_es_check.py or shader cache errored:\n$shader_cache_output"
     out="$shader_cache_output"
-    [ "$shader_cache_hit" = 1 ] && echo "cache HIT ($compile_hash)" || echo "cache MISS ($compile_hash)"
+    report_shader_cache_result "$compile_hash"
     echo "$out" | tail -4
     echo "$out" | grep -q "$EXPECT_COMPILE compile" \
         || fail "expected $EXPECT_COMPILE compiling shaders. A regression here means a shader no longer builds as GLSL ES 3.00."
@@ -1016,7 +1035,7 @@ if [ "$run_shaders" = 1 ]; then
         python3 misc/ios/shadercheck/link_check.py --strict \
         || fail "link_check.py or shader cache errored:\n$shader_cache_output"
     out="$shader_cache_output"
-    [ "$shader_cache_hit" = 1 ] && echo "cache HIT ($link_hash)" || echo "cache MISS ($link_hash)"
+    report_shader_cache_result "$link_hash"
     echo "$out" | tail -1
     echo "$out" | grep -q "$EXPECT_LINK pairs clean" \
         || fail "expected $EXPECT_LINK clean vs->fs pairs. ES links varyings by NAME, so a mismatch here disables a render pass on device."

@@ -770,7 +770,7 @@ class ShaderCacheTests(unittest.TestCase):
     def test_18_cache_ownership_wiring_and_profile_ids_remain_stable(self) -> None:
         import test_feedback as feedback
         source = (REPO / "misc/ios/build_check.sh").read_text(encoding="utf-8")
-        start = source.index("run_shader_cache_stage() {")
+        start = source.index("report_shader_cache_result() {")
         end = source.index("\n}\n\nartifact_salt=", start) + 2
         function = source[start:end]
         dispatch_log = self.base / "dispatch-log"
@@ -780,7 +780,7 @@ class ShaderCacheTests(unittest.TestCase):
             "set -eu -o pipefail\n"
             f"REPO_ROOT={shlex.quote(str(REPO))}\n"
             'GATE_CACHE_DIR="$REPO_ROOT/build/ios-engine-iphoneos/.ios_gate_cache"\n'
-            "shader_cache_output=''\nshader_cache_hit=0\nshader_cache_output_file=''\n"
+            "shader_cache_output=''\nshader_cache_hit=0\nshader_cache_direct=0\nshader_cache_output_file=''\n"
             "feedback_begin_manual_stage() { :; }\nfeedback_complete_manual_stage() { :; }\nfeedback_observer() { :; }\n"
             "feedback_enabled=0\n"
             "feedback_selected_raw() {\n"
@@ -797,9 +797,20 @@ class ShaderCacheTests(unittest.TestCase):
             "run_shader_cache_stage compile stage::shader::glsl-es shader::glsl-es "
             f"{'a' * 64} salt 1 \"$REPO_ROOT/misc/ios/build_check.sh\" -- controlled-checker\n",
             encoding="utf-8")
+        with harness.open("a", encoding="utf-8") as handle:
+            handle.write(
+                f"report_shader_cache_result {'a' * 64}\n"
+                f"shader_cache_direct=0; shader_cache_hit=1; report_shader_cache_result {'b' * 64}\n"
+                f"shader_cache_direct=0; shader_cache_hit=0; report_shader_cache_result {'c' * 64}\n"
+            )
         completed = subprocess.run(["bash", str(harness)], cwd=REPO, text=True,
                                    capture_output=True, timeout=30)
         self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(completed.stdout.splitlines(), [
+            f"cache DIRECT ({'a' * 64})",
+            f"cache HIT ({'b' * 64})",
+            f"cache MISS ({'c' * 64})",
+        ])
         dispatched = dispatch_log.read_bytes().split(b"\0")[:-1]
         decoded = [item.decode("utf-8") for item in dispatched]
         self.assertEqual(decoded[0], "shader::glsl-es")
@@ -808,6 +819,19 @@ class ShaderCacheTests(unittest.TestCase):
                          str(REPO / "build/ios-engine-iphoneos/.ios_gate_cache"))
         self.assertIn("--force-direct", decoded)
         self.assertEqual(shader_cache.DEFAULT_ROOT, REPO / "build/ios-engine-iphoneos/.ios_gate_cache")
+        invalid_harness = self.base / "invalid-dispatch.sh"
+        invalid_harness.write_text(
+            "set -eu -o pipefail\n"
+            "fail() { printf 'FAIL: %s\\n' \"$*\"; exit 1; }\n"
+            "shader_cache_hit=1\nshader_cache_direct=1\n"
+            + function + "\n"
+            f"report_shader_cache_result {'d' * 64}\n",
+            encoding="utf-8")
+        invalid = subprocess.run(["bash", str(invalid_harness)], cwd=REPO, text=True,
+                                 capture_output=True, timeout=30)
+        self.assertEqual(invalid.returncode, 1)
+        self.assertEqual(invalid.stdout,
+                         "FAIL: invalid shader cache result: direct=1 hit=1\n")
         groups = feedback.profile_ids(); self.assertEqual(len(groups["shader-baseline"]) + len(groups["shader-variants"]), 296)
         self.assertEqual(len(groups["shader-links"]), 137)
 
