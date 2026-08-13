@@ -48,27 +48,27 @@ immutable. Eight completed archive retirements reclaimed 5,750,628,350 logical
 bytes; the prepared cache remains local and verifier PASS. No phone, Simulator
 or installed app container was touched.
 
-The historical `8b265b07b` full PASS was followed by the documented removal of
-Finder's 6,148-byte `.DS_Store`; all 13 selected retail files remain verifier
-PASS. The exact non-authorizing overlay is committed in `ba2e07e05` and its
-inventory supplement in `ab1ba7f45`. Commit `727c51da` satisfied the clean gate
-for its push; this docs change makes its install stamp historical. Real
-`HISTORICAL_PASS` remains separate read-only closeout work.
-
-Earlier M6-local approval did not pre-approve later DevArchive/docs closeouts.
-IOS-P1-002 is temporarily Backlog-pending until the phone returns.
+After historical `8b265b07b`, only Finder's 6,148-byte `.DS_Store` was removed;
+all 13 retail files verify. Overlay `ba2e07e05` plus supplement `ab1ba7f45` are
+committed; real `HISTORICAL_PASS` remains read-only closeout work. `727c51da`
+closed its push gate but is stale for install. IOS-P1-002 is Backlog-pending.
 
 ## Host feedback checkpoint
 
-Phase 0 is complete on `41385b7ed`: 10/10 warm shaders PASS, each with telemetry
-`COMPLETE`, unchanged source, zero errors/residue, 718 direct + 433 certified
-cache cases (1,151 covered) and 48 stages. Total p50/p95 is 769.065/801.651 s;
-mocked retail p50/p95 is 616.241/643.948 s and median share 80.320%. Compile/link
-were cache-certificate hits. This proves host telemetry stability, not speedup,
-Simulator/device runtime, rendering or streaming. Phase 1 next freezes exactly
-102 retail IDs, preserves all IDs/mutations in a one-to-one pure-guard/slow-
-integration split, keeps cheap guards plus happy/fail-closed smoke in
-`host-fast`, and leaves complete integration in full.
+Phase 0 is complete. Phase 1A freezes all 102 byte/AST-identical retail IDs in
+a versioned fail-closed manifest: 53 guards, 49 integration, and `host-fast` 55
+(guards plus exact happy/fail-closed smokes). Profiles are `complete` (default),
+`host-fast`, `retail-integration`; authority is `NONE`, input mapping false.
+`shaders/device/full/fast` still run all 102; `engine` retains non-shader scope,
+and the new contract runs in all five. No FastDevice switch, fixture extraction,
+parallelism or cache planner exists.
+
+Focused 5/5, 24/24, 14/14 PASS; single runs: `host-fast` 55/55 in 48.164 s,
+integration 49/49 in 529.911 s, full 102/102 in 590.178 s. Fast receipt
+`gate-1786626921163957000-41895-0.json` passed in 767.549 s on unchanged dirty
+HEAD `14d8973e`: COMPLETE, 1,156 cases/58 stages, zero errors; not a clean
+commit/full/push/install stamp. Sol xhigh: `APPROVE — brak P0/P1/P2`. These are
+not p50/p95, speedup, phone, Simulator/runtime or rendering proof.
 
 Pushed `727c51da` receipt `gate-1786622784219994000-30295-0.json`: 826.999 s, unchanged source, COMPLETE,
 1,151 cases/57 stages, retail 102/102 in 591.940 s, archive 131/131, uncached
@@ -137,7 +137,7 @@ phone for this host-only M6 evidence.
 
 ## Next slice
 
-1. Begin Phase 1 by freezing exactly 102 retail IDs, then split them one-to-one without losing mutations.
+1. Phase 1B: extract fixtures preserving bodies/IDs, then 20 warm `host-fast` PASS targeting p50 60–90 s/p95 ≤120 s.
 2. When the phone returns, restore IOS-P1-002 and run its lifecycle batch with controlled lighting.
 3. Keep M6 active; the cache is not legal distribution or device transfer/save-preservation evidence.
 

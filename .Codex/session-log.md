@@ -883,3 +883,22 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   new HEAD-bound artifact hash, so its install stamp is historical and a new
   matching gate is required before installation. Real `HISTORICAL_PASS` stays
   separate; no phone or runtime/rendering/streaming claim.
+
+## 2026-08-13 — Host test-feedback Phase 1A
+
+- Versioned fail-closed manifest freezes 102 byte/AST-identical retail IDs:
+  guards 53, integration 49, smokes 2, `host-fast` 55. Profiles: complete
+  (default), host-fast, retail-integration; authority `NONE`, input mapping
+  false. `shaders/device/full/fast` still execute all 102; `engine` keeps its
+  non-shader scope, and the new contract executes in all five.
+- PASS: profiles 5/5, feedback 24/24, installer 14/14; one host-fast 55/55 in
+  48.164 s, integration 49/49 in 529.911 s, full 102/102 in 590.178 s. These are
+  single measurements, not p50/p95 or speedup acceptance.
+- Dirty unchanged-HEAD fast receipt `gate-1786626921163957000-41895-0.json`:
+  767.549 s, log `59bdd817…bea4`, COMPLETE, 1,156 cases/58 stages PASS, errors
+  0; not a clean commit/full/push/install stamp. Sol xhigh:
+  `APPROVE — brak P0/P1/P2`.
+- Phase 1B next: fixture extraction with bodies/IDs preserved, then 20 warm
+  host-fast PASS targeting p50 60–90 s/p95 ≤120 s. No FastDevice switch,
+  parallelism or cache planner yet; checkpoint/full stay complete. No phone,
+  real Simulator/runtime/rendering or affected-selection speedup claim.

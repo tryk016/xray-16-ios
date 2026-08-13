@@ -949,6 +949,83 @@
       "timeout_seconds": 1200
     },
     {
+      "entrypoint_id": "python::misc/ios/test_retail_test_profiles.py",
+      "expected_case_count": 5,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_retail_test_profiles.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/retail_test_profiles.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/retail_test_profiles.json"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/test_retail_simulator.py"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 1A validates explicit profile metadata in every existing gate profile; it does not authorize affected selection.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "host-feedback-tooling",
+        "retail-profile-contract"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 120
+    },
+    {
+      "entrypoint_id": "utility::retail-test-profiles",
+      "expected_case_count": 0,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/retail_test_profiles.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/retail_test_profiles.json"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/test_retail_simulator.py"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 1A profile listing is explicit metadata only; build_check retains complete selection.",
+      "kind": "python-profile-selector",
+      "labels": [
+        "python",
+        "retail-profile-selector",
+        "host-feedback-tooling"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 120
+    },
+    {
       "entrypoint_id": "python::misc/ios/test_shader_macro_contract.py",
       "expected_case_count": 30,
       "explicit_inputs": [

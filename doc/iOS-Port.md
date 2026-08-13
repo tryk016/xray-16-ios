@@ -560,11 +560,8 @@ mode-600 manifest is
 SHA-256 `6791a9b9970fe4689e3ec50f6167c2ced697d057e107c8ba629358d56813263f`.
 
 This proves stable host telemetry and coverage, not a speedup, Simulator/device
-runtime, rendering or streaming. Phase 1 must first freeze exactly 102 stable
-retail IDs, then refactor them one-to-one into cheap pure guards and slow mocked
-runner integration while preserving every ID and mutation. `host-fast` keeps
-all cheap guards plus happy-path and representative fail-closed smoke; full
-keeps the complete integration suite.
+runtime, rendering or streaming. Phase 1A's completed static partition is
+recorded below; it does not yet change production gate selection.
 
 ### Phase 0 pushed full-gate artifact
 
@@ -587,6 +584,53 @@ the push of `727c51da` only. This documentation change creates a new HEAD-bound
 artifact hash, so the receipt and install stamp are historical for any future
 installation; a new matching device/full gate is required first. The artifact
 was not installed or run and supplies no phone/runtime evidence.
+
+### Phase 1A retail test profiles — complete
+
+The explicit versioned manifest freezes all 102 existing retail test IDs against
+byte/AST-identical methods and partitions them statically. The complete set is
+102, SHA-256
+`c46c5ac58a477b21a9217f5df477a2e42e9c4649060d184f38fddd6cd6786b36`;
+guards are 53,
+`c6179d1bdb509dad1ea994e64a26365b2c89074c640a18de1ebb618246905567`;
+integration is 49,
+`b0df68952a9f912cac236fa1725a46b170de1c0017b665dda1cf9f65cca5d9ee`;
+the two smokes hash to
+`0da7d9b2b29edc77225a7b8e618cab98ae6142d9305d6b30db02796993927beb`;
+and `host-fast` is 55,
+`c4b8fd6b853e964488c9edba9b7ca69aebb39e00e3ccf0f07f2aa0ec314a47ae`.
+Profiles are `complete` (default), `host-fast` and `retail-integration`. The exact
+smokes are `test_mocked_happy_path_isolated_and_deletes_only_own_uuid` and
+`test_successful_path_rejects_delete_failure_and_never_prints_pass`.
+
+The `shaders`, `device`, `full` and `fast` gate profiles still run the complete
+102-case suite; `engine` retains its existing non-shader scope. The separate
+cheap profile contract is mandatory and fails closed in all five gate profiles.
+Selection and cache authority remain `NONE`, and input
+mapping remains incomplete/false. Phase 1A adds no FastDevice profile switch,
+fixture extraction, parallelism or cache planner.
+
+Focused evidence passed: profile contract 5/5, feedback 24/24 and installer
+14/14. One actual `host-fast` run passed 55/55 in 48.164 s (48.27 s wall); one
+integration run passed 49/49 in 529.911 s (530.02 s wall). The unchanged full
+suite passed 102/102 in the fast gate in 590.178 s. These are single local
+measurements, not p50/p95 or speedup acceptance.
+
+Fast receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786626921163957000-41895-0.json`
+passed in 767.549 s on unchanged dirty diff at HEAD
+`14d8973e9f92a54d7d0a8191101c04a7beae1602`; log SHA-256 is
+`59bdd8178ec05bedcf5017824cca62f66641eca2dce59ce0e61a29384da7bea4`.
+Telemetry is `COMPLETE`: all 1,156 case and 58 stage records PASS, zero errors,
+source before=after; the profile stage passed 5/5 in 0.862 s. This is not a
+clean commit/full/push/install stamp. Sol medium P1 findings were corrected;
+Sol xhigh code verdict: `APPROVE — brak P0/P1/P2`.
+
+Phase 1 is not complete. Phase 1B next extracts fixtures while preserving all
+bodies and IDs, then requires 20 warm `host-fast` PASS runs targeting p50
+60–90 s and p95 ≤120 s. The partial lane must not be wired into production
+FastDevice before later profile/cache safety acceptance; checkpoint/full remain
+complete. No phone or real Simulator/runtime/rendering evidence exists.
 
 The local Apple Silicon toolchain was rebuilt and revalidated from source on
 2026-07-24, then requalified after the macOS 27/Xcode 27 update. Both device and

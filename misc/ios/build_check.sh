@@ -267,7 +267,8 @@ feedback_stage_command() {
             misc/ios/test_ios_quickload_input_contract.py|misc/ios/test_simulator_quickload_evidence.py|\
             misc/ios/test_retail_import.py|misc/ios/test_retail_clone_staging.py|\
             misc/ios/test_archive_completed_artifacts.py|misc/ios/test_locator_registration_contract.py|\
-            misc/ios/test_retail_simulator.py|misc/ios/test_shader_macro_contract.py|\
+            misc/ios/test_retail_test_profiles.py|misc/ios/test_retail_simulator.py|\
+            misc/ios/test_shader_macro_contract.py|\
             misc/ios/test_shader_resource_contract.py)
                 shift
                 feedback_selected_python "$@"
@@ -472,6 +473,10 @@ feedback_stage "stage::python::misc/ios/test_sdl2_scene_contract.py" python3 mis
 echo "== iOS install preflight contract gate =="
 feedback_stage "stage::python::misc/ios/test_install_device_contract.py" python3 misc/ios/test_install_device_contract.py \
     || fail "iOS install preflight contract regression tests failed"
+
+echo "== iOS retail test-profile contract gate =="
+feedback_stage "stage::python::misc/ios/test_retail_test_profiles.py" python3 misc/ios/test_retail_test_profiles.py \
+    || fail "retail test-profile contract regression tests failed"
 
 echo "== iOS capture-v2 host tooling gate =="
 feedback_stage "stage::validation::bash-n::capture-tools" bash -n misc/ios/device_lease.sh misc/ios/input.sh misc/ios/shot.sh misc/ios/lighting_ab_capture.sh \

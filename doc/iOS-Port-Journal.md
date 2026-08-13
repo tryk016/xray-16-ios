@@ -5096,3 +5096,46 @@ future installation; a new matching device/full gate is required first.
 Historical receipts retain their original boundaries and real
 `HISTORICAL_PASS` remains separate read-only closeout work. No phone was used,
 and this is not Simulator/device runtime, rendering or streaming evidence.
+
+## 2026-08-13 — Host test-feedback Phase 1A static partition complete
+
+Phase 1A adds an explicit versioned, fail-closed manifest over the existing 102
+byte/AST-identical retail test methods. Frozen sets are: complete 102 SHA-256
+`c46c5ac58a477b21a9217f5df477a2e42e9c4649060d184f38fddd6cd6786b36`;
+guard 53 `c6179d1bdb509dad1ea994e64a26365b2c89074c640a18de1ebb618246905567`;
+integration 49 `b0df68952a9f912cac236fa1725a46b170de1c0017b665dda1cf9f65cca5d9ee`;
+smokes 2 `0da7d9b2b29edc77225a7b8e618cab98ae6142d9305d6b30db02796993927beb`;
+and `host-fast` 55
+`c4b8fd6b853e964488c9edba9b7ca69aebb39e00e3ccf0f07f2aa0ec314a47ae`.
+
+Profiles are `complete` (default), `host-fast` and `retail-integration`. Exact
+smokes are `test_mocked_happy_path_isolated_and_deletes_only_own_uuid` and
+`test_successful_path_rejects_delete_failure_and_never_prints_pass`. Existing
+`shaders`, `device`, `full` and `fast` remain on the complete 102-case suite;
+`engine` retains its non-shader scope. The separate cheap contract is mandatory
+and fails closed in all five existing gate profiles;
+`selection_authority=NONE`, `cache_authority=NONE`, and input mapping is false.
+There is no FastDevice/profile switch, fixture extraction, parallelism or cache
+planner yet.
+
+Focused evidence passed: profile contract 5/5, feedback 24/24, installer 14/14.
+One real `host-fast` selection passed 55/55 in 48.164 s (48.27 s wall), and one
+integration selection passed 49/49 in 529.911 s (530.02 s wall). The unchanged
+complete suite passed 102/102 in 590.178 s through the fast gate. These are
+single local measurements, not p50/p95 or speedup acceptance.
+
+Fast receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786626921163957000-41895-0.json`
+passed in 767.549 s on unchanged dirty diff at HEAD
+`14d8973e9f92a54d7d0a8191101c04a7beae1602`; log SHA-256
+`59bdd8178ec05bedcf5017824cca62f66641eca2dce59ce0e61a29384da7bea4`.
+Telemetry finalized `COMPLETE`: all 1,156 case and 58 stage records PASS, zero
+errors, source before=after; profile contract stage 5/5 took 0.862 s. This is
+not a clean commit/full/push/install stamp. Sol medium P1 findings were fixed;
+Sol xhigh code verdict: `APPROVE — brak P0/P1/P2`.
+
+Phase 1 remains open. Phase 1B first extracts fixtures while preserving bodies
+and IDs, then requires 20 warm `host-fast` PASS runs targeting p50 60–90 s and
+p95 ≤120 s. The partial lane cannot enter production FastDevice before later
+profile/cache safety acceptance; checkpoint/full stay complete. No phone, real
+Simulator/runtime, rendering or affected-selection speedup claim was produced.

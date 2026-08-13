@@ -1,0 +1,1886 @@
+{
+  "schema": "openxray.ios.retail-test-profiles.v1",
+  "version": 1,
+  "target": {
+    "file": "misc/ios/test_retail_simulator.py",
+    "module": "test_retail_simulator",
+    "class": "RetailSimulatorTests"
+  },
+  "selection_authority": "NONE",
+  "input_mapping_complete": false,
+  "cases": [
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_mocked_happy_path_isolated_and_deletes_only_own_uuid",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_allowlist_is_exact_and_rejects_before_work_or_simctl",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_prepared_requires_explicit_runtime_270_before_work_build_or_simctl",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_270_uses_only_its_exact_id_and_reports_both_fields",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_menu_marker_grammar_and_pid_are_fail_closed",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_lifecycle_state_machine_accepts_only_the_two_phase_prefix",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_waits_for_background_before_recovery_launch",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_uses_two_phase_timeouts_and_same_pid",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_rejects_invalid_lifecycle_prefixes_before_or_after_recovery",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_accepts_delayed_split_polling_and_non_one_anchor",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_accepts_one_shot_menu_marker_without_repeating_it",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_rejects_second_engine_menu_and_log_mutation",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ios27_forbidden_scene_marker_and_recovery_screenshot_fail_closed",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_rejects_a_preexisting_recovery_screenshot",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_save_is_opt_in",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_openal_runtime_provider_mutations_never_publish_a_pass_report",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_large_save_policy_tracks_with_saves_and_protects_ordinary_save",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_happy_path_generates_exact_private_config_and_sync_complete_proof",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ordinary_autoload_still_allows_only_the_selected_save_to_change",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_requires_autoload_conflicts_with_navigation_and_uses_exact_config",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_quickload_evidence_cli_is_opt_in_conflicted_and_generates_exact_config",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_quickload_report_uses_real_closed_production_validator",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_happy_path_keeps_capture_extras_outside_staged_retail_and_reports_after_cleanup",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_accepts_loading_t0_and_loading_t1_before_exact_gameplay_t2",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_persistent_loading_uses_original_timeout_without_proof_or_report",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_rejects_a_coherent_jupiter_checkpoint_without_report",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_post_launch_ppm_or_proof_mutation_never_publishes_report",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_rejects_wrong_pid_without_pass_report_and_cleans_simulator",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_report_candidate_and_atomic_publish_fail_closed_without_partial_report",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_manifest_state_binds_identity_and_publish_revalidates_it",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_renderer_is_measured_from_sync_snapshot",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_live_runtime_log_snapshot_accepts_append_but_final_read_stays_strict",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_live_runtime_log_snapshot_accepts_append_between_lstat_and_open",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_t0_retries_race_and_writes_null_only_for_explicit_absent",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_requires_save_and_autoload_and_enables_autoinput_only_there",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_cli_is_opt_in_and_guarded",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_full_runner_wiring_publishes_only_post_stop",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_failures_never_publish_report_or_pass_claim",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_renderer_and_manifest_mutations_never_publish_report",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_happy_path_uses_one_launch_exact_pid_and_correct_order",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_failure_refreshes_log_with_exact_production_budget",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_launch_proof_rejects_incomplete_ui_navigation_arguments_before_launch",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_controller_or_post_stop_finalizer_failure_never_reports_pass",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_post_stop_guards_reject_late_fatal_marker_and_rotation",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_termination_failure_prevents_both_finalizers_and_staged_mutation_report",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_requires_saves_and_rejects_unsafe_or_uppercase_names",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_save_must_be_exact_direct_nonempty_regular_and_case_unique",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_config_is_exact_and_never_copies_backup_user_ltx",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_rejects_symlinked_generated_config_parent",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_rejects_symlinked_evidence_parent",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_oracle_requires_ordered_sync_complete_markers",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_selected_save_is_the_only_allowed_runtime_mutation",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_selected_save_deletion_or_empty_state_fails_closed",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_requires_process_stop_before_save_hash_and_pass_report",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_stage_destination_inside_repo_is_rejected",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_snapshot_manifest_rejects_symlinks",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_manifest_tampering_is_rejected_before_tools",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_backup_mutation_is_detected",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_large_manifest_rejects_same_size_noncore_backup_corruption",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_required_archive_set_rejects_one_missing_entry",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_every_protected_stamp_uses_a_real_single_file_contract",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_protected_artifact_mutation_is_detected_after_build",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_launch_timeout_is_failure_and_cleans_own_simulator",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_real_backslash_log_with_unrelated_error_passes",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_actual_missing_system_ltx_fails",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_archive_count_must_be_exactly_twelve",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_process_exit_after_valid_markers_fails",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_malformed_or_ambiguous_launch_output_fails_closed",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_deferred_app_death_during_stability_interval_fails",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_final_log_snapshot_rejects_late_fatal_while_pid_remains_alive",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_final_log_snapshot_positive_path_preserves_runtime_boundary",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_marker_exception_accepts_only_one_canonical_second_load",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_ordinary_autoload_still_rejects_quickload_marker",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_marker_exception_rejects_wrong_second_load",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_launch_rejects_preexisting_snapshot_output",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_post_stop_log_check_rejects_late_fatal",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_post_stop_log_check_rejects_rotation",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_post_stop_log_check_rejects_truncation",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_post_stop_log_check_rejects_same_target_symlink",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_rejects_symlinked_snapshot_manifest",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_rejects_symlinked_proof_output",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_rejects_existing_proof_output",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_empty_screenshot_fails",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_hanging_screenshot_is_bounded_by_original_launch_deadline",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_crash_during_screenshot_fails_stability_check",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_mutation_of_staged_archive_is_rejected",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_same_size_mutation_of_noncore_large_file_is_rejected",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_deletion_of_staged_archive_is_rejected",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_successful_path_rejects_delete_failure_and_never_prints_pass",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_failure_cleanup_records_delete_failure_without_masking_status",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_data_container_equal_to_repo_is_rejected",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_data_container_outside_coresimulator_is_rejected",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_binary_contract_rejects_fat_mixed_and_device_platforms",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_staging_rejects_symlinked_source_file",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ios_build_jobs_must_be_positive_integer",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_work_base_may_be_parent_of_backup_and_manifest_but_work_root_is_disjoint",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_source_contains_no_device_escape_hatches",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_is_executable",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_required_result_writes_are_fail_closed",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_clone_save_metadata_diagnostics_is_closed_and_orders_d0_through_d4_before_pass",
+      "lane": "guard",
+      "fixture": "guard",
+      "labels": [
+        "retail",
+        "guard",
+        "unit"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_clone_metadata_diagnostic_failures_preserve_only_dn_and_delete_simulator",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "id": "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_clone_without_metadata_diagnostics_reports_final_only_v2",
+      "lane": "integration",
+      "fixture": "runner",
+      "labels": [
+        "retail",
+        "integration",
+        "mocked-simulator"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess",
+        "mocked-simulator"
+      ],
+      "timeout_seconds": 120
+    }
+  ],
+  "profiles": {
+    "complete": {
+      "case_ids": [
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_mocked_happy_path_isolated_and_deletes_only_own_uuid",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_allowlist_is_exact_and_rejects_before_work_or_simctl",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_prepared_requires_explicit_runtime_270_before_work_build_or_simctl",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_270_uses_only_its_exact_id_and_reports_both_fields",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_menu_marker_grammar_and_pid_are_fail_closed",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_lifecycle_state_machine_accepts_only_the_two_phase_prefix",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_waits_for_background_before_recovery_launch",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_uses_two_phase_timeouts_and_same_pid",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_rejects_invalid_lifecycle_prefixes_before_or_after_recovery",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_accepts_delayed_split_polling_and_non_one_anchor",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_accepts_one_shot_menu_marker_without_repeating_it",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_rejects_second_engine_menu_and_log_mutation",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ios27_forbidden_scene_marker_and_recovery_screenshot_fail_closed",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_rejects_a_preexisting_recovery_screenshot",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_save_is_opt_in",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_openal_runtime_provider_mutations_never_publish_a_pass_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_large_save_policy_tracks_with_saves_and_protects_ordinary_save",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_happy_path_generates_exact_private_config_and_sync_complete_proof",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ordinary_autoload_still_allows_only_the_selected_save_to_change",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_requires_autoload_conflicts_with_navigation_and_uses_exact_config",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_quickload_evidence_cli_is_opt_in_conflicted_and_generates_exact_config",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_quickload_report_uses_real_closed_production_validator",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_happy_path_keeps_capture_extras_outside_staged_retail_and_reports_after_cleanup",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_accepts_loading_t0_and_loading_t1_before_exact_gameplay_t2",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_persistent_loading_uses_original_timeout_without_proof_or_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_rejects_a_coherent_jupiter_checkpoint_without_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_post_launch_ppm_or_proof_mutation_never_publishes_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_rejects_wrong_pid_without_pass_report_and_cleans_simulator",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_report_candidate_and_atomic_publish_fail_closed_without_partial_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_manifest_state_binds_identity_and_publish_revalidates_it",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_renderer_is_measured_from_sync_snapshot",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_live_runtime_log_snapshot_accepts_append_but_final_read_stays_strict",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_live_runtime_log_snapshot_accepts_append_between_lstat_and_open",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_t0_retries_race_and_writes_null_only_for_explicit_absent",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_requires_save_and_autoload_and_enables_autoinput_only_there",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_cli_is_opt_in_and_guarded",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_full_runner_wiring_publishes_only_post_stop",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_failures_never_publish_report_or_pass_claim",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_renderer_and_manifest_mutations_never_publish_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_happy_path_uses_one_launch_exact_pid_and_correct_order",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_failure_refreshes_log_with_exact_production_budget",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_launch_proof_rejects_incomplete_ui_navigation_arguments_before_launch",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_controller_or_post_stop_finalizer_failure_never_reports_pass",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_post_stop_guards_reject_late_fatal_marker_and_rotation",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_termination_failure_prevents_both_finalizers_and_staged_mutation_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_requires_saves_and_rejects_unsafe_or_uppercase_names",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_save_must_be_exact_direct_nonempty_regular_and_case_unique",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_config_is_exact_and_never_copies_backup_user_ltx",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_rejects_symlinked_generated_config_parent",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_rejects_symlinked_evidence_parent",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_oracle_requires_ordered_sync_complete_markers",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_selected_save_is_the_only_allowed_runtime_mutation",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_selected_save_deletion_or_empty_state_fails_closed",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_requires_process_stop_before_save_hash_and_pass_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_stage_destination_inside_repo_is_rejected",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_snapshot_manifest_rejects_symlinks",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_manifest_tampering_is_rejected_before_tools",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_backup_mutation_is_detected",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_large_manifest_rejects_same_size_noncore_backup_corruption",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_required_archive_set_rejects_one_missing_entry",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_every_protected_stamp_uses_a_real_single_file_contract",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_protected_artifact_mutation_is_detected_after_build",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_launch_timeout_is_failure_and_cleans_own_simulator",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_real_backslash_log_with_unrelated_error_passes",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_actual_missing_system_ltx_fails",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_archive_count_must_be_exactly_twelve",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_process_exit_after_valid_markers_fails",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_malformed_or_ambiguous_launch_output_fails_closed",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_deferred_app_death_during_stability_interval_fails",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_final_log_snapshot_rejects_late_fatal_while_pid_remains_alive",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_final_log_snapshot_positive_path_preserves_runtime_boundary",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_marker_exception_accepts_only_one_canonical_second_load",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_ordinary_autoload_still_rejects_quickload_marker",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_marker_exception_rejects_wrong_second_load",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_launch_rejects_preexisting_snapshot_output",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_post_stop_log_check_rejects_late_fatal",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_post_stop_log_check_rejects_rotation",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_post_stop_log_check_rejects_truncation",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_post_stop_log_check_rejects_same_target_symlink",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_rejects_symlinked_snapshot_manifest",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_rejects_symlinked_proof_output",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_rejects_existing_proof_output",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_empty_screenshot_fails",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_hanging_screenshot_is_bounded_by_original_launch_deadline",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_crash_during_screenshot_fails_stability_check",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_mutation_of_staged_archive_is_rejected",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_same_size_mutation_of_noncore_large_file_is_rejected",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_deletion_of_staged_archive_is_rejected",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_successful_path_rejects_delete_failure_and_never_prints_pass",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_failure_cleanup_records_delete_failure_without_masking_status",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_data_container_equal_to_repo_is_rejected",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_data_container_outside_coresimulator_is_rejected",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_binary_contract_rejects_fat_mixed_and_device_platforms",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_staging_rejects_symlinked_source_file",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ios_build_jobs_must_be_positive_integer",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_work_base_may_be_parent_of_backup_and_manifest_but_work_root_is_disjoint",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_source_contains_no_device_escape_hatches",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_is_executable",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_required_result_writes_are_fail_closed",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_clone_save_metadata_diagnostics_is_closed_and_orders_d0_through_d4_before_pass",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_clone_metadata_diagnostic_failures_preserve_only_dn_and_delete_simulator",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_clone_without_metadata_diagnostics_reports_final_only_v2"
+      ],
+      "stage_timeout_seconds": 1200
+    },
+    "host-fast": {
+      "case_ids": [
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_menu_marker_grammar_and_pid_are_fail_closed",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_lifecycle_state_machine_accepts_only_the_two_phase_prefix",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_rejects_a_preexisting_recovery_screenshot",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_save_is_opt_in",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_large_save_policy_tracks_with_saves_and_protects_ordinary_save",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_report_candidate_and_atomic_publish_fail_closed_without_partial_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_manifest_state_binds_identity_and_publish_revalidates_it",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_renderer_is_measured_from_sync_snapshot",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_live_runtime_log_snapshot_accepts_append_but_final_read_stays_strict",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_live_runtime_log_snapshot_accepts_append_between_lstat_and_open",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_t0_retries_race_and_writes_null_only_for_explicit_absent",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_failure_refreshes_log_with_exact_production_budget",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_launch_proof_rejects_incomplete_ui_navigation_arguments_before_launch",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_save_must_be_exact_direct_nonempty_regular_and_case_unique",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_config_is_exact_and_never_copies_backup_user_ltx",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_rejects_symlinked_generated_config_parent",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_rejects_symlinked_evidence_parent",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_oracle_requires_ordered_sync_complete_markers",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_selected_save_is_the_only_allowed_runtime_mutation",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_selected_save_deletion_or_empty_state_fails_closed",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_stage_destination_inside_repo_is_rejected",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_snapshot_manifest_rejects_symlinks",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_large_manifest_rejects_same_size_noncore_backup_corruption",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_required_archive_set_rejects_one_missing_entry",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_every_protected_stamp_uses_a_real_single_file_contract",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_real_backslash_log_with_unrelated_error_passes",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_actual_missing_system_ltx_fails",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_archive_count_must_be_exactly_twelve",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_process_exit_after_valid_markers_fails",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_malformed_or_ambiguous_launch_output_fails_closed",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_deferred_app_death_during_stability_interval_fails",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_final_log_snapshot_rejects_late_fatal_while_pid_remains_alive",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_final_log_snapshot_positive_path_preserves_runtime_boundary",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_marker_exception_accepts_only_one_canonical_second_load",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_ordinary_autoload_still_rejects_quickload_marker",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_marker_exception_rejects_wrong_second_load",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_launch_rejects_preexisting_snapshot_output",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_rejects_symlinked_snapshot_manifest",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_rejects_symlinked_proof_output",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_finalize_rejects_existing_proof_output",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_empty_screenshot_fails",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_hanging_screenshot_is_bounded_by_original_launch_deadline",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_crash_during_screenshot_fails_stability_check",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_mutation_of_staged_archive_is_rejected",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_same_size_mutation_of_noncore_large_file_is_rejected",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_deletion_of_staged_archive_is_rejected",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_binary_contract_rejects_fat_mixed_and_device_platforms",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_staging_rejects_symlinked_source_file",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_work_base_may_be_parent_of_backup_and_manifest_but_work_root_is_disjoint",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_source_contains_no_device_escape_hatches",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_is_executable",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_required_result_writes_are_fail_closed",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_clone_save_metadata_diagnostics_is_closed_and_orders_d0_through_d4_before_pass",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_mocked_happy_path_isolated_and_deletes_only_own_uuid",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_successful_path_rejects_delete_failure_and_never_prints_pass"
+      ],
+      "stage_timeout_seconds": 120
+    },
+    "retail-integration": {
+      "case_ids": [
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_mocked_happy_path_isolated_and_deletes_only_own_uuid",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_allowlist_is_exact_and_rejects_before_work_or_simctl",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_prepared_requires_explicit_runtime_270_before_work_build_or_simctl",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runtime_270_uses_only_its_exact_id_and_reports_both_fields",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_waits_for_background_before_recovery_launch",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_uses_two_phase_timeouts_and_same_pid",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_rejects_invalid_lifecycle_prefixes_before_or_after_recovery",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_accepts_delayed_split_polling_and_non_one_anchor",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_accepts_one_shot_menu_marker_without_repeating_it",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_foreground_cycle_rejects_second_engine_menu_and_log_mutation",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ios27_forbidden_scene_marker_and_recovery_screenshot_fail_closed",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_openal_runtime_provider_mutations_never_publish_a_pass_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_happy_path_generates_exact_private_config_and_sync_complete_proof",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ordinary_autoload_still_allows_only_the_selected_save_to_change",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_requires_autoload_conflicts_with_navigation_and_uses_exact_config",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_quickload_evidence_cli_is_opt_in_conflicted_and_generates_exact_config",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_quickload_report_uses_real_closed_production_validator",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_happy_path_keeps_capture_extras_outside_staged_retail_and_reports_after_cleanup",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_accepts_loading_t0_and_loading_t1_before_exact_gameplay_t2",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_persistent_loading_uses_original_timeout_without_proof_or_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_rejects_a_coherent_jupiter_checkpoint_without_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_post_launch_ppm_or_proof_mutation_never_publishes_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_capture_v2_rejects_wrong_pid_without_pass_report_and_cleans_simulator",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_requires_save_and_autoload_and_enables_autoinput_only_there",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_cli_is_opt_in_and_guarded",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_full_runner_wiring_publishes_only_post_stop",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_failures_never_publish_report_or_pass_claim",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_native_ui_capture_renderer_and_manifest_mutations_never_publish_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_happy_path_uses_one_launch_exact_pid_and_correct_order",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_controller_or_post_stop_finalizer_failure_never_reports_pass",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_post_stop_guards_reject_late_fatal_marker_and_rotation",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ui_navigation_termination_failure_prevents_both_finalizers_and_staged_mutation_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_requires_saves_and_rejects_unsafe_or_uppercase_names",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_autoload_requires_process_stop_before_save_hash_and_pass_report",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_manifest_tampering_is_rejected_before_tools",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_backup_mutation_is_detected",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_protected_artifact_mutation_is_detected_after_build",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_launch_timeout_is_failure_and_cleans_own_simulator",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_post_stop_log_check_rejects_late_fatal",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_post_stop_log_check_rejects_rotation",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_post_stop_log_check_rejects_truncation",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_runner_post_stop_log_check_rejects_same_target_symlink",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_successful_path_rejects_delete_failure_and_never_prints_pass",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_failure_cleanup_records_delete_failure_without_masking_status",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_data_container_equal_to_repo_is_rejected",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_data_container_outside_coresimulator_is_rejected",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_ios_build_jobs_must_be_positive_integer",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_clone_metadata_diagnostic_failures_preserve_only_dn_and_delete_simulator",
+        "py:misc/ios/test_retail_simulator.py::RetailSimulatorTests.test_clone_without_metadata_diagnostics_reports_final_only_v2"
+      ],
+      "stage_timeout_seconds": 1200
+    }
+  },
+  "frozen": {
+    "complete": {
+      "count": 102,
+      "sha256": "c46c5ac58a477b21a9217f5df477a2e42e9c4649060d184f38fddd6cd6786b36"
+    },
+    "guard": {
+      "count": 53,
+      "sha256": "c6179d1bdb509dad1ea994e64a26365b2c89074c640a18de1ebb618246905567"
+    },
+    "integration": {
+      "count": 49,
+      "sha256": "b0df68952a9f912cac236fa1725a46b170de1c0017b665dda1cf9f65cca5d9ee"
+    },
+    "smoke": {
+      "count": 2,
+      "sha256": "0da7d9b2b29edc77225a7b8e618cab98ae6142d9305d6b30db02796993927beb"
+    },
+    "host-fast": {
+      "count": 55,
+      "sha256": "c4b8fd6b853e964488c9edba9b7ca69aebb39e00e3ccf0f07f2aa0ec314a47ae"
+    }
+  }
+}

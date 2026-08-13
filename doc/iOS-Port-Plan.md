@@ -21,13 +21,17 @@ IOS-P1-002. IOS-P0-003's
 stationary branch is corrected and its real iOS 27 capture-v2 publication
 passes; wider save/level and physical-device evidence is now the active edge.
 
-**Host test-feedback:** Phase 0 is complete on `41385b7ed`: 10/10 warm shaders
-runs passed with stable 1,151-case/48-stage coverage. Total p50/p95 was
-769.065/801.651 s; mocked retail p50/p95 was 616.241/643.948 s and its median
-per-run share was 80.320%. This is host telemetry stability, not speedup or
-runtime proof. Phase 1 is next: freeze exactly 102 retail IDs, preserve every
-ID/mutation through a one-to-one pure-guard/integration split, keep all cheap
-guards plus happy/fail-closed smoke in `host-fast`, and full integration in full.
+**Host test-feedback:** Phase 0 is complete. Phase 1A is also complete: a
+versioned fail-closed manifest freezes the existing 102 byte/AST-identical IDs
+as 53 guards and 49 integration cases; `host-fast` is all guards plus two exact
+smokes (55). `shaders/device/full/fast` still run all 102; `engine` keeps its
+non-shader scope, while the new contract runs in all five. Authority is `NONE`; no
+FastDevice switch, fixture extraction, parallelism or cache planner exists.
+Single local 55/55 and 49/49 timings are not speedup acceptance. Phase 1B next
+extracts fixtures with bodies/IDs preserved, then requires 20 warm `host-fast`
+PASS runs targeting p50 60–90 s and p95 ≤120 s. Do not wire the partial lane to
+production FastDevice before later profile/cache safety acceptance;
+checkpoint/full remain complete.
 
 **Latest pushed code checkpoint:** commit `727c51da` received a clean full PASS
 before its completed push: 1,151 cases, 57 stages, retail 102/102, archive

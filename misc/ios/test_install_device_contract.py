@@ -44,6 +44,9 @@ RETAIL_CLONE_STAGING_ARTIFACT_INPUTS = (
     "misc/ios/simulator_quickload_evidence.py",
     "misc/ios/test_simulator_quickload_evidence.py",
     "misc/ios/test_retail_simulator.py",
+    "misc/ios/retail_test_profiles.py",
+    "misc/ios/retail_test_profiles.json",
+    "misc/ios/test_retail_test_profiles.py",
 )
 ARTIFACT_HASH_DEPENDENCIES = LEASE_DEPENDENCIES + (
     TEXTURE_BC_FALLBACK_TEST,

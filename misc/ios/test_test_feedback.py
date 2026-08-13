@@ -180,7 +180,9 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
     def test_feedback_runtime_inputs_are_bound_to_artifact_hash(self) -> None:
         gate_hash = (feedback.ROOT / "misc/ios/gate_hash.py").read_text(encoding="utf-8")
         for path in ("misc/ios/test_feedback.py", "misc/ios/test_feedback_catalog.json",
-                     "misc/ios/test_feedback_unittest.py", "misc/ios/test_test_feedback.py"):
+                     "misc/ios/test_feedback_unittest.py", "misc/ios/test_test_feedback.py",
+                     "misc/ios/retail_test_profiles.py", "misc/ios/retail_test_profiles.json",
+                     "misc/ios/test_retail_test_profiles.py"):
             with self.subTest(path=path):
                 self.assertIn(f'"{path}"', gate_hash)
 
@@ -203,8 +205,8 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
         catalog = feedback.read_catalog()
         records = feedback.catalog_entrypoint_ids(catalog)
         self.assertEqual(records, feedback.expected_entrypoints())
-        self.assertEqual(len(records), 50)
-        self.assertEqual(sum(item.startswith("python::") for item in records), 30)
+        self.assertEqual(len(records), 52)
+        self.assertEqual(sum(item.startswith("python::") for item in records), 31)
         self.assertEqual(sum(item.startswith("cpp:") for item in records), 9)
         by_id = {entry["entrypoint_id"]: entry for entry in catalog["entrypoints"]}
         all_five = ["engine", "shaders", "device", "full", "fast"]
@@ -225,9 +227,15 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
             "python::misc/ios/test_cleanup_simulator_work.py",
             "python::misc/ios/ui_automation/test_prepare_scheme.py",
             "python::misc/ios/test_test_feedback.py",
+            "utility::retail-test-profiles",
             "xctest::OpenXRayUITests",
         ):
             self.assertEqual(by_id[identifier]["selected_profiles"], [])
+        profile_contract_ids = feedback.parse_python_methods(
+            feedback.ROOT / "misc/ios/test_retail_test_profiles.py")
+        for profile in all_five:
+            with self.subTest(runtime_profile=profile):
+                self.assertTrue(set(profile_contract_ids) <= set(feedback.runtime_profile_ids(profile)))
         for entry in by_id.values():
             self.assertFalse(entry["input_mapping_complete"])
             self.assertTrue(entry["labels"])
@@ -1388,6 +1396,31 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
             for profile, expected in baseline.items():
                 with self.subTest(profile=profile, mutation="reorder-build-check"):
                     self.assertNotEqual(feedback._stage_order(profile, catalog, root), expected)
+            retail_profiles = "stage::python::misc/ios/test_retail_test_profiles.py"
+            removed_profiles = source.replace(
+                f'feedback_stage "{retail_profiles}"',
+                f'feedback_stage "{retail_profiles}-REMOVED"', 1,
+            )
+            (scripts / "build_check.sh").write_text(removed_profiles, encoding="utf-8")
+            for profile, expected in baseline.items():
+                with self.subTest(profile=profile, mutation="remove-retail-profile-stage"):
+                    self.assertNotEqual(feedback._stage_order(profile, catalog, root), expected)
+            reordered_profiles = source.replace(retail_profiles, "RETAIL_PROFILE_SWAP", 1)
+            reordered_profiles = reordered_profiles.replace(active, retail_profiles, 1)
+            reordered_profiles = reordered_profiles.replace("RETAIL_PROFILE_SWAP", active, 1)
+            (scripts / "build_check.sh").write_text(reordered_profiles, encoding="utf-8")
+            for profile, expected in baseline.items():
+                with self.subTest(profile=profile, mutation="reorder-retail-profile-stage"):
+                    self.assertNotEqual(feedback._stage_order(profile, catalog, root), expected)
+            duplicated_profiles = source.replace(
+                f'feedback_stage "{runner}"',
+                f'feedback_stage "{retail_profiles}"', 1,
+            )
+            (scripts / "build_check.sh").write_text(duplicated_profiles, encoding="utf-8")
+            for profile in baseline:
+                with self.subTest(profile=profile, mutation="duplicate-retail-profile-stage"):
+                    with self.assertRaisesRegex(feedback.CatalogError, "duplicate marker"):
+                        feedback._stage_order(profile, catalog, root)
             duplicate = source.replace(
                 'feedback_stage "stage::python::misc/ios/test_run_gate_logged.py"',
                 'feedback_stage "stage::python::misc/ios/test_active_gate.py"', 1)

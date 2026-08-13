@@ -32,6 +32,7 @@ PYTHON_COMMAND = re.compile(
     r'^\s*(?:feedback_stage\s+"stage::python::misc/ios/test_[^\"]+\.py"\s+)?'
     r"(?:python3|feedback_selected_python)\s+(misc/ios/test_(?!feedback\.py)[^\s\\]+\.py)"
 )
+HOST_FEEDBACK_TOOLING_PATH = "misc/ios/test_retail_test_profiles.py"
 CASE_RANGE = re.compile(r"^([A-Z]+)-\{index:02d\}$")
 EXPECTED_BUILD_STAGE_EXCLUSIONS = frozenset({
     "build-stage::artifact-input-hash-after",
@@ -1671,7 +1672,8 @@ def parse_build_check_python(root: Path = ROOT) -> tuple[list[str], list[str]]:
         match = PYTHON_COMMAND.match(line)
         if match:
             shader_only.append(match.group(1))
-    if len(unconditional) != 22 or len(shader_only) != 4:
+    if (len(unconditional) != 23 or len(shader_only) != 4
+            or unconditional.count(HOST_FEEDBACK_TOOLING_PATH) != 1):
         raise CatalogError(
             f"build_check Python inventory drift: unconditional={len(unconditional)} shader={len(shader_only)}"
         )
@@ -1950,6 +1952,11 @@ def profile_ids(root: Path = ROOT) -> dict[str, list[str]]:
     unconditional, shader_only = parse_build_check_python(root)
     python_ids: list[str] = []
     for item in unconditional + shader_only:
+        # This entrypoint is executed unconditionally by build_check, but its
+        # five Phase 1A contract cases intentionally remain outside the frozen
+        # historical central-python/legacy-python aggregates.
+        if item == HOST_FEEDBACK_TOOLING_PATH:
+            continue
         path = root / item
         if item.endswith("test_archive_completed_artifacts.py"):
             python_ids.extend(parse_archive_generated_methods(path))
@@ -1961,12 +1968,14 @@ def profile_ids(root: Path = ROOT) -> dict[str, list[str]]:
         + parse_python_methods(root / "misc/ios/ui_automation/test_prepare_scheme.py")
     )
     phase0 = parse_python_methods(root / "misc/ios/test_test_feedback.py")
+    retail_profiles = parse_python_methods(root / "misc/ios/test_retail_test_profiles.py")
     baseline, variants, links = parse_shader_cases(root)
     return {
         "central-python": python_ids,
         "ci-contract": ci,
         "host-infra": host,
         "phase0-tooling": phase0,
+        "host-feedback-tooling": retail_profiles,
         "cpp": parse_cpp_executions(root),
         "shell": parse_shell_cases(root),
         "shader-baseline": baseline,
@@ -2026,6 +2035,7 @@ def expected_entrypoints(root: Path = ROOT) -> set[str]:
         "python::misc/ios/test_cleanup_simulator_work.py",
         "python::misc/ios/ui_automation/test_prepare_scheme.py",
         "python::misc/ios/test_test_feedback.py",
+        "utility::retail-test-profiles",
         *cpp_entrypoint_ids(root),
         *parse_gate_family_entrypoints(root),
         "xctest::OpenXRayUITests",
@@ -2085,6 +2095,8 @@ def validate(catalog: dict[str, Any], root: Path = ROOT) -> dict[str, Any]:
         raise CatalogError("inventory count drift")
     if not groups["phase0-tooling"]:
         raise CatalogError("Phase 0 tooling tests missing")
+    if not groups["host-feedback-tooling"]:
+        raise CatalogError("retail profile tooling tests missing")
     all_python = groups["central-python"] + groups["ci-contract"] + groups["host-infra"]
     if len(all_python) != 781:
         raise CatalogError(f"legacy Python total drift: {len(all_python)}")
@@ -2118,11 +2130,15 @@ def validate(catalog: dict[str, Any], root: Path = ROOT) -> dict[str, Any]:
     if catalog_by_id["python::misc/ios/test_test_feedback.py"].get(
             "expected_case_count") != len(groups["phase0-tooling"]):
         raise CatalogError("Phase 0 tooling case count drift")
+    if catalog_by_id["python::misc/ios/test_retail_test_profiles.py"].get(
+            "expected_case_count") != len(groups["host-feedback-tooling"]):
+        raise CatalogError("retail profile tooling case count drift")
     for entrypoint in (
         "python::misc/ios/test_ios_ci_contract.py",
         "python::misc/ios/test_cleanup_simulator_work.py",
         "python::misc/ios/ui_automation/test_prepare_scheme.py",
         "python::misc/ios/test_test_feedback.py",
+        "utility::retail-test-profiles",
         "xctest::OpenXRayUITests",
     ):
         if catalog_by_id[entrypoint]["selected_profiles"] != []:
