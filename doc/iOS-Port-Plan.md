@@ -91,6 +91,30 @@ SHA-256 `4ae15fba39fb626c41f9a00ccbf1b1982338690b0b0da7b6212a23d504626f74` and
 for the natural `shaders` MISS/HIT receipts. No affected selection, local
 sharding or runtime evidence exists.
 
+**Phase 2B execution contract:**
+
+- Freeze `openxray.test-feedback-catalog.v1` as the pre-planner oracle: 53
+  entrypoints, 18 classified build-stage exclusions, both
+  `selection_authority` and `cache_authority` `NONE`, and
+  `input_mapping_complete: false` for all 53. Preserve stable IDs and the old
+  runner selection.
+- Use one small versioned mapping from normalized repository paths/globs to
+  stable IDs and profiles. Each decision records its profile, IDs, input hash
+  and reason. Unknown or incomplete mappings; planner, catalog or config
+  changes; rename/delete; no merge base; or an ambiguous diff select
+  `full-release`.
+- `host-fast` retains every cheap host contract plus frozen retail 55;
+  `retail-integration` retains 49; `shader-affected` retains complete static,
+  compile and link coverage; `engine-affected` retains applicable host
+  contracts and the product build.
+- `full-release` executes every registered entrypoint or records an explicit
+  platform skip, forces direct uncached shaders and performs no affected
+  pruning. Simulator and device remain separate serialized runtime profiles.
+- Acceptance requires exact old/new ID parity, identical injected-failure
+  propagation, zero false negatives on reviewed real and mutation diffs, and
+  20 warm `host-fast` runs with p50/p95. Phase 2B adds neither sharding nor
+  concurrency; external locks remain mandatory.
+
 **Next actions:**
 
 1. Freeze the complete post-Phase-2A entrypoint inventory, IDs, labels,
