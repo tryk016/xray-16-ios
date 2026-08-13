@@ -665,10 +665,35 @@ identical. Sol xhigh verdict: `APPROVE — brak P0/P1/P2`.
 
 This is host-only fixture and test-feedback evidence. It makes no claim about
 production behavior, real Simulator, device, rendering, streaming, distribution
-or FastDevice speed. No current commit, full gate or push exists. Phase 2 is
+or FastDevice speed. Commit `5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` and its
+clean post-commit full receipt now close this code checkpoint and match
+`origin/ios-port`. That receipt authorizes only that commit's push; the later
+documentation closeout does not claim a matching install stamp. Phase 2 is
 next: first an OS-level release shader-cache lock or immutable namespaces before
 local concurrency, then explicit conservative profiles and an affected-test
 planner. Full remains semantically complete and shaders remain uncached.
+
+### Phase 1B pushed full-gate artifact
+
+Exact clean commit `5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` passed the full
+gate in 914.847 s with identical clean commit and worktree before/after. Receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786642077179447000-182-0.json`
+records 1,164 cases/58 stages PASS, zero errors/skips, retail profile contract
+13/13, complete retail 102/102, shader compile and uncached link PASS
+(137/137), and a 68-TU Release build. The artifact source SHA-256 is
+`72316c618f6d31c54e3949ccf6436e5b23102314a7be06f787308a85062df5d2`; its
+Mach-O/dSYM UUID is `347FB8E6-8B6E-3C08-8DC4-14375F362C7C`, `__debug_info` is
+513,889,238 bytes, bundle identifier is `io.github.tryk016.openxray`, bundle
+SHA-256 is `4ca809c6338fd63cc21a64615b3959bd675d409df38d7044cab3ff360d1df255`,
+and full-stamp SHA-256 is
+`cf487b1ab6b5d1a45fb9f058d49110244bf00b6449ae7206827d265656e0ba2b`.
+
+Push succeeded as `origin/ios-port 9aad5df0a..5b0bc5ba0`; immediately afterward
+local HEAD and origin matched exactly. This is host/build evidence only: no
+phone, installation, real Simulator runtime, rendering, streaming or
+distribution evidence was produced. The receipt authorizes only that code/docs
+commit push. A later documentation-only closeout does not create a matching
+install stamp for its own future commit.
 
 ### Phase 1A pushed full-gate artifact
 

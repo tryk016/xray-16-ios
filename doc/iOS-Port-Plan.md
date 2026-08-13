@@ -34,11 +34,14 @@ remain complete. Phase 2 begins with OS-level shader-cache exclusion or
 immutable namespaces, then explicit conservative profiles/planner. Full remains
 semantically complete and shader-uncached.
 
-**Latest pushed code checkpoint:** exact clean commit `9aad5df0` received a full
-PASS before push and now equals `origin/ios-port`: telemetry `COMPLETE`, all
-1,156 cases/58 stages PASS, profile contract 5/5 and retail 102/102 in
-593.365 s. The following documentation change makes its stamp historical for
-future installation; no install, phone or runtime proof was produced.
+**Latest pushed code checkpoint:** exact clean commit
+`5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` received a clean post-commit full
+PASS and now equals `origin/ios-port` after push (`9aad5df0a..5b0bc5ba0`).
+Receipt `gate-1786642077179447000-182-0.json` records 1,164 cases/58 stages,
+zero errors/skips, profile 13/13, retail 102/102, uncached shader compile/link
+137/137 and Release 68 TUs in 914.847 s. It authorizes only that push; this
+following documentation closeout has no matching install stamp. No phone,
+installation or runtime proof was produced.
 
 This file intentionally contains no more than five active tasks. Historical
 evidence belongs in [iOS-Port-Journal.md](iOS-Port-Journal.md). Work not listed

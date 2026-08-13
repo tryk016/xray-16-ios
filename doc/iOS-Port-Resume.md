@@ -1,28 +1,21 @@
 # OpenXRay iOS — operational handoff
 
-**Updated:** 2026-08-13
-**Docs:** [canonical](iOS-Port.md), [active](iOS-Port-Plan.md), [deferred](iOS-Port-Backlog.md).
+**Updated:** 2026-08-13. **Docs:** [canonical](iOS-Port.md), [active](iOS-Port-Plan.md), [deferred](iOS-Port-Backlog.md).
 
-Read this file completely, then the relevant active task/canonical section;
-search the Journal by task ID or exact symptom, never in full.
+Read this file completely, then the relevant active task/canonical section; search the Journal by task ID or exact symptom, never in full.
 
 ## Current checkpoint
 
 The M3 Pro host runs macOS/Xcode/SDK 27.0 beta and CMake 4.4.0; device and
 Simulator engines build arm64 for iOS 16.4+. Team `RMJWWPF379` signs stable
 `io.github.tryk016.openxray.RMJWWPF379`, preserving the device data container.
-The physical-device baseline is GLES 3.0 at a real 1864×860 drawable with 1:1
-presentation and Bluetooth controller. Sector fallback and SSAO value-macro
-fixes are proven; a later dark-frame smoke remains unresolved.
+The physical-device baseline is GLES 3.0 at a real 1864×860 drawable with 1:1 presentation and Bluetooth controller. Sector fallback and SSAO value-macro fixes are proven; a later dark-frame smoke remains unresolved.
 
 IOS-P0-003's hardened iOS 27 F5/F9 Simulator packet passed: workroot
 `simulator-work-20260810-164020-71268`, report
 `27f89f6793ec2d0f0ee6831add123ae3e54b9d83eaaa37d4326a62d052f35cb9`, manifest
 `7d45f49bbe15727a1813971b958fe8c19261b32cc3426a7bfd69dffbdd418896`, PID 77340.
-It records `level_load/exact` frame 35 then `quick_load/retained` frame 122;
-B0/B1/C are 1864×860 frames 89/94/182, tokens 54/58/118 and F5/F9 scancodes
-62/66. This is Apple Software Renderer control-flow evidence only, not iPhone,
-pixels, readability, lighting or performance proof.
+It records `level_load/exact` frame 35 then `quick_load/retained` frame 122; B0/B1/C are 1864×860 frames 89/94/182, tokens 54/58/118 and F5/F9 scancodes 62/66. This is Apple Software Renderer control-flow evidence only, not iPhone, pixels, readability, lighting or performance proof.
 
 M6-local importer is complete but M6 remains active as Plan task 5. Standalone
 stdlib `misc/ios/retail_import.py` passes 21/21 mutation/recovery tests:
@@ -71,12 +64,16 @@ helper stdout classification was false, but rc=0 and stderr says 49/49 OK.
 Sol xhigh: `APPROVE — brak P0/P1/P2`. Host-only: no production, Simulator,
 device, rendering, streaming, distribution or FastDevice speed claim.
 
-Pushed exact clean `9aad5df0` receipt `gate-1786629614658776000-66873-0.json`:
-818.681 s, unchanged source, COMPLETE, 1,156 cases/58 stages PASS, profile 5/5,
-retail 102/102 in 593.365 s; UUID `6DFBE2E2-2958-30E6-9F8A-ABCE2BC7FCB2`,
-stamp `8207bf92…d30a5`, minOS 16.4 and shader cache forced-off. It authorized
-that push only; this docs change makes it historical for install, requiring a
-fresh matching device/full gate. No phone/runtime/rendering evidence.
+Pushed exact clean `5b0bc5ba0` receipt `gate-1786642077179447000-182-0.json`:
+914.847 s, identical clean commit/worktree before and after, 1,164 cases/58
+stages PASS, errors/skips 0, profile 13/13, retail 102/102, uncached shader
+compile/link PASS (137/137) and Release 68 TUs. Artifact source
+`72316c618f6d31c54e3949ccf6436e5b23102314a7be06f787308a85062df5d2`, UUID/dSYM
+`347FB8E6-8B6E-3C08-8DC4-14375F362C7C`, debug-info 513,889,238 bytes, bundle
+`io.github.tryk016.openxray` SHA `4ca809c6…f255`, full stamp `cf487b1a…ba2b`.
+Push `9aad5df0a..5b0bc5ba0` made HEAD/origin exact. It authorizes only that
+push; this later docs-only closeout has no matching install stamp. No phone,
+install, real Simulator runtime, rendering, streaming or distribution evidence.
 
 ## First commands
 ```bash

@@ -5196,3 +5196,24 @@ Simulator, device, rendering, streaming, distribution or FastDevice proof. No
 commit, full gate or push is claimed. Phase 2 is next: first OS-level release
 shader-cache exclusion or immutable namespaces, then conservative profiles and
 an affected-test planner; full stays semantically complete and shader-uncached.
+
+## 2026-08-13 — Phase 1B clean full gate and push complete
+
+Exact clean commit `5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` passed its
+post-commit full gate with the same clean commit and worktree before/after.
+Receipt `/Users/patryk/openxray-handoff/gate-logs/gate-1786642077179447000-182-0.json`
+is PASS in 914.847 s: 1,164 cases/58 stages, zero errors/skips, retail-profile
+contract 13/13, complete retail 102/102, shader compile PASS and cache-MISS
+link 137/137, plus a 68-TU Release build. Artifact source SHA-256 is
+`72316c618f6d31c54e3949ccf6436e5b23102314a7be06f787308a85062df5d2`; Mach-O
+and dSYM UUID are `347FB8E6-8B6E-3C08-8DC4-14375F362C7C`; `__debug_info` is
+513,889,238 bytes. The bundle is `io.github.tryk016.openxray`, SHA-256
+`4ca809c6338fd63cc21a64615b3959bd675d409df38d7044cab3ff360d1df255`; full stamp
+SHA-256 is `cf487b1ab6b5d1a45fb9f058d49110244bf00b6449ae7206827d265656e0ba2b`.
+
+Push completed as `origin/ios-port 9aad5df0a..5b0bc5ba0`; immediately after it,
+local HEAD and origin matched. The receipt authorizes only that code/docs commit
+push. This later documentation-only closeout does not claim a matching install
+stamp for its own future commit. No phone, installation, real Simulator runtime,
+rendering, streaming or distribution evidence was produced. Phase 2 remains
+next.

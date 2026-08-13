@@ -932,3 +932,15 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   device/rendering/streaming/distribution/FastDevice claim. Commit/full/push
   remain. Next Phase 2: OS lock or immutable shader-cache namespaces, then
   conservative profiles/planner; full complete and shader-uncached.
+
+## 2026-08-13 — Phase 1B publication closeout
+
+- Commit `5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` passed a clean post-commit
+  full gate in 914.847 s: 1,164 cases/58 stages, errors/skips 0, profile 13/13,
+  retail 102/102, shader compile/link 137/137 with cache MISS, and Release 68
+  TUs. Source `72316c61…f5d2`, UUID/dSYM `347FB8E6-8B6E-3C08-8DC4-14375F362C7C`,
+  debug-info 513,889,238 bytes, bundle `4ca809c6…f255`, stamp `cf487b1a…ba2b`.
+- Push `9aad5df0a..5b0bc5ba0` succeeded and HEAD/origin matched. This receipt
+  covers only that commit; this later docs closeout has no matching install
+  stamp. No phone, install, real Simulator, rendering, streaming or
+  distribution evidence. Phase 2 is next.
