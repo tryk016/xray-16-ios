@@ -944,3 +944,31 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   covers only that commit; this later docs closeout has no matching install
   stamp. No phone, install, real Simulator, rendering, streaming or
   distribution evidence. Phase 2 is next.
+
+## 2026-08-13 — Phase 2A shader-cache host checkpoint
+
+- Implemented canonical immutable cache with per-key `flock`, no-clobber
+  recovery, semantic MISS/HIT validation and exact telemetry certificate replay.
+  `full` is force-direct and opens no cache namespace. Sol xhigh separately
+  approved the code review and post-gate evidence review; the complete Phase 2A
+  code-plus-documentation checkpoint then received exact
+  `APPROVE — brak P0/P1/P2`.
+- First real status-file run failed fail-closed after compile publication:
+  `gate-1786653627459306000-44215-0.json`; APFS `O_TRUNC` mutated snapshot
+  metadata. Fixed bound-FD validate → truncate → postwrite revalidation; both
+  keys include `test_feedback_unittest.py`, and checker diagnostics persist.
+- Focused PASS: cache 19/19, feedback 24/24, installer 14/14, pycompile,
+  bash-n, diff-check. Natural MISS/HIT receipts `gate-1786655817274686000-95683-0`
+  and `gate-1786656650331238000-18314-0`: PASS 820.149/802.981 s, logical
+  selection SHA-256 `4ae15fba39fb626c41f9a00ccbf1b1982338690b0b0da7b6212a23d504626f74`
+  (1,183 IDs) and separate stage SHA-256
+  `801483ceb8b4f1bafd53720ef26f2730944920bdb571879ba89fa39cf3a5ecbf` (50 stages),
+  no coverage overlap/gaps; immutable entries are `0400`, `nlink=1`, no temp.
+  Saving 17.168 s only; retail dominates.
+- Host partial-gate evidence only: no full, commit/push, install, Simulator or
+  phone/runtime/rendering/streaming/distribution claim. Current `HEAD` and
+  `origin/ios-port` are the later docs closeout `12bd62067a228db1a9ea5699a5641287eecc9432`;
+  `5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` was the latest pushed code commit
+  and matched origin immediately after its own push. Next: active Phase 2B
+  profiles plus conservative planner; unknown/global => full, retain external
+  locks, defer sharding.

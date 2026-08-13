@@ -732,6 +732,12 @@ def _stage_order(profile: str, catalog: dict[str, Any], root: Path = ROOT) -> li
             continue
         for match in pattern.finditer(line):
             markers.append(match.group(1))
+        cache_call = re.match(
+            r'^\s*run_shader_cache_stage (?:compile|link) "(stage::shader::(?:glsl-es|link))" ',
+            line,
+        )
+        if cache_call:
+            markers.append(cache_call.group(1))
     markers = [f"stage::{identifier}" if identifier.startswith("cpp:") else identifier
                for identifier in markers
                if identifier.startswith("cpp:") or identifier.startswith("stage::")
@@ -757,6 +763,10 @@ def _stage_order(profile: str, catalog: dict[str, Any], root: Path = ROOT) -> li
     if shader_guard < 0 or engine_guard < 0 or len(dual_guards) != 2:
         raise CatalogError("executing stage profile guard drift")
     marker_positions = {match.group(1): match.start() for match in pattern.finditer(text)}
+    for match in re.finditer(
+            r'^\s*run_shader_cache_stage (?:compile|link) "(stage::shader::(?:glsl-es|link))" ',
+            text, re.MULTILINE):
+        marker_positions[match.group(1)] = match.start()
     for identifier in shader_stage:
         position = marker_positions.get(identifier)
         if position is None or not shader_guard < position < engine_guard:
@@ -1676,7 +1686,7 @@ def parse_build_check_python(root: Path = ROOT) -> tuple[list[str], list[str]]:
         match = PYTHON_COMMAND.match(line)
         if match:
             shader_only.append(match.group(1))
-    if (len(unconditional) != 23 or len(shader_only) != 4
+    if (len(unconditional) != 24 or len(shader_only) != 4
             or unconditional.count(HOST_FEEDBACK_TOOLING_PATH) != 1):
         raise CatalogError(
             f"build_check Python inventory drift: unconditional={len(unconditional)} shader={len(shader_only)}"
@@ -1773,17 +1783,15 @@ def parse_gate_family_entrypoints(root: Path = ROOT) -> dict[str, list[str]]:
             ["engine", "shaders", "device", "full", "fast"],
         ),
         "shader::glsl-es": (
-            (r'^\s+out=\$\(feedback_stage "stage::shader::glsl-es" python3 misc/ios/shadercheck/glsl_es_check\.py\s+\\$',
-             r'^\s*misc/ios/shadercheck/glsl_es_check\.py\)\n'
-             r'\s*if \[\[ " \$\* " = \*" --strict "\* \]\]; then\n'
-             r'\s*shift\n\s*feedback_selected_python "\$@"\n\s*return \$\?$',),
+            (r'^\s*run_shader_cache_stage compile "stage::shader::glsl-es" shader::glsl-es "\$compile_hash" \\$',
+             r'^\s*python3 misc/ios/shadercheck/glsl_es_check\.py --glslang "\$GLSLANG" --strict \\$',
+             r'^\s*shader_cache_output=\$\(feedback_selected_raw "\$origin" python3 "\$REPO_ROOT/misc/ios/shader_cache\.py"'),
             ["shaders", "device", "full", "fast"],
         ),
         "shader::link": (
-            (r'^\s+out=\$\(feedback_stage "stage::shader::link" python3 misc/ios/shadercheck/link_check\.py --strict 2>&1\)\s+\\$',
-             r'^\s*misc/ios/shadercheck/link_check\.py\)\n'
-             r'\s*if \[\[ " \$\* " = \*" --strict "\* \]\]; then\n'
-             r'\s*shift\n\s*feedback_selected_python "\$@"\n\s*return \$\?$',),
+            (r'^\s*run_shader_cache_stage link "stage::shader::link" shader::link "\$link_hash" \\$',
+             r'^\s*python3 misc/ios/shadercheck/link_check\.py --strict \\$',
+             r'^\s*shader_cache_output=\$\(feedback_selected_raw "\$origin" python3 "\$REPO_ROOT/misc/ios/shader_cache\.py"'),
             ["shaders", "device", "full", "fast"],
         ),
     }
@@ -1846,6 +1854,9 @@ def validate_build_stage_exclusions(catalog: dict[str, Any], root: Path = ROOT) 
         r'^feedback_stage "[^"]+" python3 misc/ios/ui_contract_check\.py',
         r'^\s+feedback_stage "[^"]+" python3 misc/ios/shadercheck/glsl_es_check\.py --macro-contract',
         r'^\s+out=\$\(feedback_stage "[^"]+" python3 misc/ios/shadercheck/(?:glsl_es_check|link_check)\.py',
+        r'^\s*shader_cache_output=\$\(feedback_selected_raw "\$origin" python3 "\$REPO_ROOT/misc/ios/shader_cache\.py"',
+        r'^\s*python3 misc/ios/shadercheck/glsl_es_check\.py --glslang "\$GLSLANG" --strict',
+        r'^\s*python3 misc/ios/shadercheck/link_check\.py --strict',
         r'^\s*(?:env\s+(?:PYTHONPATH="[^"]+"|-u PYTHONPATH)\s+)?python3 "\$@"',
         r'^\s*python3 "\$REPO_ROOT/misc/ios/test_feedback\.py" "\$@"',
     ):
@@ -2098,7 +2109,7 @@ def validate(catalog: dict[str, Any], root: Path = ROOT) -> dict[str, Any]:
         raise CatalogError(f"catalog entrypoint drift: missing={missing} extra={extra}")
     groups = profile_ids(root)
     expected = {
-        "central-python": 692,
+        "central-python": 711,
         "ci-contract": 79,
         "host-infra": 10,
         "cpp": 14,
@@ -2116,14 +2127,14 @@ def validate(catalog: dict[str, Any], root: Path = ROOT) -> dict[str, Any]:
     if not groups["host-feedback-tooling"]:
         raise CatalogError("retail profile tooling tests missing")
     all_python = groups["central-python"] + groups["ci-contract"] + groups["host-infra"]
-    if len(all_python) != 781:
+    if len(all_python) != 800:
         raise CatalogError(f"legacy Python total drift: {len(all_python)}")
     baseline = catalog["frozen"].get("baseline")
     if baseline != {
-        "central_python_files": 26, "central_python_cases": 692,
+        "central_python_files": 27, "central_python_cases": 711,
         "ci_files": 1, "ci_cases": 79,
         "preexisting_host_infra_files": 2, "preexisting_host_infra_cases": 10,
-        "legacy_python_files": 29, "legacy_python_cases": 781,
+        "legacy_python_files": 30, "legacy_python_cases": 800,
         "retail_simulator_cases": 102,
     }:
         raise CatalogError("frozen legacy baseline metadata drift")

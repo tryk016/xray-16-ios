@@ -47,22 +47,22 @@ committed; real `HISTORICAL_PASS` remains read-only closeout work. `9aad5df0`
 closed its push gate but is stale for install. IOS-P1-002 is Backlog-pending.
 
 ## Host feedback checkpoint
-Optimization Phase 1 is complete. Phase 1A's manifest still freezes 102
-byte/AST-identical retail IDs: 53 guards, 49 integration and `host-fast` 55.
-Phase 1B adds a fail-closed fixture state machine, all-ten-mock inode/content
-validation, shared `xcrun`/`lipo` writers and a versioned 96-record golden
-(path/type/mode/bytes/SHA/symlink target; normalized `fixture.pc`). Existing
-profile contracts pass 13/13; all original test body/ID hashes are unchanged.
+Optimization Phase 1 is complete: 102 frozen byte/AST-identical retail IDs (53 guards, 49 integration, `host-fast` 55), a fail-closed fixture state, 96-record golden and profile contract 13/13. Acceptance: integration 49/49 in 526.322 s, complete 102/102 in 564.422 s and 20/20 host-fast passes (p50 47.472 s; p95 49.323 s). Sol xhigh approved; this is host-only evidence.
 
-Acceptance: integration 49/49 in 526.322 s (526.437 s wrapper), complete
-102/102 in 564.422 s (564.553 s wrapper), 20/20 serial fresh-process
-`host-fast` 55/55, p50 47.472 s, nearest-rank p95 49.323 s, range
-46.472–49.519 s, mean 47.500 s. Continuation evidence SHA-256:
-`6c9030fd565814989739255385f0b03648eb32f03a6743566dac95cef5cbd05a`.
-Integration stderr `563ca32fdfef9490a546d0dd1eb66e17d6e3e081a4125096452aa005efc45e91`;
-helper stdout classification was false, but rc=0 and stderr says 49/49 OK.
-Sol xhigh: `APPROVE — brak P0/P1/P2`. Host-only: no production, Simulator,
-device, rendering, streaming, distribution or FastDevice speed claim.
+Phase 2A is host-complete. Canonical cache `build/ios-engine-iphoneos/.ios_gate_cache` has per-key kernel `flock`, immutable output/receipt, fail-closed recovery, semantic MISS/HIT validation, shared timeout/signal handling and exact telemetry certificate replay. `full` is force-direct and opens no cache namespace. The initial status-file failure (`gate-1786653627459306000-44215-0.json`) found an APFS `O_TRUNC` metadata race; the bound-FD validate → `ftruncate` → revalidate fix is included. Both keys bind `test_feedback_unittest.py`, and checker diagnostics survive failure.
+Focused PASS: cache 19/19, feedback 24/24, installer 14/14, Python/Bash/diff; natural
+`shaders` MISS `gate-1786655817274686000-95683-0.json` passed in 820.149 s; identical HIT `gate-1786656650331238000-18314-0.json` in 802.981 s.
+Both report logical selection SHA-256
+`4ae15fba39fb626c41f9a00ccbf1b1982338690b0b0da7b6212a23d504626f74` (1,183 IDs)
+and separate 50-stage SHA-256
+`801483ceb8b4f1bafd53720ef26f2730944920bdb571879ba89fa39cf3a5ecbf`, with no
+gaps/overlap/duplicates; HIT replays certified 296 compile + 137 link IDs.
+Outputs/receipts are `0400`, `nlink=1`, no active temp. Sol xhigh separately
+approved the code review and post-gate evidence review; the complete Phase 2A
+code-plus-documentation checkpoint then received exact `APPROVE — brak P0/P1/P2`. Host partial-gate only:
+no full-release, commit/push, install, Simulator/device runtime, rendering, streaming or
+distribution claim. The 17.168 s saving is not a FastDevice result because
+retail preflight remains dominant.
 
 Pushed exact clean `5b0bc5ba0` receipt `gate-1786642077179447000-182-0.json`:
 914.847 s, identical clean commit/worktree before and after, 1,164 cases/58
@@ -71,9 +71,12 @@ compile/link PASS (137/137) and Release 68 TUs. Artifact source
 `72316c618f6d31c54e3949ccf6436e5b23102314a7be06f787308a85062df5d2`, UUID/dSYM
 `347FB8E6-8B6E-3C08-8DC4-14375F362C7C`, debug-info 513,889,238 bytes, bundle
 `io.github.tryk016.openxray` SHA `4ca809c6…f255`, full stamp `cf487b1a…ba2b`.
-Push `9aad5df0a..5b0bc5ba0` made HEAD/origin exact. It authorizes only that
-push; this later docs-only closeout has no matching install stamp. No phone,
-install, real Simulator runtime, rendering, streaming or distribution evidence.
+`5b0bc5ba0` was the latest pushed code commit and matched origin immediately
+after `9aad5df0a..5b0bc5ba0`; current `HEAD` and `origin/ios-port` are the later
+docs closeout `12bd62067a228db1a9ea5699a5641287eecc9432`. The code receipt
+authorizes only that push; the later docs closeout has no matching install stamp.
+No phone, install, real Simulator runtime, rendering, streaming or distribution
+evidence.
 
 ## First commands
 ```bash
@@ -134,8 +137,8 @@ phone for this host-only M6 evidence.
 
 ## Next slice
 
-1. Phase 2: establish OS-level shader-cache exclusion or immutable namespaces, then conservative profiles and an affected-test planner; full stays complete and shader-uncached.
-2. When the phone returns, restore IOS-P1-002 and run its lifecycle batch with controlled lighting.
+1. Phase 2B: add profile separation and a conservative affected planner; unknown/global input selects full, runtime claims cannot close affected-only, and external build-tree/Simulator/device locks remain before further concurrency.
+2. After Phase 2A/2B checkpoint closeout, explicitly promote IOS-P1-010 and IOS-P1-002 before their lifecycle batches with controlled lighting.
 3. Keep M6 active; the cache is not legal distribution or device transfer/save-preservation evidence.
 
 ## Safety

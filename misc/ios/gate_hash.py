@@ -25,6 +25,8 @@ IOS_ARTIFACT_INPUTS = (
     "misc/ios/device_lease.sh",
     "misc/ios/command_timeout.py",
     "misc/ios/gate_hash.py",
+    "misc/ios/shader_cache.py",
+    "misc/ios/test_shader_cache.py",
     "misc/ios/active_gate.py",
     "misc/ios/test_active_gate.py",
     "misc/ios/run_gate_logged.py",
@@ -167,6 +169,51 @@ def hash_file(path: str) -> bytes:
     return digest.digest()
 
 
+def digest_paths(salt: str, paths: list[str], *, relative_root: str | None = None,
+                 build_context_root: str | None = None) -> str:
+    """Return the gate digest without printing or accepting shell state.
+
+    The shader-cache helper imports this exact implementation to rehash its
+    inputs while holding a per-key lock.  Keeping the algorithm here prevents
+    a cache reader and the gate from silently using different key semantics.
+    """
+    digest = hashlib.sha256()
+    add_field(digest, salt.encode("utf-8"))
+    if build_context_root:
+        add_field(digest, b"build-context")
+        add_field(
+            digest,
+            git_value(build_context_root, "rev-parse", "--verify", "HEAD"),
+        )
+        add_field(
+            digest,
+            git_value(build_context_root, "rev-parse", "--abbrev-ref", "HEAD"),
+        )
+        add_field(digest, datetime.date.today().isoformat().encode("ascii"))
+        for name in BUILD_CONTEXT_ENV:
+            add_field(digest, name.encode("ascii"))
+            add_field(
+                digest,
+                os.environ.get(name, "").encode(
+                    "utf-8", errors="surrogateescape"
+                ),
+            )
+    files = collect(paths)
+    resolved_relative_root = (
+        os.path.abspath(relative_root) if relative_root else None
+    )
+    for path in files:
+        digest_path = path
+        if resolved_relative_root:
+            digest_path = os.path.relpath(os.path.abspath(path), resolved_relative_root)
+            if digest_path == ".." or digest_path.startswith(f"..{os.sep}"):
+                raise OSError(f"input is outside --relative-root: {path}")
+        add_field(digest, b"file")
+        add_field(digest, digest_path.encode("utf-8", errors="surrogateescape"))
+        add_field(digest, hash_file(path))
+    return digest.hexdigest()
+
+
 def git_value(root: str, *arguments: str) -> bytes:
     result = subprocess.run(
         ("git", "-C", root, *arguments),
@@ -203,46 +250,18 @@ def main() -> int:
     if not paths:
         parser.error("provide paths or --ios-artifact-root")
 
-    digest = hashlib.sha256()
-    add_field(digest, args.salt.encode("utf-8"))
     try:
-        if args.build_context_root:
-            add_field(digest, b"build-context")
-            add_field(
-                digest,
-                git_value(args.build_context_root, "rev-parse", "--verify", "HEAD"),
-            )
-            add_field(
-                digest,
-                git_value(args.build_context_root, "rev-parse", "--abbrev-ref", "HEAD"),
-            )
-            add_field(digest, datetime.date.today().isoformat().encode("ascii"))
-            for name in BUILD_CONTEXT_ENV:
-                add_field(digest, name.encode("ascii"))
-                add_field(
-                    digest,
-                    os.environ.get(name, "").encode(
-                        "utf-8", errors="surrogateescape"
-                    ),
-                )
-        files = collect(paths)
-        relative_root = (
-            os.path.abspath(args.relative_root) if args.relative_root else None
+        value = digest_paths(
+            args.salt,
+            paths,
+            relative_root=args.relative_root,
+            build_context_root=args.build_context_root,
         )
-        for path in files:
-            digest_path = path
-            if relative_root:
-                digest_path = os.path.relpath(os.path.abspath(path), relative_root)
-                if digest_path == ".." or digest_path.startswith(f"..{os.sep}"):
-                    raise OSError(f"input is outside --relative-root: {path}")
-            add_field(digest, b"file")
-            add_field(digest, digest_path.encode("utf-8", errors="surrogateescape"))
-            add_field(digest, hash_file(path))
     except (OSError, subprocess.CalledProcessError) as error:
         print(f"gate hash failed: {error}", file=sys.stderr)
         return 1
 
-    print(digest.hexdigest())
+    print(value)
     return 0
 
 

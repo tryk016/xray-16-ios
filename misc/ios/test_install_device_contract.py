@@ -35,6 +35,10 @@ LEASE_DEPENDENCIES = (
 )
 TEXTURE_BC_FALLBACK_TEST = "misc/ios/texture_bc_fallback_test.cpp"
 SHADER_RESOURCE_CONTRACT_TEST = "misc/ios/test_shader_resource_contract.py"
+SHADER_CACHE_ARTIFACT_INPUTS = (
+    "misc/ios/shader_cache.py",
+    "misc/ios/test_shader_cache.py",
+)
 RETAIL_CLONE_STAGING_ARTIFACT_INPUTS = (
     "misc/ios/retail_simulator.sh",
     "misc/ios/retail_simulator_guard.py",
@@ -53,7 +57,7 @@ RETAIL_CLONE_STAGING_ARTIFACT_INPUTS = (
 ARTIFACT_HASH_DEPENDENCIES = LEASE_DEPENDENCIES + (
     TEXTURE_BC_FALLBACK_TEST,
     SHADER_RESOURCE_CONTRACT_TEST,
-) + RETAIL_CLONE_STAGING_ARTIFACT_INPUTS
+) + SHADER_CACHE_ARTIFACT_INPUTS + RETAIL_CLONE_STAGING_ARTIFACT_INPUTS
 ARTIFACT_INPUT_DIRECTORIES = {
     "src",
     "res",

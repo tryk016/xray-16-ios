@@ -1034,6 +1034,51 @@
       "timeout_seconds": 120
     },
     {
+      "entrypoint_id": "python::misc/ios/test_shader_cache.py",
+      "expected_case_count": 19,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_shader_cache.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/shader_cache.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/gate_hash.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 2A cache contracts are unconditional host coverage; they do not select production tests or authorize shader replay.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "shader-cache-contract"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "process-lock"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
       "entrypoint_id": "python::misc/ios/test_shader_macro_contract.py",
       "expected_case_count": 30,
       "explicit_inputs": [
@@ -1954,20 +1999,20 @@
   ],
   "frozen": {
     "baseline": {
-      "central_python_cases": 692,
-      "central_python_files": 26,
+      "central_python_cases": 711,
+      "central_python_files": 27,
       "ci_cases": 79,
       "ci_files": 1,
-      "legacy_python_cases": 781,
-      "legacy_python_files": 29,
+      "legacy_python_cases": 800,
+      "legacy_python_files": 30,
       "preexisting_host_infra_cases": 10,
       "preexisting_host_infra_files": 2,
       "retail_simulator_cases": 102
     },
     "groups": {
       "central-python": {
-        "audited_sha256": "a1d44f025c13d688885d530dc8c91266744ff5a4965b5d0ec07f0d2a9e147560",
-        "count": 692
+        "audited_sha256": "445de4b6c81dc03622bd664ebc56eeef2bf8751321b70c58240e52406220a1c0",
+        "count": 711
       },
       "ci-contract": {
         "audited_sha256": "0dff3ed04462d247c96ae814e597e1f52500530fc98752c82149f108ee4f23fb",
@@ -1982,8 +2027,8 @@
         "count": 10
       },
       "legacy-python": {
-        "audited_sha256": "2a0b400ff28b119b2b33bb68cc9d58bd0d28a730b6c631020181794437aae1d0",
-        "count": 781
+        "audited_sha256": "ab2e02c8f9d1779c2969adcd668d6eaecaddad4d262dc51c7d39e6e1eeb11adf",
+        "count": 800
       },
       "shader-baseline": {
         "audited_sha256": "e817fbc5e008b775761533a828bec1e7d8801e6c1736bffb852f42715684b0ab",

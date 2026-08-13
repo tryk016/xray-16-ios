@@ -1,6 +1,6 @@
 # OpenXRay iOS — deferred backlog
 
-**Last synchronized:** 2026-08-12
+**Last synchronized:** 2026-08-13
 
 **Canonical contract:** [iOS-Port.md](iOS-Port.md)
 
@@ -102,8 +102,8 @@ the 30-minute run remains inside an explicit device budget.
 
 ### IOS-P1-002: finish iOS lifecycle
 
-**Priority:** P1 temporarily deferred while the phone is unavailable; restore
-it to the active Plan before the next physical lifecycle batch.
+**Priority:** P1 deliberately deferred behind Phase 2A/2B checkpoint closeout;
+restore it to the active Plan before the next physical lifecycle batch.
 
 **Evidence level:** the local frame gate, lifecycle inbox, persistence ordering,
 input cancellation, GL detach/rebind, LOWMEMORY path and corrected Safari/audio
@@ -117,6 +117,30 @@ untested.
 lock/unlock cycle with held touch and one real OpenAL Soft interruption recover
 in the same process without stuck input, black output, lost audio or lost
 settings/saves.
+
+### IOS-P1-010: adopt UIKit scene lifecycle for iOS 27
+
+**Priority:** P1 deliberately deferred behind Phase 2A/2B checkpoint closeout;
+promote it back to the active Plan before a physical-device lifecycle batch.
+
+**Evidence level:** the hash-pinned SDL2 2.32.10 UIScene backport,
+deterministic oracle, iOS 26.5/27.0 Simulator runs and final Sol xhigh approval
+are complete. The delayed lifecycle fixture uses a PID-validated
+`pending -> armed -> released` handshake; 50 sequential, 200 eight-way parallel
+and the full 84-test retail suite pass without changing production guards.
+Physical-device acceptance remains untested.
+
+The app declares one scene, uses `SDLUIKitSceneDelegate`, starts `SDL_main`
+once, binds iOS 13+ windows to a connected `UIWindowScene`, and preserves one
+PID across one ordered Simulator recovery cycle. This is bootstrap and
+menu-boundary evidence only, not physical-device, pixel, audio or soak proof.
+
+**Remaining acceptance:** five physical-device Safari/background cycles plus
+one separate lock/unlock and one audio-interruption cycle must preserve the same
+PID, input, audio, drawable and saves without replacing the process.
+
+**Acceptance:** five physical-device foreground cycles plus one lock/unlock and
+audio-interruption cycle preserve PID, input, audio, drawable and saves.
 
 ## P2 — product and maintenance debt
 

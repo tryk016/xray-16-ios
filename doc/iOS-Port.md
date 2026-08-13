@@ -665,13 +665,59 @@ identical. Sol xhigh verdict: `APPROVE — brak P0/P1/P2`.
 
 This is host-only fixture and test-feedback evidence. It makes no claim about
 production behavior, real Simulator, device, rendering, streaming, distribution
-or FastDevice speed. Commit `5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` and its
-clean post-commit full receipt now close this code checkpoint and match
-`origin/ios-port`. That receipt authorizes only that commit's push; the later
-documentation closeout does not claim a matching install stamp. Phase 2 is
-next: first an OS-level release shader-cache lock or immutable namespaces before
-local concurrency, then explicit conservative profiles and an affected-test
-planner. Full remains semantically complete and shaders remain uncached.
+or FastDevice speed. Commit `5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` is the
+latest pushed code commit and matched `origin/ios-port` immediately after its
+push. The later documentation closeout
+`12bd62067a228db1a9ea5699a5641287eecc9432` is the current `HEAD` and
+`origin/ios-port`. The code receipt authorizes only the earlier code push; the
+later documentation closeout does not claim a matching install stamp.
+
+### Phase 2A immutable shader cache — host-complete
+
+Phase 2A implements a fail-closed cross-process shader cache at
+`build/ios-engine-iphoneos/.ios_gate_cache`. A per-key kernel `flock`, immutable
+output and receipt publication, no-clobber crash recovery, semantic validation
+on both MISS and HIT, shared timeout/signal handling, and exact raw-telemetry
+certificate replay protect the compile and link checkers. Cache entries and
+receipts are mode `0400`, have `nlink=1`, and the accepted keys left no active
+temporary files. The full-release/full path is explicitly force-direct: it opens
+no cache namespace and remains shader-uncached.
+
+The first real attempt, receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786653627459306000-44215-0.json`,
+failed after a valid compile publication because `O_TRUNC` changed APFS
+`mtime`/`ctime` before a full status-file snapshot comparison. The corrected
+status path validates the bound file descriptor before `ftruncate`, then
+revalidates after the write. Review also bound `test_feedback_unittest.py` into
+both cache keys and retained bounded exact checker diagnostics on failure.
+
+Focused checks passed: shader cache 19/19, feedback 24/24, installer 14/14,
+Python compilation, Bash syntax and diff check. Natural host `shaders` MISS
+receipt `gate-1786655817274686000-95683-0.json` passed in 820.149 s with compile
+key `edf3a05abc38ee365e729e267ed564f6ac223c866b38d643a06e69693cd565d3` and link
+key `2bc155d786c94adc83ac0c3e8643b7d27bbac785b0271873ce5d3235ee29bead`. The
+identical HIT receipt `gate-1786656650331238000-18314-0.json` passed in 802.981
+s. Both have logical coverage 1,183/1,183 and 50/50 stages: MISS has 1,183
+direct unique cases; HIT has 750 direct plus certified 296 compile and 137 link
+IDs, with no missing, extra, overlap or duplicate IDs. The logical selection
+SHA-256 is
+`4ae15fba39fb626c41f9a00ccbf1b1982338690b0b0da7b6212a23d504626f74`; the
+separate 50-stage ID SHA-256 is
+`801483ceb8b4f1bafd53720ef26f2730944920bdb571879ba89fa39cf3a5ecbf`.
+The measured saving is only 17.168 s because the complete retail preflight
+remains dominant. Sol xhigh separately approved the code review and the
+post-gate evidence review. The complete Phase 2A code-plus-documentation
+checkpoint then received the exact Sol xhigh verdict
+`APPROVE — brak P0/P1/P2`.
+
+This is host-only partial-gate evidence, not full-release, commit, push,
+installation, Simulator runtime, phone, rendering, streaming or distribution
+proof. Phase 2B is the active phone-free task: profile separation and a
+conservative affected planner
+where unknown/global input selects full; runtime claims cannot close from
+affected-only evidence. Existing external build-tree, Simulator and device locks
+remain required before any concurrency beyond the per-key cache locks; sharding
+is deferred.
 
 ### Phase 1B pushed full-gate artifact
 
@@ -689,8 +735,10 @@ and full-stamp SHA-256 is
 `cf487b1ab6b5d1a45fb9f058d49110244bf00b6449ae7206827d265656e0ba2b`.
 
 Push succeeded as `origin/ios-port 9aad5df0a..5b0bc5ba0`; immediately afterward
-local HEAD and origin matched exactly. This is host/build evidence only: no
-phone, installation, real Simulator runtime, rendering, streaming or
+local HEAD and origin matched exactly. `5b0bc5ba` remains the latest pushed code
+commit; the later documentation closeout `12bd62067a228db1a9ea5699a5641287eecc9432`
+is the current `HEAD` and `origin/ios-port`. This is host/build evidence only:
+no phone, installation, real Simulator runtime, rendering, streaming or
 distribution evidence was produced. The receipt authorizes only that code/docs
 commit push. A later documentation-only closeout does not create a matching
 install stamp for its own future commit.
@@ -865,10 +913,10 @@ checks also passed.
 This proves UIKit/SDL bootstrap, the code-level rendered-menu boundary and one
 same-PID foreground recovery on iOS 26.5 and 27.0 Simulators. It does not prove
 pixels or readability, physical-device behavior, performance, audio
-interruption or multi-cycle soak. Physical-device acceptance remains active
-under IOS-P1-010. Related IOS-P1-002 acceptance is temporarily backlogged while
-the phone is unavailable and requires explicit promotion before that device
-batch.
+interruption or multi-cycle soak. Physical-device acceptance is backlogged
+under IOS-P1-010, alongside IOS-P1-002. Both are deliberately priority-deferred
+behind Phase 2A/2B checkpoint closeout and require explicit promotion before a
+device batch.
 
 The UIScene-local full gate rebuilt four translation units and passed its SDL
 scene 7/7, lifecycle marker 10/10 and retail oracle 74/74 contracts alongside

@@ -87,7 +87,9 @@ PREFIX_DIR="$REPO_ROOT/build/ios-prefix-iphoneos"
 DEVICE_GATE_STAMP="$BUILD_DIR/.ios_device_gate_ok"
 FULL_GATE_STAMP="$BUILD_DIR/.ios_full_gate_ok"
 CMAKE_CONFIG_STAMP="$BUILD_DIR/.ios_cmake_inputs.sha256"
-GATE_CACHE_DIR="$BUILD_DIR/.ios_gate_cache"
+# The helper accepts only this exact absolute spelling.  Keep BUILD_DIR itself
+# relative: the rest of the build/artefact contract relies on that convention.
+GATE_CACHE_DIR="$REPO_ROOT/build/ios-engine-iphoneos/.ios_gate_cache"
 EXPECT_COMPILE="279/279"
 EXPECT_LINK="137/137"
 EXPECT_GLSLANG="16.4.0"
@@ -268,6 +270,7 @@ feedback_stage_command() {
             misc/ios/test_retail_import.py|misc/ios/test_retail_clone_staging.py|\
             misc/ios/test_archive_completed_artifacts.py|misc/ios/test_locator_registration_contract.py|\
             misc/ios/test_retail_test_profiles.py|misc/ios/test_retail_simulator.py|\
+            misc/ios/test_shader_cache.py|\
             misc/ios/test_shader_macro_contract.py|\
             misc/ios/test_shader_resource_contract.py)
                 shift
@@ -578,22 +581,61 @@ validate_digest() {
         || fail "$label produced an invalid digest"
 }
 
-cache_output_path() {
-    local gate="$1"
-    local digest="$2"
-    printf '%s/%s/%s.out\n' "$GATE_CACHE_DIR" "$gate" "$digest"
-}
-
-publish_cache() {
-    local output="$1"
-    local output_file="$2"
-    local output_dir
-    local output_tmp
-    output_dir=$(dirname "$output_file")
-    mkdir -p "$output_dir" || return 1
-    output_tmp="$output_file.tmp.$$"
-    printf '%s\n' "$output" > "$output_tmp" \
-        && mv "$output_tmp" "$output_file"
+shader_cache_output=""
+shader_cache_hit=0
+shader_cache_output_file=""
+run_shader_cache_stage() {
+    # The Python helper is the sole cache authority.  Shell may pass the
+    # existing checker command and consume its transcript, but never probes,
+    # reads or publishes a cache pathname itself.
+    local cache_stage="$1" stage_id="$2" origin="$3" cache_key="$4" cache_salt="$5"
+    local force_direct="$6" status_file status cache_hit direct output_file
+    shift 6
+    local -a helper_args=(run --root "$GATE_CACHE_DIR" --stage "$cache_stage" --key "$cache_key" \
+        --salt "$cache_salt" --cwd "$REPO_ROOT" --timeout 300)
+    [ "$force_direct" = 0 ] || helper_args+=(--force-direct)
+    while [ "$#" -gt 0 ] && [ "$1" != -- ]; do
+        helper_args+=(--input "$1")
+        shift
+    done
+    [ "$#" -gt 0 ] || return 2
+    shift
+    status_file=$(mktemp "${TMPDIR:-/tmp}/openxray-shader-cache-status.XXXXXX") || return 1
+    chmod 600 "$status_file" || { rm -f "$status_file"; return 1; }
+    helper_args+=(--status-file "$status_file" -- "$@")
+    feedback_begin_manual_stage "$stage_id"
+    shader_cache_output=$(feedback_selected_raw "$origin" python3 "$REPO_ROOT/misc/ios/shader_cache.py" "${helper_args[@]}" 2>&1)
+    status=$?
+    if [ "$status" -ne 0 ]; then
+        rm -f "$status_file"
+        return "$status"
+    fi
+    cache_hit=$(awk -F= '$1 == "cache_hit" {print $2}' "$status_file")
+    direct=$(awk -F= '$1 == "direct" {print $2}' "$status_file")
+    output_file=$(awk -F= '$1 == "output_path" {sub(/^[^=]*=/, ""); print}' "$status_file")
+    rm -f "$status_file"
+    case "$cache_hit:$direct" in
+        1:0)
+            shader_cache_hit=1
+            shader_cache_output_file="$output_file"
+            feedback_manual_stage_id=""
+            feedback_manual_stage_started=""
+            if [ "$feedback_enabled" = 1 ]; then
+                feedback_observer cache-certificate --stage "$cache_stage" \
+                    --cache-key "$cache_key" --output-file "$output_file" \
+                    --input-before "$cache_key" --input-after "$cache_key" >/dev/null 2>&1 || true
+            fi
+            ;;
+        0:0|0:1)
+            shader_cache_hit=0
+            shader_cache_output_file=""
+            feedback_complete_manual_stage false
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    return 0
 }
 
 artifact_salt="ios-device-artifact-v2"
@@ -851,6 +893,10 @@ echo "== iOS completed-artifact archive policy gate =="
 feedback_stage "stage::python::misc/ios/test_archive_completed_artifacts.py" python3 misc/ios/test_archive_completed_artifacts.py \
     || fail "completed-artifact archive policy regression tests failed"
 
+echo "== iOS shader cache ownership contract gate =="
+feedback_stage "stage::python::misc/ios/test_shader_cache.py" python3 misc/ios/test_shader_cache.py \
+    || fail "shader cache ownership regression tests failed"
+
 if [ "$run_shaders" = 1 ]; then
     echo "== iOS Locator registration contract gate =="
     feedback_stage "stage::python::misc/ios/test_locator_registration_contract.py" python3 misc/ios/test_locator_registration_contract.py \
@@ -876,14 +922,17 @@ if [ "$run_shaders" = 1 ]; then
         || fail "glslangValidator $EXPECT_GLSLANG is required; found: $(echo "$glslang_version" | head -1)"
     python_version=$(python3 --version 2>&1)
     host_identity=$(uname -srm)
-    mkdir -p "$GATE_CACHE_DIR/compile" "$GATE_CACHE_DIR/link" \
-        || fail "could not create shader gate cache"
-
     glslang_real=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$GLSLANG") \
         || fail "could not resolve glslangValidator"
     compile_inputs=(
         "$REPO_ROOT/misc/ios/build_check.sh"
         "$REPO_ROOT/misc/ios/gate_hash.py"
+        "$REPO_ROOT/misc/ios/shader_cache.py"
+        "$REPO_ROOT/misc/ios/test_shader_cache.py"
+        "$REPO_ROOT/misc/ios/test_feedback.py"
+        "$REPO_ROOT/misc/ios/test_feedback_unittest.py"
+        "$REPO_ROOT/misc/ios/test_test_feedback.py"
+        "$REPO_ROOT/misc/ios/test_feedback_catalog.json"
         "$REPO_ROOT/misc/ios/shadercheck/glsl_es_check.py"
         "$REPO_ROOT/misc/ios/test_shader_macro_contract.py"
         "$REPO_ROOT/misc/ios/test_shader_resource_contract.py"
@@ -919,19 +968,12 @@ if [ "$run_shaders" = 1 ]; then
     compile_hash=$(hash_inputs "$compile_salt" "${compile_inputs[@]}") \
         || fail "could not hash shader compile inputs"
     validate_digest "$compile_hash" "shader compile hash"
-    compile_output_file=$(cache_output_path compile "$compile_hash")
-    compile_cache_hit=0
-    if [ "$force_shader_gate" = 0 ] && [ -f "$compile_output_file" ]; then
-        echo "cache HIT ($compile_hash)"
-        out=$(cat "$compile_output_file") \
-            || fail "could not read shader compile cache"
-        compile_cache_hit=1
-    else
-        echo "cache MISS ($compile_hash)"
-        out=$(feedback_stage "stage::shader::glsl-es" python3 misc/ios/shadercheck/glsl_es_check.py \
-            --glslang "$GLSLANG" --strict 2>&1) \
-            || fail "glsl_es_check.py errored:\n$out"
-    fi
+    run_shader_cache_stage compile "stage::shader::glsl-es" shader::glsl-es "$compile_hash" \
+        "$compile_salt" "$force_shader_gate" "${compile_inputs[@]}" -- \
+        python3 misc/ios/shadercheck/glsl_es_check.py --glslang "$GLSLANG" --strict \
+        || fail "glsl_es_check.py or shader cache errored:\n$shader_cache_output"
+    out="$shader_cache_output"
+    [ "$shader_cache_hit" = 1 ] && echo "cache HIT ($compile_hash)" || echo "cache MISS ($compile_hash)"
     echo "$out" | tail -4
     echo "$out" | grep -q "$EXPECT_COMPILE compile" \
         || fail "expected $EXPECT_COMPILE compiling shaders. A regression here means a shader no longer builds as GLSL ES 3.00."
@@ -945,24 +987,17 @@ if [ "$run_shaders" = 1 ]; then
         || fail "SSAO feature macros must be tested numerically; presence tests select resources the CPU did not populate."
     echo "$out" | grep -q "Numeric feature-macro contract: PASS" \
         || fail "numeric feature macros must retain explicit zero fallbacks and never gain unreviewed presence tests."
-    compile_hash_after=$(hash_inputs "$compile_salt" "${compile_inputs[@]}") \
-        || fail "could not rehash shader compile inputs"
-    [ "$compile_hash_after" = "$compile_hash" ] \
-        || fail "shader compile inputs changed while the gate was running"
-    if [ "$compile_cache_hit" = 0 ]; then
-        publish_cache "$out" "$compile_output_file" \
-            || fail "could not update shader compile cache"
-    elif [ "$feedback_enabled" = 1 ]; then
-        feedback_observer cache-certificate --stage compile \
-            --cache-key "$compile_hash" --output-file "$compile_output_file" \
-            --input-before "$compile_hash" --input-after "$compile_hash_after" >/dev/null 2>&1 || true
-    fi
-
     echo "== shader link gate =="
     link_salt="link|$EXPECT_LINK|$python_version|$host_identity"
     link_inputs=(
         "$REPO_ROOT/misc/ios/build_check.sh" \
         "$REPO_ROOT/misc/ios/gate_hash.py" \
+        "$REPO_ROOT/misc/ios/shader_cache.py" \
+        "$REPO_ROOT/misc/ios/test_shader_cache.py" \
+        "$REPO_ROOT/misc/ios/test_feedback.py" \
+        "$REPO_ROOT/misc/ios/test_feedback_unittest.py" \
+        "$REPO_ROOT/misc/ios/test_test_feedback.py" \
+        "$REPO_ROOT/misc/ios/test_feedback_catalog.json" \
         "$REPO_ROOT/misc/ios/shadercheck/glsl_es_check.py" \
         "$REPO_ROOT/misc/ios/test_shader_macro_contract.py" \
         "$REPO_ROOT/misc/ios/test_shader_resource_contract.py" \
@@ -976,33 +1011,15 @@ if [ "$run_shaders" = 1 ]; then
     link_hash=$(hash_inputs "$link_salt" "${link_inputs[@]}") \
         || fail "could not hash shader link inputs"
     validate_digest "$link_hash" "shader link hash"
-    link_output_file=$(cache_output_path link "$link_hash")
-    link_cache_hit=0
-    if [ "$force_shader_gate" = 0 ] && [ -f "$link_output_file" ]; then
-        echo "cache HIT ($link_hash)"
-        out=$(cat "$link_output_file") \
-            || fail "could not read shader link cache"
-        link_cache_hit=1
-    else
-        echo "cache MISS ($link_hash)"
-        out=$(feedback_stage "stage::shader::link" python3 misc/ios/shadercheck/link_check.py --strict 2>&1) \
-            || fail "link_check.py errored:\n$out"
-    fi
+    run_shader_cache_stage link "stage::shader::link" shader::link "$link_hash" \
+        "$link_salt" "$force_shader_gate" "${link_inputs[@]}" -- \
+        python3 misc/ios/shadercheck/link_check.py --strict \
+        || fail "link_check.py or shader cache errored:\n$shader_cache_output"
+    out="$shader_cache_output"
+    [ "$shader_cache_hit" = 1 ] && echo "cache HIT ($link_hash)" || echo "cache MISS ($link_hash)"
     echo "$out" | tail -1
     echo "$out" | grep -q "$EXPECT_LINK pairs clean" \
         || fail "expected $EXPECT_LINK clean vs->fs pairs. ES links varyings by NAME, so a mismatch here disables a render pass on device."
-    link_hash_after=$(hash_inputs "$link_salt" "${link_inputs[@]}") \
-        || fail "could not rehash shader link inputs"
-    [ "$link_hash_after" = "$link_hash" ] \
-        || fail "shader link inputs changed while the gate was running"
-    if [ "$link_cache_hit" = 0 ]; then
-        publish_cache "$out" "$link_output_file" \
-            || fail "could not update shader link cache"
-    elif [ "$feedback_enabled" = 1 ]; then
-        feedback_observer cache-certificate --stage link \
-            --cache-key "$link_hash" --output-file "$link_output_file" \
-            --input-before "$link_hash" --input-after "$link_hash_after" >/dev/null 2>&1 || true
-    fi
 fi
 
 if [ "$run_engine" = 1 ]; then

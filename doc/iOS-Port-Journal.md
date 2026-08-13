@@ -5217,3 +5217,57 @@ push. This later documentation-only closeout does not claim a matching install
 stamp for its own future commit. No phone, installation, real Simulator runtime,
 rendering, streaming or distribution evidence was produced. Phase 2 remains
 next.
+
+## 2026-08-13 — Phase 2A immutable shader cache host evidence
+
+Phase 2A adds a fail-closed cross-process cache rooted at
+`build/ios-engine-iphoneos/.ios_gate_cache`: per-key kernel `flock`, immutable
+output/receipt publication, no-clobber crash recovery, semantic validation on
+MISS and HIT, shared timeout/signal handling, and exact raw telemetry/certificate
+replay. Full-release/full is force-direct, opens no cache namespace and remains
+shader-uncached. This establishes cache safety only; it does not add a profile
+planner, affected selection or sharding.
+
+The first real run intentionally recorded the failure boundary. Receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786653627459306000-44215-0.json`
+failed after a valid immutable compile publication: `_status()` opened its
+pre-created APFS status file with `O_TRUNC`, then compared a pre-open full
+snapshot, so its own `mtime`/`ctime` mutation failed closed. The correction
+opens and fully validates the bound descriptor before `ftruncate`, then
+revalidates descriptor and pathname after the write. Review also required both
+cache keys to bind `test_feedback_unittest.py` and required bounded exact
+checker failure diagnostics to survive without a successful status/cache entry.
+
+Focused checks passed: shader-cache 19/19, feedback 24/24, installer 14/14,
+Python compilation, Bash syntax and diff check. Natural MISS receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786655817274686000-95683-0.json`
+and its matching log passed in 820.149 s: compile key
+`edf3a05abc38ee365e729e267ed564f6ac223c866b38d643a06e69693cd565d3` and link key
+`2bc155d786c94adc83ac0c3e8643b7d27bbac785b0271873ce5d3235ee29bead` were MISS.
+The identical HIT receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786656650331238000-18314-0.json`
+and its matching log passed in 802.981 s on the same keys. Both finalized
+1,183/1,183 logical IDs
+and 50/50 stages. MISS emitted 1,183 direct unique cases; HIT emitted 750 direct
+plus certified 296 compile and 137 link IDs. The finalizer found no missing,
+extra, overlapping or duplicate IDs. The logical 1,183-ID selection SHA-256 is
+`4ae15fba39fb626c41f9a00ccbf1b1982338690b0b0da7b6212a23d504626f74`; the separate
+50-stage ID SHA-256 is
+`801483ceb8b4f1bafd53720ef26f2730944920bdb571879ba89fa39cf3a5ecbf`.
+Outputs and receipts were `0400`, `nlink=1`, with no active temporary files and
+unchanged worktree.
+
+The measured difference is 17.168 s; this is expected to be small because the
+complete retail preflight remains dominant. It is not a FastDevice, full-release,
+Simulator/device runtime, rendering, streaming, installation, distribution,
+commit or push claim. Sol xhigh separately approved the Phase 2A code review
+and the post-gate evidence review. The complete Phase 2A code-plus-documentation
+checkpoint then received the exact Sol xhigh verdict
+`APPROVE — brak P0/P1/P2`. Phase 2B is the active phone-free task: profile separation and
+a conservative affected planner (unknown/global input selects full); runtime
+claims remain independent, and external build-tree, Simulator and device locks
+remain required before any concurrency beyond the per-key cache locks. Retail
+sharding is deferred. Current `HEAD` and `origin/ios-port` are the later pushed
+documentation closeout `12bd62067a228db1a9ea5699a5641287eecc9432`; the prior
+`5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` was the latest pushed code commit
+and matched origin immediately after its own push.

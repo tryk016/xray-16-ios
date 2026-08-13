@@ -8,35 +8,52 @@
 
 **Platform scope:** iOS-only; desktop compatibility is not an acceptance gate.
 
-**Current focus:** continue startup-sector, measured-profile, dense-UI and
-physical lifecycle validation. The M6 local importer and independently verified
-DevArchive retirement are complete; remaining M6 work is authorized-tester distribution,
-signed-update save preservation and remote-release acceptance. IOS-P2-005's local
+**Current focus:** Phase 2B host feedback optimization: explicit profile
+separation and a conservative affected-test planner. The M6 local importer and
+independently verified DevArchive retirement are complete; remaining M6 work is
+authorized-tester distribution, signed-update save preservation and
+remote-release acceptance. IOS-P2-005's local
 pinning/cache contract is complete and has returned to the Backlog pending two
 remote runs. IOS-P2-006's behavior-preserving BC codec contract is also locally
 complete and backlogged pending a color-space decision plus iPhone reference
 frames. The UIKit scene-lifecycle migration is locally and Simulator-complete;
-its physical-device acceptance remains active IOS-P1-010 plus backlogged
-IOS-P1-002. IOS-P0-003's
+its physical-device acceptance is backlogged as IOS-P1-010, alongside
+IOS-P1-002. Both are deliberately priority-deferred behind Phase 2A/2B
+checkpoint closeout and require explicit promotion. IOS-P0-003's
 stationary branch is corrected and its real iOS 27 capture-v2 publication
 passes; wider save/level and physical-device evidence is now the active edge.
 
-**Host test-feedback:** Optimization Phase 1 is complete. Phase 1A's static
-partition remains: 102 frozen byte/AST-identical IDs, 53 guards, 49 integration
-cases and `host-fast` 55. Phase 1B now supplies a fail-closed component fixture,
-96-record golden and persisted 13/13 contract without changing those profile
-hashes or the 102 test bodies. Acceptance is host-only: integration 49/49 in
-526.322 s, complete 102/102 in 564.422 s, and 20/20 serial fresh-process
-`host-fast` passes with p50 47.472 s/p95 49.323 s. `shaders/device/full/fast`
-still run all 102; `engine` retains its non-shader scope. No production
-FastDevice switch, local concurrency or cache planner exists; checkpoint/full
-remain complete. Phase 2 begins with OS-level shader-cache exclusion or
-immutable namespaces, then explicit conservative profiles/planner. Full remains
-semantically complete and shader-uncached.
+**Host test-feedback:** Optimization Phase 1 remains complete: 102 frozen
+byte/AST-identical retail IDs, 53 guards, 49 integration cases and `host-fast`
+55, with the Phase 1B fail-closed fixture and 13/13 persisted contract.
+Phase 2A code and post-gate evidence are host-complete: the canonical shader cache has per-key kernel locks,
+immutable output/receipt publication, fail-closed recovery and semantic
+MISS/HIT validation. `full` remains force-direct, opens no cache namespace and
+is shader-uncached. Natural `shaders` MISS/HIT passed in 820.149/802.981 s with
+identical 1,183/1,183 logical IDs (SHA-256
+`4ae15fba39fb626c41f9a00ccbf1b1982338690b0b0da7b6212a23d504626f74`) and
+50/50 stages (SHA-256
+`801483ceb8b4f1bafd53720ef26f2730944920bdb571879ba89fa39cf3a5ecbf`); the
+17.168 s saving is not a
+FastDevice or runtime claim because complete retail preflight remains dominant.
+The code review and post-gate evidence review each approved their respective
+scope; the complete Phase 2A code-plus-documentation checkpoint then received
+the exact Sol xhigh verdict `APPROVE — brak P0/P1/P2`. No planner, affected
+selection or sharding exists yet.
 
-**Latest pushed code checkpoint:** exact clean commit
+**Optimization next:** Phase 2B adds explicit profile separation and a
+conservative versioned affected-test planner: unknown or global input must
+select full, and renderer/lifecycle/memory/streaming or runtime claims cannot
+close from affected-only evidence. Existing external build-tree, Simulator and
+device locks remain mandatory before any concurrency beyond per-key cache locks;
+retail sharding is later work.
+
+**Latest pushed code checkpoint:** exact clean code commit
 `5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` received a clean post-commit full
-PASS and now equals `origin/ios-port` after push (`9aad5df0a..5b0bc5ba0`).
+PASS. It was the latest pushed code commit and matched `origin/ios-port`
+immediately after push (`9aad5df0a..5b0bc5ba0`). The later documentation
+closeout `12bd62067a228db1a9ea5699a5641287eecc9432` is now both `HEAD` and
+`origin/ios-port`.
 Receipt `gate-1786642077179447000-182-0.json` records 1,164 cases/58 stages,
 zero errors/skips, profile 13/13, retail 102/102, uncached shader compile/link
 137/137 and Release 68 TUs in 914.847 s. It authorizes only that push; this
@@ -60,7 +77,38 @@ here is deferred and must be promoted explicitly from the Backlog.
 | M6 — Distribution | Reproducible tester package and data setup | Local importer complete; distribution acceptance remains |
 | M7 — Renderer decision | ES, ANGLE or native Metal from measurements | Deferred |
 
-## 1. IOS-P0-003: validate startup-sector recovery across content
+## 1. IOS-P1-011: Phase 2B — separate host profiles and add a conservative affected-test planner
+
+**Priority:** P1.
+
+**Evidence level:** Phase 1's frozen retail profile contract is complete.
+Phase 2A's code review and its natural host MISS/HIT evidence review each
+approved their scopes; the complete Phase 2A code-plus-documentation checkpoint
+then received the exact Sol xhigh verdict `APPROVE — brak P0/P1/P2`. The current evidence is host-only: logical selection
+SHA-256 `4ae15fba39fb626c41f9a00ccbf1b1982338690b0b0da7b6212a23d504626f74` and
+50-stage SHA-256
+`801483ceb8b4f1bafd53720ef26f2730944920bdb571879ba89fa39cf3a5ecbf` are equal
+for the natural `shaders` MISS/HIT receipts. No affected selection, local
+sharding or runtime evidence exists.
+
+**Next actions:**
+
+1. Freeze the complete post-Phase-2A entrypoint inventory, IDs, labels,
+   timeouts, resources and explicit inputs, with per-case/per-stage JSON timing.
+2. Add versioned profile selection for `host-fast`, shader-affected,
+   engine-affected, retail-integration, full-release, sim-runtime and
+   device-runtime; unknown or global paths select full.
+3. Preserve every existing guard and fail-closed mutation case. Runtime claims
+   for renderer, lifecycle, memory or streaming stay outside affected-only
+   selection.
+
+**Acceptance:** the old and new runners select identical stable IDs before any
+profile optimization; an injected failure propagates identically; unknown/global
+inputs select full; full-release remains semantically complete and shader
+uncached. No profile or host result is presented as Simulator/device/runtime
+proof.
+
+## 2. IOS-P0-003: validate startup-sector recovery across content
 
 **Priority:** P0.
 
@@ -184,7 +232,7 @@ acceptance.
   sector and visual evidence kept distinct.
 - No prefetch spike, unbounded growth or diagnostic visibility counters.
 
-## 2. IOS-P1-005: validate graphics profiles and presentation baseline
+## 3. IOS-P1-005: validate graphics profiles and presentation baseline
 
 **Priority:** P1, immediately after IOS-P0-003.
 
@@ -225,7 +273,7 @@ VSync, MSAA and postprocessing remain fixed.
 Optimal does not oscillate or change shader/resource topology; transitions do
 not corrupt the frame; and five foreground cycles retain 1864×860.
 
-## 3. IOS-P1-006: close visible UI renderer gaps
+## 4. IOS-P1-006: close visible UI renderer gaps
 
 **Priority:** P1.
 
@@ -311,32 +359,6 @@ Advanced desktop graphics controls are not part of the iOS product.
 
 **Acceptance:** menu, HUD, inventory, PDA/map and video surfaces are complete,
 readable and internally consistent on the supported iPhone baseline.
-
-## 4. IOS-P1-010: adopt UIKit scene lifecycle for iOS 27
-
-**Priority:** P1.
-
-**Evidence level:** the hash-pinned SDL2 2.32.10 UIScene backport,
-deterministic oracle, iOS 26.5/27.0 Simulator runs and final Sol xhigh approval
-are complete. The delayed lifecycle fixture now uses a PID-validated
-`pending -> armed -> released` handshake; 50 sequential, 200 eight-way parallel
-and the full 84-test retail suite pass without changing production guards.
-Physical-device acceptance remains untested.
-
-The app declares one scene, uses `SDLUIKitSceneDelegate`, starts `SDL_main`
-once, binds iOS 13+ windows to a connected `UIWindowScene`, and preserves one
-PID across one ordered Simulator recovery cycle. This is bootstrap and
-menu-boundary evidence only, not physical-device, pixel, audio or soak proof.
-
-**Next actions:**
-
-1. Run five physical-device Safari/background cycles and confirm one PID,
-   drawable, input, saves and the UIScene transition markers.
-2. Run one separate lock/unlock cycle and one audio-interruption cycle without
-   replacing the process or losing the drawable.
-
-**Acceptance:** five physical-device foreground cycles plus one lock/unlock and
-audio-interruption cycle preserve PID, input, audio, drawable and saves.
 
 ## 5. M6: make legal retail-data import resumable and verifiable
 

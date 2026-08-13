@@ -26,10 +26,10 @@ import test_feedback as feedback
 
 
 AUDITED = {
-    "central-python": "a1d44f025c13d688885d530dc8c91266744ff5a4965b5d0ec07f0d2a9e147560",
+    "central-python": "445de4b6c81dc03622bd664ebc56eeef2bf8751321b70c58240e52406220a1c0",
     "ci-contract": "0dff3ed04462d247c96ae814e597e1f52500530fc98752c82149f108ee4f23fb",
     "host-infra": "d9a3b20deb64f2f00d47175b6cd2b5db51e2bb8d95bb064f56637270e7f214a6",
-    "legacy-python": "2a0b400ff28b119b2b33bb68cc9d58bd0d28a730b6c631020181794437aae1d0",
+    "legacy-python": "ab2e02c8f9d1779c2969adcd668d6eaecaddad4d262dc51c7d39e6e1eeb11adf",
     "cpp": "2e3b8feb7d6b7c143e322e391a09725be032b6d155afc4614f7f8e673ad2eae2",
     "shell": "fdfa6b29c893090567b3c9e498ce0ebd641d7a45f6336f20792c0f1da2ef1977",
     "shader-baseline": "e817fbc5e008b775761533a828bec1e7d8801e6c1736bffb852f42715684b0ab",
@@ -181,6 +181,7 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
         gate_hash = (feedback.ROOT / "misc/ios/gate_hash.py").read_text(encoding="utf-8")
         for path in ("misc/ios/test_feedback.py", "misc/ios/test_feedback_catalog.json",
                      "misc/ios/test_feedback_unittest.py", "misc/ios/test_test_feedback.py",
+                     "misc/ios/shader_cache.py", "misc/ios/test_shader_cache.py",
                      "misc/ios/retail_test_profiles.py", "misc/ios/retail_test_profiles.json",
                      "misc/ios/test_retail_test_profiles.py",
                      "misc/ios/test_retail_fixture_contract.py",
@@ -207,8 +208,8 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
         catalog = feedback.read_catalog()
         records = feedback.catalog_entrypoint_ids(catalog)
         self.assertEqual(records, feedback.expected_entrypoints())
-        self.assertEqual(len(records), 52)
-        self.assertEqual(sum(item.startswith("python::") for item in records), 31)
+        self.assertEqual(len(records), 53)
+        self.assertEqual(sum(item.startswith("python::") for item in records), 32)
         self.assertEqual(sum(item.startswith("cpp:") for item in records), 9)
         by_id = {entry["entrypoint_id"]: entry for entry in catalog["entrypoints"]}
         all_five = ["engine", "shaders", "device", "full", "fast"]
@@ -280,7 +281,7 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
             by_id["python::misc/ios/test_test_feedback.py"]["expected_case_count"],
             len(actual),
         )
-        self.assertEqual(catalog["frozen"]["baseline"]["legacy_python_cases"], 781)
+        self.assertEqual(catalog["frozen"]["baseline"]["legacy_python_cases"], 800)
         self.assertNotIn("phase0-tooling", catalog["frozen"]["groups"])
 
     def test_static_ids_archive_semantics_and_no_import_side_effect(self) -> None:
@@ -2007,8 +2008,8 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
                     feedback.parse_gate_validation_entrypoints(root)
         family_anchors = (
             'feedback_stage "stage::shell::ui-log-oracle" misc/ios/ui_automation/test_log_oracles.sh \\\n',
-            '        out=$(feedback_stage "stage::shader::glsl-es" python3 misc/ios/shadercheck/glsl_es_check.py \\\n',
-            '        out=$(feedback_stage "stage::shader::link" python3 misc/ios/shadercheck/link_check.py --strict 2>&1) \\\n',
+            '    run_shader_cache_stage compile "stage::shader::glsl-es" shader::glsl-es "$compile_hash" \\\n',
+            '    run_shader_cache_stage link "stage::shader::link" shader::link "$link_hash" \\\n',
         )
         for index, anchor in enumerate(family_anchors):
             with self.subTest(gate_family_anchor=index), tempfile.TemporaryDirectory() as temporary:
@@ -2022,14 +2023,7 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
         dispatcher_anchors = (
             '    elif [ "${1:-}" = misc/ios/ui_automation/test_log_oracles.sh ]; then\n'
             '        feedback_selected_shell "$@"\n        return $?\n',
-            '            misc/ios/shadercheck/glsl_es_check.py)\n'
-            '                if [[ " $* " = *" --strict "* ]]; then\n'
-            '                    shift\n                    feedback_selected_python "$@"\n'
-            '                    return $?\n',
-            '            misc/ios/shadercheck/link_check.py)\n'
-            '                if [[ " $* " = *" --strict "* ]]; then\n'
-            '                    shift\n                    feedback_selected_python "$@"\n'
-            '                    return $?\n',
+            '    shader_cache_output=$(feedback_selected_raw "$origin" python3 "$REPO_ROOT/misc/ios/shader_cache.py" "${helper_args[@]}" 2>&1)\n',
         )
         for index, anchor in enumerate(dispatcher_anchors):
             with self.subTest(dispatcher_family=index), tempfile.TemporaryDirectory() as temporary:
