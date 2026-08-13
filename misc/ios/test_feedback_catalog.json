@@ -1,0 +1,1934 @@
+{
+  "build_stage_exclusions": [
+    {
+      "anchor_regex": "^hash_inputs\\(\\) \\{$",
+      "classification": "build-state",
+      "reason": "Hashes build inputs and cache keys; it does not execute a test case.",
+      "stage_id": "build-stage::input-hashing"
+    },
+    {
+      "anchor_regex": "^\\s+cmake -S \\. -B \"\\$BUILD_DIR\" -DXRAY_IOS_FAST_DEVICE=OFF$",
+      "classification": "build-configuration",
+      "reason": "Configures the product build tree and has no stable test ID.",
+      "stage_id": "build-stage::cmake-configure"
+    },
+    {
+      "anchor_regex": "^\\s+artifact_hash_before=\\$\\(python3 \"\\$REPO_ROOT/misc/ios/gate_hash\\.py\" \\\\$",
+      "classification": "build-state",
+      "reason": "Computes artifact identity for stamping; it is not a test/validation entrypoint.",
+      "stage_id": "build-stage::artifact-input-hash-before"
+    },
+    {
+      "anchor_regex": "^\\s+xcrun --sdk macosx --find clang\\+\\+ >/dev/null 2>&1 \\\\$",
+      "classification": "toolchain-probe",
+      "reason": "Checks toolchain availability before compiling C++ policy executables.",
+      "stage_id": "build-stage::host-compiler-probe"
+    },
+    {
+      "anchor_regex": "^\"\\$\\{policy_compile\\[@\\]\\}\" -std=c\\+\\+17 -I \"\\$REPO_ROOT\"",
+      "classification": "test-fixture-build",
+      "expected_matches": 14,
+      "reason": "Compiles policy-test executables; their separate binary executions own the test IDs.",
+      "stage_id": "build-stage::cpp-policy-compilation"
+    },
+    {
+      "anchor_regex": "^\\s+glslang_version=\\$\\(\"\\$GLSLANG\" --version\\)$",
+      "classification": "toolchain-probe",
+      "reason": "Captures compiler version for the shader cache/input contract.",
+      "stage_id": "build-stage::glslang-toolchain-probe"
+    },
+    {
+      "anchor_regex": "^\\s+otool_output=\\$\\(otool -L \"\\$glslang_real\"\\) \\\\$",
+      "classification": "build-input-discovery",
+      "reason": "Discovers dynamic dependencies for hashing; it does not validate a test case.",
+      "stage_id": "build-stage::dependency-discovery"
+    },
+    {
+      "anchor_regex": "^\\s+if ! cmake --build \"\\$BUILD_DIR\" --config Release --target xr_3da \\\\$",
+      "classification": "product-build",
+      "reason": "Builds the product artifact and is intentionally outside stable test IDs.",
+      "stage_id": "build-stage::release-engine-build"
+    },
+    {
+      "anchor_regex": "^\\s+\"\\$REPO_ROOT/misc/ios/sync_app_resources\\.sh\" \"\\$app\" \\\\$",
+      "classification": "product-packaging",
+      "reason": "Packages app resources into the product bundle; it is not a test case.",
+      "stage_id": "build-stage::resource-sync"
+    },
+    {
+      "anchor_regex": "^\\s+build_info=\\$\\(xcrun vtool -show-build \"\\$app/xr_3da\" 2>/dev/null\\)$",
+      "classification": "artifact-build-verification",
+      "reason": "Verifies properties of the newly built artifact; no reusable stable test case is executed.",
+      "stage_id": "build-stage::artifact-platform-debug-verification"
+    },
+    {
+      "anchor_regex": "^\\s+stamp_tmp=\"\\$DEVICE_GATE_STAMP\\.tmp\\.\\$\\$\"$",
+      "classification": "gate-publication",
+      "reason": "Publishes gate authorization state and must never be represented as a test ID.",
+      "stage_id": "build-stage::stamp-publication"
+    },
+    {
+      "anchor_regex": "^\\s+python3 \"\\$REPO_ROOT/misc/ios/gate_hash\\.py\" --salt \"\\$salt\" \"\\$@\"$",
+      "classification": "build-state",
+      "reason": "Implements build/cache hashing and does not execute tests.",
+      "stage_id": "build-stage::gate-hash-helper"
+    },
+    {
+      "anchor_regex": "^\\s+python3 \"\\$REPO_ROOT/misc/ios/gate_hash\\.py\" \\\\$",
+      "classification": "build-state",
+      "expected_matches": 1,
+      "reason": "Hashes stabilized CMake inputs; it is build state, not a test.",
+      "stage_id": "build-stage::cmake-config-hash"
+    },
+    {
+      "anchor_regex": "^\\s+python_version=\\$\\(python3 --version 2>&1\\)$",
+      "classification": "toolchain-probe",
+      "reason": "Captures toolchain identity for shader-cache hashing.",
+      "stage_id": "build-stage::python-version-probe"
+    },
+    {
+      "anchor_regex": "^\\s+glslang_real=\\$\\(python3 -c .* \"\\$GLSLANG\"\\) \\\\$",
+      "classification": "toolchain-probe",
+      "reason": "Resolves the compiler artifact before hashing its dependency closure.",
+      "stage_id": "build-stage::glslang-realpath-probe"
+    },
+    {
+      "anchor_regex": "^\\s+bundle_hash=\\$\\(python3 \"\\$REPO_ROOT/misc/ios/gate_hash\\.py\" \\\\$",
+      "classification": "build-state",
+      "reason": "Hashes the produced app bundle for gate stamping.",
+      "stage_id": "build-stage::bundle-hash"
+    },
+    {
+      "anchor_regex": "^\\s+artifact_hash_after=\\$\\(python3 \"\\$REPO_ROOT/misc/ios/gate_hash\\.py\" \\\\$",
+      "classification": "build-state",
+      "reason": "Rehashes artifact inputs to detect mutation during the product build.",
+      "stage_id": "build-stage::artifact-input-hash-after"
+    },
+    {
+      "anchor_regex": "^\\s+ldd_output=\\$\\(ldd \"\\$glslang_real\" 2>/dev/null\\) \\\\$",
+      "classification": "build-input-discovery",
+      "reason": "Linux alternative for compiler dependency hashing; no test case is run.",
+      "stage_id": "build-stage::dependency-discovery-linux"
+    }
+  ],
+  "cache_authority": "NONE",
+  "entrypoints": [
+    {
+      "entrypoint_id": "python::misc/ios/test_active_gate.py",
+      "expected_case_count": 12,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_active_gate.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_run_gate_logged.py",
+      "expected_case_count": 9,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_run_gate_logged.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_openal_provider_contract.py",
+      "expected_case_count": 14,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_openal_provider_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_sdl2_scene_contract.py",
+      "expected_case_count": 7,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_sdl2_scene_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_install_device_contract.py",
+      "expected_case_count": 14,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_install_device_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "device-install-contract"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_lighting_ab_evidence.py",
+      "expected_case_count": 31,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_lighting_ab_evidence.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_capture_v2_host_tools.py",
+      "expected_case_count": 8,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_capture_v2_host_tools.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_capture_state_source_contract.py",
+      "expected_case_count": 2,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_capture_state_source_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_sector_startup_oracle.py",
+      "expected_case_count": 17,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_sector_startup_oracle.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_sector_marker_contract.py",
+      "expected_case_count": 10,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_sector_marker_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_lifecycle_marker_contract.py",
+      "expected_case_count": 10,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_lifecycle_marker_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_ui_contract_check.py",
+      "expected_case_count": 32,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_ui_contract_check.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "ui-contract"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_activity_trace_summary.py",
+      "expected_case_count": 20,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_activity_trace_summary.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_ui_state_marker_contract.py",
+      "expected_case_count": 22,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_ui_state_marker_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "ui-contract"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_pda_map_hotkey_contract.py",
+      "expected_case_count": 6,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_pda_map_hotkey_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "ui-contract"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_simulator_ui_navigation.py",
+      "expected_case_count": 34,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_simulator_ui_navigation.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "simulator-contract",
+        "ui-contract"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 1200
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_ui_capture_evidence.py",
+      "expected_case_count": 15,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_ui_capture_evidence.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "ui-contract"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_ios_quickload_input_contract.py",
+      "expected_case_count": 3,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_ios_quickload_input_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "ui-contract"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_simulator_quickload_evidence.py",
+      "expected_case_count": 45,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_simulator_quickload_evidence.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "simulator-contract",
+        "ui-contract"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 1200
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_retail_import.py",
+      "expected_case_count": 21,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_retail_import.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "retail-contract"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 1200
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_retail_clone_staging.py",
+      "expected_case_count": 76,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_retail_clone_staging.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "retail-contract"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 1200
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_archive_completed_artifacts.py",
+      "expected_case_count": 131,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_archive_completed_artifacts.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "archive-policy"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 1200
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_locator_registration_contract.py",
+      "expected_case_count": 8,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_locator_registration_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_retail_simulator.py",
+      "expected_case_count": 102,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_retail_simulator.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "retail-contract",
+        "simulator-contract"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 1200
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_shader_macro_contract.py",
+      "expected_case_count": 30,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_shader_macro_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "shader-contract"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_shader_resource_contract.py",
+      "expected_case_count": 13,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_shader_resource_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "central",
+        "shader-contract"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_ios_ci_contract.py",
+      "expected_case_count": 79,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_ios_ci_contract.py"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "ci-contract",
+      "labels": [
+        "python",
+        "unittest",
+        "ci-contract"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_cleanup_simulator_work.py",
+      "expected_case_count": 8,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_cleanup_simulator_work.py"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "host-infra",
+      "labels": [
+        "python",
+        "unittest",
+        "host-infra",
+        "simulator-contract"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 1200
+    },
+    {
+      "entrypoint_id": "python::misc/ios/ui_automation/test_prepare_scheme.py",
+      "expected_case_count": 2,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/ui_automation/test_prepare_scheme.py"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "host-infra",
+      "labels": [
+        "python",
+        "unittest",
+        "host-infra",
+        "ui-contract"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_test_feedback.py",
+      "expected_case_count": 11,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/test_test_feedback.py"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "phase0-tooling",
+      "labels": [
+        "python",
+        "unittest",
+        "phase0-tooling"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "cpp:misc/ios/ios_capture_state_v2_test",
+      "expected_case_count": 2,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/ios_capture_state_v2_test.cpp"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "cpp-policy-source",
+      "labels": [
+        "cpp",
+        "policy-contract",
+        "sanitizer-covered"
+      ],
+      "resources": [
+        "host",
+        "compiler"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 600,
+      "variants": [
+        "strict",
+        "asan-ubsan"
+      ]
+    },
+    {
+      "entrypoint_id": "cpp:misc/ios/ios_diagnostic_input_state_test",
+      "expected_case_count": 2,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/ios_diagnostic_input_state_test.cpp"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "cpp-policy-source",
+      "labels": [
+        "cpp",
+        "policy-contract",
+        "sanitizer-covered"
+      ],
+      "resources": [
+        "host",
+        "compiler"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 600,
+      "variants": [
+        "strict",
+        "asan-ubsan"
+      ]
+    },
+    {
+      "entrypoint_id": "cpp:misc/ios/sector_fallback_policy_test",
+      "expected_case_count": 2,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/sector_fallback_policy_test.cpp"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "cpp-policy-source",
+      "labels": [
+        "cpp",
+        "policy-contract",
+        "sanitizer-covered"
+      ],
+      "resources": [
+        "host",
+        "compiler"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 600,
+      "variants": [
+        "strict",
+        "asan-ubsan"
+      ]
+    },
+    {
+      "entrypoint_id": "cpp:misc/ios/graphics_profile_policy_test",
+      "expected_case_count": 1,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/graphics_profile_policy_test.cpp"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "cpp-policy-source",
+      "labels": [
+        "cpp",
+        "policy-contract"
+      ],
+      "resources": [
+        "host",
+        "compiler"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 600,
+      "variants": [
+        "strict"
+      ]
+    },
+    {
+      "entrypoint_id": "cpp:misc/ios/lifecycle_policy_test",
+      "expected_case_count": 1,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/lifecycle_policy_test.cpp"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "cpp-policy-source",
+      "labels": [
+        "cpp",
+        "policy-contract"
+      ],
+      "resources": [
+        "host",
+        "compiler"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 600,
+      "variants": [
+        "strict"
+      ]
+    },
+    {
+      "entrypoint_id": "cpp:misc/ios/audio_interruption_policy_test",
+      "expected_case_count": 1,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/audio_interruption_policy_test.cpp"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "cpp-policy-source",
+      "labels": [
+        "cpp",
+        "policy-contract"
+      ],
+      "resources": [
+        "host",
+        "compiler"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 600,
+      "variants": [
+        "strict"
+      ]
+    },
+    {
+      "entrypoint_id": "cpp:misc/ios/texture_memory_policy_test",
+      "expected_case_count": 1,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/texture_memory_policy_test.cpp"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "cpp-policy-source",
+      "labels": [
+        "cpp",
+        "policy-contract"
+      ],
+      "resources": [
+        "host",
+        "compiler"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 600,
+      "variants": [
+        "strict"
+      ]
+    },
+    {
+      "entrypoint_id": "cpp:misc/ios/texture_bc_fallback_test",
+      "expected_case_count": 2,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/texture_bc_fallback_test.cpp"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "cpp-policy-source",
+      "labels": [
+        "cpp",
+        "policy-contract",
+        "sanitizer-covered"
+      ],
+      "resources": [
+        "host",
+        "compiler"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 600,
+      "variants": [
+        "strict",
+        "asan-ubsan"
+      ]
+    },
+    {
+      "entrypoint_id": "cpp:misc/ios/ui_focus_geometry_policy_test",
+      "expected_case_count": 2,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/ui_focus_geometry_policy_test.cpp"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "cpp-policy-source",
+      "labels": [
+        "cpp",
+        "policy-contract",
+        "sanitizer-covered"
+      ],
+      "resources": [
+        "host",
+        "compiler"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 600,
+      "variants": [
+        "strict",
+        "asan-ubsan"
+      ]
+    },
+    {
+      "entrypoint_id": "shell::ui-log-oracle",
+      "expected_case_count": 12,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/ui_automation/test_log_oracles.sh"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/ui_automation/log_oracles.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "shell-fixture-family",
+      "labels": [
+        "shell",
+        "lifecycle-contract",
+        "audio-contract"
+      ],
+      "resources": [
+        "host",
+        "shell"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "shader::glsl-es",
+      "expected_case_count": 296,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/shadercheck/glsl_es_check.py"
+        },
+        {
+          "type": "glob",
+          "value": "res/gamedata/shaders/gl/**"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "shader-compile-checker",
+      "labels": [
+        "shader",
+        "glsl-es",
+        "compile-contract"
+      ],
+      "resources": [
+        "host",
+        "glslang"
+      ],
+      "selected_profiles": [
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 1200
+    },
+    {
+      "entrypoint_id": "shader::link",
+      "expected_case_count": 137,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/shadercheck/link_check.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/shadercheck/glsl_es_check.py"
+        },
+        {
+          "type": "glob",
+          "value": "res/gamedata/shaders/gl/**"
+        },
+        {
+          "type": "glob",
+          "value": "src/Layers/xrRender/**"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "shader-link-checker",
+      "labels": [
+        "shader",
+        "glsl-es",
+        "link-contract"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 900
+    },
+    {
+      "entrypoint_id": "xctest::OpenXRayUITests",
+      "expected_case_count": 4,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/ui_automation/OpenXRayUITests.m"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/ui_automation/run.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "xctest",
+      "labels": [
+        "xctest",
+        "device-runtime",
+        "ui-automation"
+      ],
+      "resources": [
+        "physical-device"
+      ],
+      "selected_profiles": [],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 1200
+    },
+    {
+      "entrypoint_id": "validation::python::openal-configured",
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/openal_provider_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        },
+        {
+          "type": "path",
+          "value": "build/ios-engine-iphoneos/CMakeCache.txt"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-contract-cli",
+      "labels": [
+        "python",
+        "openal",
+        "configured-contract"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [
+        "engine",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "validation::python::openal-artifact",
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/openal_provider_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        },
+        {
+          "type": "glob",
+          "value": "build/ios-prefix-iphoneos/**"
+        },
+        {
+          "type": "path",
+          "value": "bin/aarch64/Release/xr_3da.app/xr_3da"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-contract-cli",
+      "labels": [
+        "python",
+        "openal",
+        "artifact-contract"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [
+        "engine",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "validation::bash-n::run-gate-launcher",
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/run_gate_logged.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "shell-syntax-validation",
+      "labels": [
+        "shell",
+        "syntax",
+        "gate-runner"
+      ],
+      "resources": [
+        "host",
+        "bash"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 60
+    },
+    {
+      "entrypoint_id": "validation::bash-n::capture-tools",
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/device_lease.sh"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/input.sh"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/shot.sh"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/lighting_ab_capture.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "shell-syntax-validation",
+      "labels": [
+        "shell",
+        "syntax",
+        "capture-tools"
+      ],
+      "resources": [
+        "host",
+        "bash"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 60
+    },
+    {
+      "entrypoint_id": "validation::shellcheck::capture-tools",
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/device_lease.sh"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/input.sh"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/shot.sh"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/lighting_ab_capture.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "shell-static-analysis",
+      "labels": [
+        "shell",
+        "static-analysis",
+        "capture-tools"
+      ],
+      "resources": [
+        "host",
+        "shellcheck"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 120
+    },
+    {
+      "entrypoint_id": "validation::python::ui-contract",
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/ui_contract_check.py"
+        },
+        {
+          "type": "glob",
+          "value": "res/gamedata/configs/ui/**"
+        },
+        {
+          "type": "glob",
+          "value": "res/gamedata/scripts/ui_mm_opt_*.script"
+        },
+        {
+          "type": "glob",
+          "value": "src/xrGame/ui/**"
+        },
+        {
+          "type": "glob",
+          "value": "src/xrUICore/ScrollView/**"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-contract-cli",
+      "labels": [
+        "python",
+        "ui-contract",
+        "product-config"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "validation::shader::macro-contract",
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/shadercheck/glsl_es_check.py"
+        },
+        {
+          "type": "glob",
+          "value": "res/gamedata/shaders/gl/**"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "shader-static-contract",
+      "labels": [
+        "python",
+        "shader",
+        "macro-contract"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    }
+  ],
+  "frozen": {
+    "baseline": {
+      "central_python_cases": 692,
+      "central_python_files": 26,
+      "ci_cases": 79,
+      "ci_files": 1,
+      "legacy_python_cases": 781,
+      "legacy_python_files": 29,
+      "preexisting_host_infra_cases": 10,
+      "preexisting_host_infra_files": 2,
+      "retail_simulator_cases": 102
+    },
+    "groups": {
+      "central-python": {
+        "audited_sha256": "a1d44f025c13d688885d530dc8c91266744ff5a4965b5d0ec07f0d2a9e147560",
+        "count": 692
+      },
+      "ci-contract": {
+        "audited_sha256": "0dff3ed04462d247c96ae814e597e1f52500530fc98752c82149f108ee4f23fb",
+        "count": 79
+      },
+      "cpp": {
+        "audited_sha256": "2e3b8feb7d6b7c143e322e391a09725be032b6d155afc4614f7f8e673ad2eae2",
+        "count": 14
+      },
+      "host-infra": {
+        "audited_sha256": "d9a3b20deb64f2f00d47175b6cd2b5db51e2bb8d95bb064f56637270e7f214a6",
+        "count": 10
+      },
+      "legacy-python": {
+        "audited_sha256": "2a0b400ff28b119b2b33bb68cc9d58bd0d28a730b6c631020181794437aae1d0",
+        "count": 781
+      },
+      "shader-baseline": {
+        "audited_sha256": "e817fbc5e008b775761533a828bec1e7d8801e6c1736bffb852f42715684b0ab",
+        "count": 279
+      },
+      "shader-links": {
+        "audited_sha256": "5bf4594445e395f4e32a191e8d2aa26716878bf809c99013e2e1b2ee3cd1c212",
+        "count": 137
+      },
+      "shader-variants": {
+        "audited_sha256": "2e51d4d72b14ba85b0a2302ace76dd1dc25ab3782ebc72a3b1e7d6028af7fad8",
+        "count": 17
+      },
+      "shell": {
+        "audited_sha256": "fdfa6b29c893090567b3c9e498ce0ebd641d7a45f6336f20792c0f1da2ef1977",
+        "count": 12
+      },
+      "xctest": {
+        "audited_sha256": "2b62812c1d340f8eef901bb48cdd4d5078352f7e3ea6086c35eb116dbfd26b03",
+        "count": 4
+      }
+    }
+  },
+  "profiles": [
+    "engine",
+    "shaders",
+    "device",
+    "full",
+    "fast"
+  ],
+  "schema": "openxray.test-feedback-catalog.v1",
+  "selection_authority": "NONE"
+}

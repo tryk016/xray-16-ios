@@ -34,6 +34,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 from collections import Counter
 from dataclasses import dataclass
+import json
 import os
 import re
 import subprocess
@@ -813,6 +814,109 @@ def normalize_error(msg: str) -> str:
     return key.strip()
 
 
+DEAD_FILES = {"ssao_hdao_new.ps"}
+ENTRY_RE = re.compile(r'\bvoid\s+main\s*\(')
+LOW_SETTINGS_TARGETS = {"combine_1_nomsaa.ps", "ssao_calc.ps"}
+SSAO_PROFILES = (
+    ("disabled", "combine_1_nomsaa.ps", {"SSAO_QUALITY": "0", "SSAO_OPT_DATA": "0"}),
+    ("full-gbuffer", "combine_1_nomsaa.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "0"}),
+    ("optimized-full", "combine_1_nomsaa.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "1"}),
+    ("optimized-half", "combine_1_nomsaa.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "2"}),
+    ("downsample-full", "depth_downs.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "1"}),
+    ("downsample-half", "depth_downs.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "2"}),
+)
+
+
+def build_ssr_profiles() -> list[tuple[str, str, dict[str, str | None]]]:
+    profiles: list[tuple[str, str, dict[str, str | None]]] = [
+        ("off", "water.ps", {"SSR_QUALITY": "0", "SSR_HALF_DEPTH": None, "SSAO_OPT_DATA": "0"})
+    ]
+    for quality in range(1, 5):
+        profiles.append(
+            (
+                f"q{quality}-full-depth",
+                "water.ps",
+                {"SSR_QUALITY": str(quality), "SSR_HALF_DEPTH": None, "SSAO_OPT_DATA": "0"},
+            )
+        )
+        profiles.append(
+            (
+                f"q{quality}-half-depth",
+                "water.ps",
+                {"SSR_QUALITY": str(quality), "SSR_HALF_DEPTH": "1", "SSAO_OPT_DATA": "1"},
+            )
+        )
+    return profiles
+
+
+def ssr_case_id(profile_name: str) -> str:
+    if profile_name == "off":
+        return "shader:ssr:off"
+    match = re.fullmatch(r"q([1-4])-(full|half)-depth", profile_name)
+    if match is None:
+        raise RuntimeError(f"unsupported SSR profile name: {profile_name}")
+    return f"shader:ssr:{match.group(2)}-q{match.group(1)}"
+
+
+def discover_shader_sources(root: str) -> list[tuple[str, str]]:
+    """Return the deterministic source/stage enumeration used by every mode."""
+    shaders: list[tuple[str, str]] = []
+    for dirpath, _dirs, files in os.walk(root):
+        for filename in sorted(files):
+            if filename in DEAD_FILES:
+                continue
+            path = os.path.join(dirpath, filename)
+            if filename.endswith(".vs"):
+                shaders.append((path, "vert"))
+            elif filename.endswith(".ps"):
+                shaders.append((path, "frag"))
+    return sorted(shaders)
+
+
+def list_baseline_paths(root: str, roots: list[str]) -> list[str]:
+    """List baseline cases without invoking glslang; ordinary mode does not call this."""
+    cases: list[str] = []
+    for path, stage in discover_shader_sources(root):
+        try:
+            source = assemble(path, stage, roots)
+        except Exception:
+            cases.append(path)
+            continue
+        if ENTRY_RE.search(source):
+            cases.append(path)
+    return cases
+
+
+def list_cases_json(root: str, roots: list[str]) -> str:
+    sources = discover_shader_sources(root)
+    source_names = {os.path.basename(path) for path, _stage in sources}
+    ssr_profiles = build_ssr_profiles()
+    required = (
+        LOW_SETTINGS_TARGETS
+        | {target for _label, target, _overrides in SSAO_PROFILES}
+        | {target for _label, target, _overrides in ssr_profiles}
+    )
+    missing = sorted(required - source_names)
+    if missing:
+        raise RuntimeError(f"variant shader target missing: {', '.join(missing)}")
+    baseline = [
+        f"shader:baseline:{os.path.relpath(path, root)}"
+        for path in list_baseline_paths(root, roots)
+    ]
+    variants = (
+        [f"shader:low:{target}" for target in sorted(LOW_SETTINGS_TARGETS)]
+        + [f"shader:ssao:{label}" for label, _target, _overrides in SSAO_PROFILES]
+        + [
+            ssr_case_id(label)
+            for label, _target, _overrides in ssr_profiles
+        ]
+    )
+    return json.dumps(
+        {"baseline": baseline, "schema": "openxray.shader-case-list.v1", "variants": variants},
+        sort_keys=True, separators=(",", ":"),
+    )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--shaders", default="res/gamedata/shaders/gl")
@@ -824,6 +928,7 @@ def main() -> int:
     )
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--strict", action="store_true")
+    ap.add_argument("--list-json", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument(
         "--jobs",
         type=int,
@@ -833,11 +938,19 @@ def main() -> int:
     ap.add_argument("--dump", type=int, default=0,
                     help="print full glslang output for the first N failing shaders")
     args = ap.parse_args()
+    root = args.shaders
+    if args.list_json:
+        if args.macro_contract or args.verbose or args.strict or args.dump or args.jobs:
+            ap.error("--list-json accepts only --shaders")
+        if not os.path.isdir(root):
+            print(f"::error::shader dir not found: {root}")
+            return 2
+        roots = [root, os.path.join(root, "shared"), os.path.join(root, "iostructs")]
+        print(list_cases_json(root, roots))
+        return 0
     jobs = args.jobs or automatic_jobs()
     if jobs < 1:
         ap.error("--jobs must be 0 or a positive integer")
-
-    root = args.shaders
     if not os.path.isdir(root):
         print(f"::error::shader dir not found: {root}")
         return 2
@@ -849,26 +962,13 @@ def main() -> int:
     # disabled. ssao_hdao_new.ps is a DX-only HDAO *compute* path (RWTexture2D, groupshared,
     # register(u0)); combine_1.ps's include of it is commented out (`//#_include`) and no
     # blender references it. Not GL-portable and not shipped, so don't score it.
-    DEAD_FILES = {"ssao_hdao_new.ps"}
-
-    shaders: list[tuple[str, str]] = []
-    for dirpath, _dirs, files in os.walk(root):
-        for f in sorted(files):
-            if f in DEAD_FILES:
-                continue
-            if f.endswith(".vs"):
-                shaders.append((os.path.join(dirpath, f), "vert"))
-            elif f.endswith(".ps"):
-                shaders.append((os.path.join(dirpath, f), "frag"))
-    shaders.sort()
-
     # A .ps/.vs is only a real shader *stage* if its assembled source produces an entry
     # point. The engine generates `void main(){…_main…}` from the iostructs p_*.h / v_*.h
     # header that an entry shader includes; pure helper files that are only ever #included
     # (gather.ps, fxaa.ps, ssao*.ps — confirmed: included by other .ps, referenced by no
     # blender) have no main() and are meaningless to compile standalone. Skip them so the
     # gate scores only real entry shaders; they still get validated via their includers.
-    ENTRY_RE = re.compile(r'\bvoid\s+main\s*\(')
+    shaders = discover_shader_sources(root)
 
     def ordered_map(function, items):
         if jobs == 1:
@@ -937,7 +1037,7 @@ def main() -> int:
     # permutation takes different preprocessor branches and previously reached
     # the device with an ES-illegal `int + float` expression even though the
     # baseline sweep was green.
-    low_settings_targets = {"combine_1_nomsaa.ps", "ssao_calc.ps"}
+    low_settings_targets = LOW_SETTINGS_TARGETS
     low_passed = 0
     low_failed: list[tuple[str, str]] = []
 
@@ -984,14 +1084,7 @@ def main() -> int:
         os.path.basename(path): (path, stage)
         for path, stage in shaders
     }
-    ssao_profiles = [
-        ("disabled", "combine_1_nomsaa.ps", {"SSAO_QUALITY": "0", "SSAO_OPT_DATA": "0"}),
-        ("full-gbuffer", "combine_1_nomsaa.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "0"}),
-        ("optimized-full", "combine_1_nomsaa.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "1"}),
-        ("optimized-half", "combine_1_nomsaa.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "2"}),
-        ("downsample-full", "depth_downs.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "1"}),
-        ("downsample-half", "depth_downs.ps", {"SSAO_QUALITY": "3", "SSAO_OPT_DATA": "2"}),
-    ]
+    ssao_profiles = list(SSAO_PROFILES)
     ssao_passed = 0
     ssao_failed: list[tuple[str, str]] = []
     ssao_variants = []
@@ -1014,24 +1107,7 @@ def main() -> int:
     # renderer allocates and fills. ``None`` deliberately removes the baseline
     # define, which is different from an explicit numeric zero for this
     # presence-style resource switch.
-    ssr_profiles: list[tuple[str, str, dict[str, str | None]]] = [
-        ("off", "water.ps", {"SSR_QUALITY": "0", "SSR_HALF_DEPTH": None, "SSAO_OPT_DATA": "0"})
-    ]
-    for quality in range(1, 5):
-        ssr_profiles.append(
-            (
-                f"q{quality}-full-depth",
-                "water.ps",
-                {"SSR_QUALITY": str(quality), "SSR_HALF_DEPTH": None, "SSAO_OPT_DATA": "0"},
-            )
-        )
-        ssr_profiles.append(
-            (
-                f"q{quality}-half-depth",
-                "water.ps",
-                {"SSR_QUALITY": str(quality), "SSR_HALF_DEPTH": "1", "SSAO_OPT_DATA": "1"},
-            )
-        )
+    ssr_profiles = build_ssr_profiles()
     ssr_passed = 0
     ssr_failed: list[tuple[str, str]] = []
     ssr_variants = []

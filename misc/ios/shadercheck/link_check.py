@@ -16,7 +16,7 @@ that name carries a compatible type, so this is an approximation that surfaces t
 mismatches (which is what the port needs) rather than a proof.
 """
 from __future__ import annotations
-import argparse, os, re, sys
+import argparse, json, os, re, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import glsl_es_check as g  # reuse assemble()
@@ -37,42 +37,61 @@ def varyings(path: str, stage: str, roots: list[str]) -> dict[str, set[str]]:
     return d
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--shaders", default="res/gamedata/shaders/gl")
-    ap.add_argument("--verbose", action="store_true")
-    ap.add_argument("--strict", action="store_true")
-    args = ap.parse_args()
-    root = args.shaders
-    roots = [root, os.path.join(root, "shared"), os.path.join(root, "iostructs")]
-
+def discover_pairs(root: str) -> list[tuple[str, str]]:
+    """Return the exact deterministic pair enumeration used by the checker."""
     pairs: set[tuple[str, str]] = set()
-    for f in os.listdir(root):
-        if f.endswith(".s"):
-            for vs, fs in BEGIN.findall(open(os.path.join(root, f), encoding="utf-8", errors="replace").read()):
-                pairs.add((vs, fs))
-
-    # The core render-target passes are hard-coded C++ blenders (CBlender_*::Compile) that
-    # call r_Pass("<vs>", "<ps>", ...) — NOT .s scripts — and they are exactly the ones
-    # created at boot (CRenderTarget). Scan them too so the boot-critical vs/fs pairs are
-    # covered. Only literal-string pairs are found (a few blenders build names dynamically).
-    CPP_RPASS = re.compile(r'r_Pass\s*\(\s*"([^"]+)"\s*,\s*"([^"]+)"')
+    for filename in os.listdir(root):
+        if filename.endswith(".s"):
+            with open(os.path.join(root, filename), encoding="utf-8", errors="replace") as source:
+                pairs.update(BEGIN.findall(source.read()))
+    cpp_rpass = re.compile(r'r_Pass\s*\(\s*"([^"]+)"\s*,\s*"([^"]+)"')
     for base in ("src/Layers/xrRender/blenders", "src/Layers/xrRender",
                  "src/Layers/xrRender_R2", "src/Layers/xrRenderPC_GL"):
         if not os.path.isdir(base):
             continue
         for dirpath, _dirs, files in os.walk(base):
-            for f in files:
-                if not f.endswith(".cpp"):
-                    continue
-                txt = open(os.path.join(dirpath, f), encoding="utf-8", errors="replace").read()
-                for vs, fs in CPP_RPASS.findall(txt):
-                    if vs != "null" and fs != "null":
-                        pairs.add((vs, fs))
+            for filename in files:
+                if filename.endswith(".cpp"):
+                    with open(os.path.join(dirpath, filename), encoding="utf-8",
+                              errors="replace") as source:
+                        for vs, fs in cpp_rpass.findall(source.read()):
+                            if vs != "null" and fs != "null":
+                                pairs.add((vs, fs))
+    return sorted(pairs)
+
+
+def list_pairs_json(root: str) -> str:
+    pairs = [
+        (vs, fs) for vs, fs in discover_pairs(root)
+        if os.path.isfile(os.path.join(root, vs + ".vs"))
+        and os.path.isfile(os.path.join(root, fs + ".ps"))
+    ]
+    return json.dumps(
+        {"links": [f"shader-link:{vs}|{fs}" for vs, fs in pairs],
+         "schema": "openxray.shader-link-list.v1"},
+        sort_keys=True, separators=(",", ":"),
+    )
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--shaders", default="res/gamedata/shaders/gl")
+    ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--strict", action="store_true")
+    ap.add_argument("--list-json", action="store_true", help=argparse.SUPPRESS)
+    args = ap.parse_args()
+    root = args.shaders
+    roots = [root, os.path.join(root, "shared"), os.path.join(root, "iostructs")]
+    if args.list_json:
+        if args.verbose or args.strict:
+            ap.error("--list-json accepts only --shaders")
+        print(list_pairs_json(root))
+        return 0
+    pairs = discover_pairs(root)
 
     ok = 0
     bad: list[tuple[str, str, list[str]]] = []
-    for vs, fs in sorted(pairs):
+    for vs, fs in pairs:
         vp, fp = os.path.join(root, vs + ".vs"), os.path.join(root, fs + ".ps")
         if not (os.path.isfile(vp) and os.path.isfile(fp)):
             continue
