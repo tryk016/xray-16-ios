@@ -902,3 +902,16 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   host-fast PASS targeting p50 60–90 s/p95 ≤120 s. No FastDevice switch,
   parallelism or cache planner yet; checkpoint/full stay complete. No phone,
   real Simulator/runtime/rendering or affected-selection speedup claim.
+
+## 2026-08-13 — Phase 1A pushed full closeout
+
+- Exact clean `9aad5df0` passed full and now equals `origin/ios-port`. Receipt
+  `gate-1786629614658776000-66873-0.json`: PASS 818.681 s, log
+  `ff26190a…29`, before=after, telemetry COMPLETE, all 1,156 cases/58 stages
+  PASS, errors 0, profile 5/5 and retail 102/102 in 593.365 s.
+- Artifact: source `76acc2b6…196e`, UUID
+  `6DFBE2E2-2958-30E6-9F8A-ABCE2BC7FCB2`, bundle `cf635153…bf`, minOS 16.4,
+  shader cache forced-off, stamp `8207bf92…d30a5`.
+- Receipt closed only that push. This docs change makes it historical for any
+  install; a fresh matching device/full gate is required. No phone, Simulator/
+  device runtime or rendering proof. Phase 1B remains next.

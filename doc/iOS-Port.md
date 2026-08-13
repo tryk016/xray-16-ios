@@ -563,7 +563,7 @@ This proves stable host telemetry and coverage, not a speedup, Simulator/device
 runtime, rendering or streaming. Phase 1A's completed static partition is
 recorded below; it does not yet change production gate selection.
 
-### Phase 0 pushed full-gate artifact
+### Phase 0 pushed full-gate artifact (historical)
 
 Exact clean commit `727c51da6021230893bcf26cf6987c386764aca7` passed the full
 gate in 826.999 s and then matched `origin/ios-port` after push. Receipt
@@ -631,6 +631,28 @@ bodies and IDs, then requires 20 warm `host-fast` PASS runs targeting p50
 60–90 s and p95 ≤120 s. The partial lane must not be wired into production
 FastDevice before later profile/cache safety acceptance; checkpoint/full remain
 complete. No phone or real Simulator/runtime/rendering evidence exists.
+
+### Phase 1A pushed full-gate artifact
+
+Exact clean commit `9aad5df0afab8b851c2e95173ec503133b2907a3` passed the full
+gate in 818.681 s and then matched `origin/ios-port` after push. Receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786629614658776000-66873-0.json`
+binds identical clean before/after source and log SHA-256
+`ff26190a4be551835c2d58a402e7fd88f84fee66ad604cef875a655f41c76029`.
+Telemetry is `COMPLETE`: all 1,156 case and 58 stage records PASS with zero
+errors; the profile contract passed 5/5 and the complete retail suite passed
+102/102 in 593.365 s. Shader cache was forced off.
+
+The symbol-enabled artifact passed the dSYM size/UUID contract and has source SHA-256
+`76acc2b68d12177f0e33377935122c259e53a6ed0428eb7126bcc9c80e24196e`,
+UUID `6DFBE2E2-2958-30E6-9F8A-ABCE2BC7FCB2`, bundle SHA-256
+`cf6351536336badac895a6fe0eeeb5a7dd52f5298988a23d85127e13866af3bf`,
+minimum iOS 16.4 and stamp SHA-256
+`8207bf92e3d4bb1fd2946c97b453cc8649b438577cbbf4721501f189e3dd30a5`.
+This receipt authorized and closed only the push of `9aad5df0`; the following
+documentation commit changes the HEAD-bound artifact hash, so it is historical
+for any future installation and a fresh matching device/full gate is required
+first. No phone, Simulator/device runtime or rendering evidence was produced.
 
 The local Apple Silicon toolchain was rebuilt and revalidated from source on
 2026-07-24, then requalified after the macOS 27/Xcode 27 update. Both device and

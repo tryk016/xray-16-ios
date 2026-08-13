@@ -50,7 +50,7 @@ or installed app container was touched.
 
 After historical `8b265b07b`, only Finder's 6,148-byte `.DS_Store` was removed;
 all 13 retail files verify. Overlay `ba2e07e05` plus supplement `ab1ba7f45` are
-committed; real `HISTORICAL_PASS` remains read-only closeout work. `727c51da`
+committed; real `HISTORICAL_PASS` remains read-only closeout work. `9aad5df0`
 closed its push gate but is stale for install. IOS-P1-002 is Backlog-pending.
 
 ## Host feedback checkpoint
@@ -70,12 +70,12 @@ HEAD `14d8973e`: COMPLETE, 1,156 cases/58 stages, zero errors; not a clean
 commit/full/push/install stamp. Sol xhigh: `APPROVE — brak P0/P1/P2`. These are
 not p50/p95, speedup, phone, Simulator/runtime or rendering proof.
 
-Pushed `727c51da` receipt `gate-1786622784219994000-30295-0.json`: 826.999 s, unchanged source, COMPLETE,
-1,151 cases/57 stages, retail 102/102 in 591.940 s, archive 131/131, uncached
-shaders 279/279 plus profiles, links 137/137 and 68 TUs PASS. UUID
-`8F350949-A69B-3A73-933E-EBC5414055E3`, stamp `9ac7d8a1…aabaf`. It authorized
-that completed push only and is historical for future install after this docs
-change; no phone/runtime evidence.
+Pushed exact clean `9aad5df0` receipt `gate-1786629614658776000-66873-0.json`:
+818.681 s, unchanged source, COMPLETE, 1,156 cases/58 stages PASS, profile 5/5,
+retail 102/102 in 593.365 s; UUID `6DFBE2E2-2958-30E6-9F8A-ABCE2BC7FCB2`,
+stamp `8207bf92…d30a5`, minOS 16.4 and shader cache forced-off. It authorized
+that push only; this docs change makes it historical for install, requiring a
+fresh matching device/full gate. No phone/runtime/rendering evidence.
 
 ## First commands
 

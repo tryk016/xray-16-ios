@@ -5139,3 +5139,24 @@ and IDs, then requires 20 warm `host-fast` PASS runs targeting p50 60–90 s and
 p95 ≤120 s. The partial lane cannot enter production FastDevice before later
 profile/cache safety acceptance; checkpoint/full stay complete. No phone, real
 Simulator/runtime, rendering or affected-selection speedup claim was produced.
+
+## 2026-08-13 — Phase 1A full gate and push complete
+
+Exact clean commit `9aad5df0afab8b851c2e95173ec503133b2907a3` passed the full
+gate and now equals `origin/ios-port`. Receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786629614658776000-66873-0.json`
+is PASS in 818.681 s with identical clean before/after source and log SHA-256
+`ff26190a4be551835c2d58a402e7fd88f84fee66ad604cef875a655f41c76029`.
+Telemetry is `COMPLETE`: all 1,156 case and 58 stage records PASS with zero
+errors; profile contract 5/5 and complete retail 102/102 in 593.365 s.
+
+The forced-off shader-cache artifact binds source SHA-256
+`76acc2b68d12177f0e33377935122c259e53a6ed0428eb7126bcc9c80e24196e`,
+UUID `6DFBE2E2-2958-30E6-9F8A-ABCE2BC7FCB2`, bundle SHA-256
+`cf6351536336badac895a6fe0eeeb5a7dd52f5298988a23d85127e13866af3bf`,
+minimum iOS 16.4 and stamp SHA-256
+`8207bf92e3d4bb1fd2946c97b453cc8649b438577cbbf4721501f189e3dd30a5`.
+It authorized and closed only the push of `9aad5df0`; the following docs commit
+changes the HEAD-bound artifact hash, so a fresh matching device/full gate is
+required before any install. No phone, Simulator/device runtime or rendering
+evidence was produced. Phase 1B remains next.

@@ -33,11 +33,11 @@ PASS runs targeting p50 60–90 s and p95 ≤120 s. Do not wire the partial lane
 production FastDevice before later profile/cache safety acceptance;
 checkpoint/full remain complete.
 
-**Latest pushed code checkpoint:** commit `727c51da` received a clean full PASS
-before its completed push: 1,151 cases, 57 stages, retail 102/102, archive
-131/131, uncached shaders 279/279 plus profiles, links 137/137 and 68 TUs. This
-later documentation change makes that stamp historical for future installation;
-no install, phone or runtime proof was produced.
+**Latest pushed code checkpoint:** exact clean commit `9aad5df0` received a full
+PASS before push and now equals `origin/ios-port`: telemetry `COMPLETE`, all
+1,156 cases/58 stages PASS, profile contract 5/5 and retail 102/102 in
+593.365 s. The following documentation change makes its stamp historical for
+future installation; no install, phone or runtime proof was produced.
 
 This file intentionally contains no more than five active tasks. Historical
 evidence belongs in [iOS-Port-Journal.md](iOS-Port-Journal.md). Work not listed
