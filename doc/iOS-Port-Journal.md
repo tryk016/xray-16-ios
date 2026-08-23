@@ -5271,3 +5271,255 @@ sharding is deferred. Current `HEAD` and `origin/ios-port` are the later pushed
 documentation closeout `12bd62067a228db1a9ea5699a5641287eecc9432`; the prior
 `5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` was the latest pushed code commit
 and matched origin immediately after its own push.
+
+## 2026-08-14 — Physical five-cycle UIKit lifecycle acceptance
+
+The standalone physical lifecycle scenario passed XCTest 1/1 in
+`/Users/patryk/openxray-handoff/OpenXRay-lifecycle-20260814-0256.xcresult`.
+It used `XCUIDevice` system URL opening with a unique local URL per cycle; the
+device's configured default browser was Firefox. PID `13645` remained the
+OpenXRay process through all five switches. Scoped engine log
+`OpenXRay-lifecycle-20260814-0256-xr_boot.log` is 29,207 bytes with SHA-256
+`db2cb8ae0161387b54507e0bddb83e428516d4406d058b0c46b788a6a5417db3` and contains
+exactly five production-order groups: app deactivate, versioned same-PID
+deactivate, app activate, exact `1864x860 (engine 1864x860)` drawable and
+versioned same-PID activate. Sequence values advance monotonically from 2
+through 11. Five recovery screenshots show the correct world, HUD and lighting.
+
+Xcode 27 left both OpenXRay and Firefox `XCUIApplication.state` proxies stale in
+foreground state, so those proxies were rejected as lifecycle oracles. The
+accepted mechanism uses the system-open activity, fixed settle intervals and
+the exact same-PID engine log. The original Home/Siri and Safari-specific
+attempts remain rejected evidence.
+
+The runner's post-log lifecycle oracle passed, but its first overall closeout
+correctly returned failure because graceful `SIGTERM` left exact PID `13645`
+bound through five polls. Under a fresh two-minute exact-token lease, a fresh
+process snapshot classified the PID as bound, exact-PID forced termination
+succeeded and another snapshot classified it gone; the token was then released.
+The corrected runner now performs the same fail-closed graceful-to-forced
+escalation with bounded fresh classification and preserves an earlier nonzero
+test status. Its exact-token release is always the final external action.
+The success marker is delayed until cleanup and release both succeed; cleanup
+exhaustion or token-release failure cannot leave a misleading `PASS` in stdout.
+
+The combined audio attempt did not reach an OpenXRay interruption. The hidden
+XCTest runner failed to activate nonmixable playback while backgrounded with
+`AVAudioSessionErrorCodeCannotStartPlaying` (`!pla`). This is a helper limitation,
+not an OpenXRay regression or recovery result. Audio is deferred to a normal
+background-audio helper application. A separate harness debt also remains:
+`cfg_save` rewrites `user.ltx` and drops the unregistered `start server(...)`
+line, so future autonomous launches should use the existing engine `-start`
+argument with a no-duplicate-start contract.
+
+Focused host evidence is PASS: devicectl contract 8/8, runner contract 16/16,
+XCTest source contract 5/5, durable shell IDs 12/12, central catalog validation,
+signed generic `build-for-testing`, Bash syntax, ShellCheck on the changed
+runner/oracle scope and `git diff --check`. Independent Sol xhigh review of the
+code and evidence returned `APPROVE — brak P0/P1/P2` and explicitly accepted
+lifecycle without repeating the five cycles while deferring audio. No audio,
+lock/unlock, held-touch, soak, commit, push or distribution claim is made.
+
+## 2026-08-14 — Physical Options rerun and cleanup ordering
+
+`/Users/patryk/openxray-handoff/OpenXRay-options-20260814-0336.xcresult`
+passed XCTest 1/1 in 47.945 seconds on iPhone 15 Pro Max, iOS 26.6. The one test
+performed three complete launch/tap/terminate attempts and retained six
+screenshots. All three before frames show the complete main menu without
+Multiplayer. All three after frames show the complete four-tab Video Options
+surface with profile `Optimal`, exact resolution text `1864x860`, visible
+sliders and Apply/Cancel controls. No missing surface or unreadable field was
+observed in the captured pixels; this does not substitute for frame pacing or
+gameplay-rendering evidence.
+
+The post-test engine log is 6,304 bytes with SHA-256
+`7e209f9978f9fb4faf6846cd7b41382828c379e75caaf2cb5bf9e2f688ae7b03`. Its final
+launch records PID `13765`, lifecycle sequence 1, exact
+`1864x860 (engine 1864x860)` drawable, main-menu frame and successful loading of
+the Video, Sound, Game, Controls, advanced-video, gamepad and video-window
+resources. Runner trace SHA-256
+`24fd2d55755331e96e764c888d4536554874de3f70096991b20154c109b5a9b8` ends with
+`lease-release`; the final `PASS` was printed afterward. A separate two-minute
+lease and fresh `runningProcesses` query found no `xr_3da`, then released the
+exact token. The shared lock returned `free`.
+
+This closes only the repeated main-menu-to-Video navigation, visible fixed
+resolution/profile presentation and no-process-left-behind edge. It does not
+close dense inventory/PDA textures, gameplay lighting, frame pacing, lock/touch,
+audio, soak, commit, push or distribution acceptance.
+
+The immediately preceding final-code `fast` gate receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786674041497733000-68048-0.json`
+passed in 834.015 seconds with identical before/after worktree identity and log
+SHA-256 `d7eebf7f822eb822b93e20c5aa3e7178feaeea2e2e477a37db48fbeb99de5c5a`.
+Retail passed 102/102 in 605.614 seconds, archive policy 131/131, shader cache
+19/19, numeric macros 30/30, resources 13/13, compile/profile gates and links
+137/137. FastDevice rebuilt 68 translation units and produced UUID
+`4A5C8C5B-BEF6-3A30-A173-FD5E22D6E29B`. This later evidence-only documentation
+update makes that receipt a pre-document code gate; it is not a full-release,
+commit, push or install stamp.
+
+## 2026-08-14 — Autonomous startup moved from transient config to `-start`
+
+The lifecycle runner no longer depends on the non-persistent
+`start server(...)` line that `cfg_save` removes from `user.ltx`. Autonomous
+scenarios now require zero semantically active direct or whitespace-indented
+autoload commands, then launch with the exact argument vector
+`-- <bundle> -start "server(mobile user - beginning of the game/single/alife/load) client(localhost)"`.
+Options remains runner-launch-free. The stable runner contract remains 16/16
+and now covers absent config autoload, exact launch arguments, direct and
+indented duplicate rejection before launch, PID binding, cleanup and
+release-last behavior. The central catalog remains 711 IDs and a signed generic
+`build-for-testing` passes.
+
+The first Sol xhigh review found one P2: the initial duplicate guard did not
+match leading whitespace even though `XR_IOConsole` trims it. The corrected
+semantic guard and indented mutation passed, and the re-review returned
+`APPROVE — brak P0/P1/P2`.
+
+A direct physical mechanism probe first confirmed zero active config autoload,
+then launched PID `13788` through the exact `-start` vector. Launch record
+`/Users/patryk/openxray-handoff/OpenXRay-start-arg-20260814-0350-launch.json`
+has SHA-256
+`84aa6778c626f72a040e2336ca988926058f7b0b5a58c481697dee74ce9efb62`.
+Scoped log
+`/Users/patryk/openxray-handoff/OpenXRay-start-arg-20260814-0350-xr_boot.log`
+has SHA-256
+`5913443411f4df190e4cd23b7190e00a2d190f69bfd8afb2178e98d40cb9fc4d`
+and records Zaton frame 34 with `status=resolved`, `method=exact`, sector `115`.
+The outer probe exited nonzero only after device cleanup and lease release
+because it called nonexistent local `/usr/bin/unlink`; a fresh short lease and
+process snapshot independently classified PID `13788` as gone, then released
+the exact token. This proves the startup mechanism and cleanup boundary, not a
+new end-to-end runner or repeated lifecycle PASS. Audio remains unproven.
+
+## 2026-08-14 — Lifecycle/UI checkpoint receipt correction before documentation commit
+
+This entry corrects the older pre-document lifecycle/UI receipts above; it does
+not rewrite them. The current exact-state Fast receipt is
+`/Users/patryk/openxray-handoff/gate-logs/gate-1786677112155290000-17291-0.json`:
+PASS in 912.823 s at HEAD
+`d3be0f0efb8f94caff4833d03a08d460abbd3b82`. Before and after match exactly,
+including these five untracked automation files:
+`devicectl_contract.py`, `test_devicectl_contract.py`,
+`test_runner_contract.py`, `test_xctest_contract.py` and `xctest_contract.py`
+under `misc/ios/ui_automation/`. Status SHA-256 is
+`9d7ecbeaf9db828463e7589d86ceda5bf6a1bd69d71d41495573334564f53433`, binary
+diff SHA-256 is
+`9b61f94e1d28babb8b4e97618f28eae4d5d9ff780285cd62dbddc01ca659924a`, log
+SHA-256 is
+`31880143ecbd15b93be74dc8cc3aa274dc5543fa87908a5f695ef4d445203626` and Fast
+stamp SHA-256 is
+`e6821f261cee14cc8f1ce2007455d8cbda6d3195806196d97f0b7fd8cb9d58e1`.
+This is an exact-state pre-document Fast PASS only, not an install, commit or
+push authorization.
+
+The latest Options evidence is
+`/Users/patryk/openxray-handoff/OpenXRay-options-20260814-0519.xcresult`:
+XCTest 1/1, three attempts and six frames. They show a readable complete main
+menu and Video Options UI, no Multiplayer, `Optimal` and exact `1864x860`.
+The scoped log SHA-256 is
+`accbd3c04c8ef946d8a1373dba9f0a89b54b57183bc68661301ea34748b016cb`.
+
+The latest lifecycle evidence is
+`/Users/patryk/openxray-handoff/OpenXRay-lifecycle-20260814-0521.xcresult`:
+XCTest 1/1 plus log oracle, PID `13920`, sequence 2–11, five recoveries and
+exact `1864x860`. Cleanup is ordered exact-PID `SIGTERM` → `SIGKILL` → `gone` →
+lease release. The scoped log SHA-256 is
+`5ee26c839d9a5c6c94a46f0ca41fbdcd4d1fe6944a0696a65df6f1ad673a30a6`.
+All five recovery frames show a complete fixed Zaton world/HUD and no
+darkness/lit-circle in this exact view only; they do not prove other levels,
+weather, inventory/PDA, performance, streaming or general lighting.
+
+`/Users/patryk/openxray-handoff/OpenXRay-reliability-20260814-0515.xcresult`
+is 0/1 because the XCTest helper failed AVAudioSession activation `561015905`
+before an OpenXRay interruption. Its log SHA-256 is
+`0d215d104f690c202db10c043a5d9a6d55a717e093d517762cef323c4b7362b7`; this is
+neither an audio claim nor a product-audio regression. Memory remains open P1:
+texture storage 2,000,569 KiB; warning physical current/peak
+2,777,234/2,781,330 KiB; eviction 0 surfaces/0 KiB; after-load current/peak
+3,310,899/3,314,995 KiB. No soak or device-budget acceptance follows.
+
+Phase 2B's current pre-planner baseline is 56 entrypoints: the historical 53
+plus exactly three lifecycle additions with 8/16/5 cases, and 18 exclusions.
+No planner is integrated; the external prototype remains outside this
+repository. Phone and shared lock are free; no new device work was required for
+this documentary closeout. No audio, soak, other levels/weather, inventory/PDA,
+performance, streaming, distribution, commit or push claim is made.
+
+## 2026-08-23 — deterministic capture-v2 loading fixture and Fast receipt closeout
+
+This entry appends the final correction and does not rewrite the earlier
+capture-v2 history. Original exact gate receipt
+`gate-1787483189290018000-97845-0` failed only on the mocked loading-t0-t1
+scheduler flake, after a 33/34 history. Production's single monotonic launch
+deadline was correct and production was not changed.
+
+The deterministic mock now enters the causal handshake only for the exact four
+loading modes `loading-t0-t1`, `persistent-loading`, `omit-13-after-retry` and
+`early-13-before-retry`. It publishes `:10` asynchronously, returns the launch
+PID and lets the child wait for the full same-session boundary token `:10`, then
+the full same-session/same-PID baseline token `:11`. It captures the exact
+current `--stderr=` path and its offset immediately before publishing loading
+`:12`, then requires a complete new `RETRY: live capture is still loading\n`
+line after that offset before gameplay `:13`. One bounded monotonic handshake
+deadline, an actual ordered event transcript and terminal status govern the
+result. Omit/early mutations fail closed from transcript order rather than
+production return code. Cleanup binds PID to a unique argv/control nonce,
+signals only the exact live identity and boundedly proves that producer absent.
+
+Normal, `jupiter` and `wrong-pid` are disjoint from that handshake and preserve
+their historical producer timing: 0.2 s before `:10`, then 0.04 s before `:11`
+and `:12`, no causal ACK waits and no `:13`. This restores the normal T0 null
+boundary while preserving their payload semantics. SHA-256 remained exact for
+all production inputs:
+
+- `retail_simulator_guard.py`:
+  `9700bc079884fdb5dd2b2b9edc0b85223ec5657ad04b1eb5c8d9820f5ba8a493`;
+- `lighting_ab_evidence.py`:
+  `47d74d0b6174d84f7b86c87ddc53079109cf3e9f198c7ae1b4e82036439b1a36`;
+- `retail_simulator.sh`:
+  `35c51350ae42992ee187388bdcc1651bc6c1f3db7d1ed2c7ab17ae6ff49b6b02`.
+
+The fixed exact state passed sequential stress 50/50 in
+`capture-v2-handshake-exact-50x-20260823-141413.log`, SHA-256
+`0c49abf7e7e524cf28151c8851d40c0570c6d88c38c161355af095ff82cc33c4`.
+It then passed 20/20 under two CPU workers plus a continuous reader in
+`capture-v2-handshake-exact-load-20x-20260823-142325.log`, SHA-256
+`e562c04fdf2831861225e9b27391da1f40487426635ece063d1ccbb4e1f447c1`;
+bounded cleanup and producer absence were verified.
+
+The first corrected Fast receipt, `gate-1787489460135495000-78059-0`, failed
+only because the initial handshake scope also covered non-loading modes and
+therefore violated the normal happy path's required boundary `token:null`.
+After the disjoint branch correction, focused normal, loading positive,
+persistent negative, jupiter, wrong-pid, mutations/cleanup, current snapshot,
+historical AST and support inventory all passed. All 102 retail test bodies/IDs
+and all 13 support IDs remain stable.
+
+The final exact-state pre-document Fast receipt is
+`/Users/patryk/openxray-handoff/gate-logs/gate-1787491750981592000-67197-0.json`.
+It passed in 1050.721 s with before/after HEAD
+`d3be0f0efb8f94caff4833d03a08d460abbd3b82`, status SHA-256
+`1a1c7bf4f547a5f812ba587028c8160b13fae0c9c1ad6459b6f9799f0f060c09`,
+binary diff SHA-256
+`e2bb3d2c24b68922b2ce13d409c7b9a8e6ee0b8f5d1f5e01bdcce89a53091111`
+and the same exact five untracked automation files. Gate log SHA-256 is
+`f3d20d2332d096be773ec1b7f41ceed15c032459b50e6ede5d54066aee6edc1f`,
+receipt SHA-256 is
+`3bebedcc0f94882026a6afd29399cb396284730e08b5f81be6a072b918caeb61`,
+and Fast stamp SHA-256 is
+`d4fbb93a5a2750620f1f7c83335fc75640eeab0d0887ff2a8b23162681c5967d`.
+Retail passed 102/102 in 735.357 s, archive policy 131/131, numeric macros
+30/30, shader resources 13/13 and links 137/137. FastDevice UUID is
+`4A5C8C5B-BEF6-3A30-A173-FD5E22D6E29B`.
+
+Sol xhigh's fixed-state pre-review returned exact
+`APPROVE — brak P0/P1/P2`. Its final complete code/evidence review also returned
+exact `APPROVE — brak P0/P1/P2` and explicitly authorized this docs-only
+evidence append without another gate. This receipt is a partial host Fast gate
+only. It creates no install, phone, real-Simulator, runtime, rendering,
+streaming, audio or memory claim. Existing physical Options and app-switch
+lifecycle acceptance remains closed; audio and memory remain open under their
+documented boundaries. Current HEAD and `origin/ios-port` remain
+`d3be0f0efb8f94caff4833d03a08d460abbd3b82`; commit and push have not occurred.

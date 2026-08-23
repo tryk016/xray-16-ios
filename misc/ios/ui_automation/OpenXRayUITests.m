@@ -24,9 +24,9 @@
         initWithBundleIdentifier:@"io.github.tryk016.openxray.RMJWWPF379"];
 }
 
-- (XCUIApplication*)safariApplication
+- (XCUIApplication*)defaultBrowserApplication
 {
-    return [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.mobilesafari"];
+    return [[XCUIApplication alloc] initWithBundleIdentifier:@"org.mozilla.ios.Firefox"];
 }
 
 - (BOOL)requireApplication:(XCUIApplication*)app
@@ -42,9 +42,10 @@
     return NO;
 }
 
-- (BOOL)requireOpenXRayBackgrounded:(XCUIApplication*)app
-                             timeout:(NSTimeInterval)timeout
-                               stage:(NSString*)stage
+- (BOOL)requireApplicationBackgrounded:(XCUIApplication*)app
+                       applicationName:(NSString*)applicationName
+                               timeout:(NSTimeInterval)timeout
+                                 stage:(NSString*)stage
 {
     const NSTimeInterval deadline = NSProcessInfo.processInfo.systemUptime + timeout;
     while (NSProcessInfo.processInfo.systemUptime < deadline)
@@ -55,13 +56,13 @@
             return YES;
         if (state == XCUIApplicationStateNotRunning)
         {
-            XCTFail(@"%@ terminated OpenXRay", stage);
+            XCTFail(@"%@ terminated %@", stage, applicationName);
             return NO;
         }
         [NSThread sleepForTimeInterval:0.1];
     }
 
-    XCTFail(@"%@ did not background OpenXRay (actual %ld)", stage, (long)app.state);
+    XCTFail(@"%@ did not background %@ (actual %ld)", stage, applicationName, (long)app.state);
     return NO;
 }
 
@@ -87,26 +88,30 @@
 
 - (BOOL)runFiveAppSwitchCyclesForOpenXRay:(XCUIApplication*)app attachmentPrefix:(NSString*)attachmentPrefix
 {
-    XCUIApplication* safari = [self safariApplication];
     if (![self prepareOpenXRay:app pause:12.0 stage:@"initial OpenXRay foreground"])
         return NO;
 
     for (NSUInteger cycle = 1; cycle <= 5; ++cycle)
     {
-        NSString* const safariStage = [NSString stringWithFormat:@"Safari foreground in app-switch cycle %lu",
+        XCUIApplication* const browser = [self defaultBrowserApplication];
+        NSURL* const lifecycleURL = [NSURL URLWithString:[NSString stringWithFormat:
+            @"http://127.0.0.1:9/openxray-lifecycle?cycle=%lu", (unsigned long)cycle]];
+        if (lifecycleURL == nil)
+        {
+            XCTFail(@"Unable to construct lifecycle URL for cycle %lu", (unsigned long)cycle);
+            return NO;
+        }
+
+        [[XCUIDevice sharedDevice].system openURL:lifecycleURL];
+        NSString* const browserForegroundStage = [NSString stringWithFormat:@"Default browser (Firefox) foreground in app-switch cycle %lu",
             (unsigned long)cycle];
-        [safari activate];
-        if (![self requireApplication:safari
+        if (![self requireApplication:browser
                         reachesState:XCUIApplicationStateRunningForeground
                               timeout:30.0
-                                stage:safariStage])
+                                stage:browserForegroundStage])
             return NO;
 
-        NSString* const backgroundStage = [NSString stringWithFormat:@"Safari switch in cycle %lu",
-            (unsigned long)cycle];
-        if (![self requireOpenXRayBackgrounded:app timeout:10.0 stage:backgroundStage])
-            return NO;
-
+        [NSThread sleepForTimeInterval:1.0];
         NSString* const recoveryStage = [NSString stringWithFormat:@"OpenXRay recovery in app-switch cycle %lu",
             (unsigned long)cycle];
         [app activate];
@@ -239,18 +244,12 @@
 - (void)testLifecycleFiveAppSwitchCycles
 {
     XCUIApplication* app = [self openXRayApplication];
-    [self addTeardownBlock:^{
-        [app terminate];
-    }];
     [self runFiveAppSwitchCyclesForOpenXRay:app attachmentPrefix:@"lifecycle"];
 }
 
 - (void)testAudioInterruptionWhileOpenXRayForeground
 {
     XCUIApplication* app = [self openXRayApplication];
-    [self addTeardownBlock:^{
-        [app terminate];
-    }];
 
     if (![self prepareOpenXRay:app pause:8.0 stage:@"initial OpenXRay foreground for audio"])
         return;
@@ -277,9 +276,6 @@
 - (void)testReliabilityFiveAppSwitchCyclesAndForegroundAudioInterruption
 {
     XCUIApplication* app = [self openXRayApplication];
-    [self addTeardownBlock:^{
-        [app terminate];
-    }];
 
     if (![self runFiveAppSwitchCyclesForOpenXRay:app attachmentPrefix:@"reliability"])
         return;

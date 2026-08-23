@@ -1,6 +1,6 @@
 # OpenXRay iOS — active roadmap
 
-**Last synchronized:** 2026-08-13
+**Last synchronized:** 2026-08-23
 
 **Canonical contract:** [iOS-Port.md](iOS-Port.md)
 
@@ -9,19 +9,33 @@
 **Platform scope:** iOS-only; desktop compatibility is not an acceptance gate.
 
 **Current focus:** Phase 2B host feedback optimization: explicit profile
-separation and a conservative affected-test planner. The M6 local importer and
+separation and a conservative affected-test planner. Its current pre-planner
+baseline is 56 entrypoints (historical 53 plus exactly three lifecycle additions
+with 8/16/5 cases) and 18 exclusions; no planner is integrated and the external
+prototype remains outside the repository. The M6 local importer and
 independently verified DevArchive retirement are complete; remaining M6 work is
 authorized-tester distribution, signed-update save preservation and
 remote-release acceptance. IOS-P2-005's local
 pinning/cache contract is complete and has returned to the Backlog pending two
 remote runs. IOS-P2-006's behavior-preserving BC codec contract is also locally
 complete and backlogged pending a color-space decision plus iPhone reference
-frames. The UIKit scene-lifecycle migration is locally and Simulator-complete;
-its physical-device acceptance is backlogged as IOS-P1-010, alongside
-IOS-P1-002. Both are deliberately priority-deferred behind Phase 2A/2B
-checkpoint closeout and require explicit promotion. IOS-P0-003's
+frames. The UIKit scene-lifecycle migration and its five-cycle physical
+app-switch acceptance are complete under IOS-P1-010. Lock/held-touch and audio
+remain deferred under IOS-P1-002, IOS-P2-001 and IOS-P2-002; audio requires a
+dedicated background-audio helper because the hidden XCTest runner failed with
+`!pla` before interrupting OpenXRay. IOS-P0-003's
 stationary branch is corrected and its real iOS 27 capture-v2 publication
 passes; wider save/level and physical-device evidence is now the active edge.
+
+The autonomous device runner no longer restores the non-persistent
+`start server(...)` config line. It requires zero semantically active direct or
+indented autoload commands and passes the fixed save through the engine's
+existing `-start` argument. The stable runner contract passes 16/16, the
+711-ID catalog remains unchanged, the signed generic build passes and Sol
+xhigh approved the implementation. A direct iPhone mechanism probe reached
+exact resolved Zaton on PID `13788`; its outer command was nonzero only because
+of a local post-device unlink-path error, so this is not claimed as a new
+runner end-to-end PASS.
 
 **Host test-feedback:** Optimization Phase 1 remains complete: 102 frozen
 byte/AST-identical retail IDs, 53 guards, 49 integration cases and `host-fast`
@@ -41,6 +55,15 @@ scope; the complete Phase 2A code-plus-documentation checkpoint then received
 the exact Sol xhigh verdict `APPROVE — brak P0/P1/P2`. No planner, affected
 selection or sharding exists yet.
 
+The capture-v2 test fixture is now scheduler-deterministic only for its exact
+four loading modes; normal/jupiter/wrong-pid retain historical timing and the
+normal T0 null boundary. Exact-state stress passed 50/50 and loaded 20/20 with
+cleanup verified. Final pre-document Fast receipt
+`gate-1787491750981592000-67197-0.json` passed in 1050.721 s with retail 102/102,
+archive 131/131, macros 30/30, resources 13/13 and links 137/137. Sol xhigh
+returned exact `APPROVE — brak P0/P1/P2`. This remains partial host evidence;
+the five active tasks and Phase 2B next focus are unchanged.
+
 **Optimization next:** Phase 2B adds explicit profile separation and a
 conservative versioned affected-test planner: unknown or global input must
 select full, and renderer/lifecycle/memory/streaming or runtime claims cannot
@@ -48,17 +71,16 @@ close from affected-only evidence. Existing external build-tree, Simulator and
 device locks remain mandatory before any concurrency beyond per-key cache locks;
 retail sharding is later work.
 
-**Latest pushed code checkpoint:** exact clean code commit
+**Historical clean full-gate checkpoint:** exact clean code commit
 `5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` received a clean post-commit full
-PASS. It was the latest pushed code commit and matched `origin/ios-port`
-immediately after push (`9aad5df0a..5b0bc5ba0`). The later documentation
-closeout `12bd62067a228db1a9ea5699a5641287eecc9432` is now both `HEAD` and
-`origin/ios-port`.
+PASS and matched `origin/ios-port` immediately after push
+(`9aad5df0a..5b0bc5ba0`). Current `HEAD` and `origin/ios-port` remain
+`d3be0f0efb8f94caff4833d03a08d460abbd3b82`.
 Receipt `gate-1786642077179447000-182-0.json` records 1,164 cases/58 stages,
 zero errors/skips, profile 13/13, retail 102/102, uncached shader compile/link
-137/137 and Release 68 TUs in 914.847 s. It authorizes only that push; this
-following documentation closeout has no matching install stamp. No phone,
-installation or runtime proof was produced.
+137/137 and Release 68 TUs in 914.847 s. It authorizes only that historical
+push; the current uncommitted lifecycle checkpoint has no matching install
+stamp. No phone, installation or runtime proof was produced.
 
 This file intentionally contains no more than five active tasks. Historical
 evidence belongs in [iOS-Port-Journal.md](iOS-Port-Journal.md). Work not listed
@@ -93,10 +115,11 @@ sharding or runtime evidence exists.
 
 **Phase 2B execution contract:**
 
-- Freeze `openxray.test-feedback-catalog.v1` as the pre-planner oracle: 53
-  entrypoints, 18 classified build-stage exclusions, both
+- Freeze `openxray.test-feedback-catalog.v1` as the pre-planner oracle: 56
+  entrypoints (the historical 53 plus exactly three lifecycle additions with
+  8/16/5 cases), 18 classified build-stage exclusions, both
   `selection_authority` and `cache_authority` `NONE`, and
-  `input_mapping_complete: false` for all 53. Preserve stable IDs and the old
+  `input_mapping_complete: false` for all 56. Preserve stable IDs and the old
   runner selection.
 - Use one small versioned mapping from normalized repository paths/globs to
   stable IDs and profiles. Each decision records its profile, IDs, input hash
@@ -325,6 +348,15 @@ file. A two-stage log oracle snapshots before runtime proof and securely
 finalizes only after successful process termination, rejecting path/inode,
 prefix, rotation, truncation, rewrite, symlink, sequence and failure anomalies.
 
+The 2026-08-14 physical Options rerun passed XCTest 1/1 in 47.945 seconds and
+produced six retained screenshots over three launch/tap/terminate attempts.
+They show the complete main menu without Multiplayer and the complete Video
+Options surface with four tabs, `Optimal` and exact `1864x860`. Engine PID
+`13765` loaded all expected Options resources; the exact-token trace released
+before the final success marker, and a fresh process query proved `xr_3da`
+absent. This is device navigation/presentation/cleanup evidence, not gameplay,
+performance or audio proof.
+
 The final isolated iOS 26.5 Simulator run is PASS in
 `simulator-work-20260809-013601-65931`; its dedicated Simulator
 `410EA3BC-23FC-4F4C-843D-CF4438704652` was deleted. The iOS/autoinput-only
@@ -387,7 +419,7 @@ readable and internally consistent on the supported iPhone baseline.
 ## 5. M6: make legal retail-data import resumable and verifiable
 
 **Priority:** P2 promoted for the current phone-free implementation window;
-physical lifecycle remains higher priority when the iPhone is available.
+remaining lock/held-touch/audio device work stays separately deferred.
 
 **Evidence level:** the M6-local importer sub-slice is complete: standalone
 stdlib `misc/ios/retail_import.py` and 21/21 mutation/recovery tests prove

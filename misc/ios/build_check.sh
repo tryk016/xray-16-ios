@@ -264,6 +264,9 @@ feedback_stage_command() {
             misc/ios/test_capture_state_source_contract.py|misc/ios/test_sector_startup_oracle.py|\
             misc/ios/test_sector_marker_contract.py|misc/ios/test_lifecycle_marker_contract.py|\
             misc/ios/test_ui_contract_check.py|misc/ios/test_activity_trace_summary.py|\
+            misc/ios/ui_automation/test_devicectl_contract.py|\
+            misc/ios/ui_automation/test_runner_contract.py|\
+            misc/ios/ui_automation/test_xctest_contract.py|\
             misc/ios/test_ui_state_marker_contract.py|misc/ios/test_pda_map_hotkey_contract.py|\
             misc/ios/test_simulator_ui_navigation.py|misc/ios/test_ui_capture_evidence.py|\
             misc/ios/test_ios_quickload_input_contract.py|misc/ios/test_simulator_quickload_evidence.py|\
@@ -871,6 +874,12 @@ ui_focus_geometry_sanitized_test=""
 echo "== iOS UI contract gate =="
 feedback_stage "stage::python::misc/ios/test_ui_contract_check.py" python3 misc/ios/test_ui_contract_check.py \
     || fail "iOS UI contract regression tests failed"
+feedback_stage "stage::python::misc/ios/ui_automation/test_devicectl_contract.py" python3 misc/ios/ui_automation/test_devicectl_contract.py \
+    || fail "iOS UI automation devicectl contract tests failed"
+feedback_stage "stage::python::misc/ios/ui_automation/test_runner_contract.py" python3 misc/ios/ui_automation/test_runner_contract.py \
+    || fail "iOS UI automation runner contract tests failed"
+feedback_stage "stage::python::misc/ios/ui_automation/test_xctest_contract.py" python3 misc/ios/ui_automation/test_xctest_contract.py \
+    || fail "iOS XCUITest source contract tests failed"
 feedback_stage "stage::shell::ui-log-oracle" misc/ios/ui_automation/test_log_oracles.sh \
     || fail "iOS UI automation log-oracle regression tests failed"
 feedback_stage "stage::validation::python::ui-contract" python3 misc/ios/ui_contract_check.py \

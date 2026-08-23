@@ -1,6 +1,6 @@
 # OpenXRay iOS — operational handoff
 
-**Updated:** 2026-08-13. **Docs:** [canonical](iOS-Port.md), [active](iOS-Port-Plan.md), [deferred](iOS-Port-Backlog.md).
+**Updated:** 2026-08-23. **Docs:** [canonical](iOS-Port.md), [active](iOS-Port-Plan.md), [deferred](iOS-Port-Backlog.md).
 
 Read this file completely, then the relevant active task/canonical section; search the Journal by task ID or exact symptom, never in full.
 
@@ -41,42 +41,37 @@ immutable. Eight completed archive retirements reclaimed 5,750,628,350 logical
 bytes; the prepared cache remains local and verifier PASS. No phone, Simulator
 or installed app container was touched.
 
-After historical `8b265b07b`, only Finder's 6,148-byte `.DS_Store` was removed;
-all 13 retail files verify. Overlay `ba2e07e05` plus supplement `ab1ba7f45` are
-committed; real `HISTORICAL_PASS` remains read-only closeout work. `9aad5df0`
-closed its push gate but is stale for install. IOS-P1-002 is Backlog-pending.
+After historical `8b265b07b`, only Finder's 6,148-byte `.DS_Store` was removed; all 13 retail files verify. Overlay `ba2e07e05` plus supplement `ab1ba7f45` are
+committed; real `HISTORICAL_PASS` remains read-only closeout work and `9aad5df0` is stale for install.
+
+Physical UIKit app-switch acceptance is complete: lifecycle XCTest/log oracle 1/1, PID 13920, seq2–11, five recoveries and exact 1864×860; `OpenXRay-lifecycle-20260814-0521.xcresult`, log `5ee26c83…30a6`, cleanup SIGTERM→SIGKILL→gone→release.
+The five frames show complete fixed Zaton/HUD without darkness/lit-circle only in that exact view. Options `OpenXRay-options-20260814-0519.xcresult` passed 1/1: three attempts, six readable complete menu/Video frames, no Multiplayer, `Optimal`, 1864×860; log `accbd3c04…16cb`.
+Audio is unproven: reliability was 0/1 because the XCTest helper failed AVAudioSession activation 561015905 before interruption; no audio claim or regression.
+Memory remains open P1: warning 2,000,569 KiB texture storage, eviction 0/0 KiB, after-load physical 3,310,899/3,314,995 KiB; no soak/budget acceptance.
 
 ## Host feedback checkpoint
-Optimization Phase 1 is complete: 102 frozen byte/AST-identical retail IDs (53 guards, 49 integration, `host-fast` 55), a fail-closed fixture state, 96-record golden and profile contract 13/13. Acceptance: integration 49/49 in 526.322 s, complete 102/102 in 564.422 s and 20/20 host-fast passes (p50 47.472 s; p95 49.323 s). Sol xhigh approved; this is host-only evidence.
+Optimization Phase 1 remains complete: 102 frozen retail bodies/IDs, 53 guards,
+49 integration cases, `host-fast` 55, 96-record fixture and 13/13 support contract.
+The deterministic capture-v2 mock uses causal ACKs only for its exact four
+loading modes; normal/jupiter/wrong-pid retain historical timing and normal T0
+null. Exact stderr binding, ordered transcript, mutations and nonce-bound bounded
+cleanup are covered. Stress passed 50/50 and loaded 20/20 with cleanup verified.
+The first corrected Fast receipt `gate-1787489460135495000-78059-0` exposed only
+the over-broad non-loading scope; the disjoint branch restored normal semantics.
+Final exact-state Fast receipt `gate-1787491750981592000-67197-0.json` passed in
+1050.721 s: retail 102/102 in 735.357 s, archive 131/131, macros 30/30,
+resources 13/13, links 137/137, UUID `4A5C8C5B-BEF6-3A30-A173-FD5E22D6E29B`.
+Sol xhigh returned exact `APPROVE — brak P0/P1/P2` and authorized this docs-only
+append without another gate. Production is byte-identical.
 
-Phase 2A is host-complete. Canonical cache `build/ios-engine-iphoneos/.ios_gate_cache` has per-key kernel `flock`, immutable output/receipt, fail-closed recovery, semantic MISS/HIT validation, shared timeout/signal handling and exact telemetry certificate replay. `full` is force-direct and opens no cache namespace. The initial status-file failure (`gate-1786653627459306000-44215-0.json`) found an APFS `O_TRUNC` metadata race; the bound-FD validate → `ftruncate` → revalidate fix is included. Both keys bind `test_feedback_unittest.py`, and checker diagnostics survive failure.
-Focused PASS: cache 19/19, feedback 24/24, installer 14/14, Python/Bash/diff; natural
-`shaders` MISS `gate-1786655817274686000-95683-0.json` passed in 820.149 s; identical HIT `gate-1786656650331238000-18314-0.json` in 802.981 s.
-Both report logical selection SHA-256
-`4ae15fba39fb626c41f9a00ccbf1b1982338690b0b0da7b6212a23d504626f74` (1,183 IDs)
-and separate 50-stage SHA-256
-`801483ceb8b4f1bafd53720ef26f2730944920bdb571879ba89fa39cf3a5ecbf`, with no
-gaps/overlap/duplicates; HIT replays certified 296 compile + 137 link IDs.
-Outputs/receipts are `0400`, `nlink=1`, no active temp. Sol xhigh separately
-approved the code review and post-gate evidence review; the complete Phase 2A
-code-plus-documentation checkpoint then received exact `APPROVE — brak P0/P1/P2`. Host partial-gate only:
-no full-release, commit/push, install, Simulator/device runtime, rendering, streaming or
-distribution claim. The 17.168 s saving is not a FastDevice result because
-retail preflight remains dominant.
-
-Pushed exact clean `5b0bc5ba0` receipt `gate-1786642077179447000-182-0.json`:
-914.847 s, identical clean commit/worktree before and after, 1,164 cases/58
-stages PASS, errors/skips 0, profile 13/13, retail 102/102, uncached shader
-compile/link PASS (137/137) and Release 68 TUs. Artifact source
-`72316c618f6d31c54e3949ccf6436e5b23102314a7be06f787308a85062df5d2`, UUID/dSYM
-`347FB8E6-8B6E-3C08-8DC4-14375F362C7C`, debug-info 513,889,238 bytes, bundle
-`io.github.tryk016.openxray` SHA `4ca809c6…f255`, full stamp `cf487b1a…ba2b`.
-`5b0bc5ba0` was the latest pushed code commit and matched origin immediately
-after `9aad5df0a..5b0bc5ba0`; current `HEAD` and `origin/ios-port` are the later
-docs closeout `12bd62067a228db1a9ea5699a5641287eecc9432`. The code receipt
-authorizes only that push; the later docs closeout has no matching install stamp.
-No phone, install, real Simulator runtime, rendering, streaming or distribution
-evidence.
+Phase 2A remains host-complete: immutable per-key shader cache with kernel
+`flock`, fail-closed recovery and certified MISS/HIT replay; `full` is uncached.
+Natural MISS/HIT passed in 820.149/802.981 s with identical 1,183 IDs and 50
+stages; the 17.168 s saving remains retail-dominated. Phase 2B is next.
+Current HEAD and `origin/ios-port` remain
+`d3be0f0efb8f94caff4833d03a08d460abbd3b82`; commit/push are pending. The latest
+Fast receipt is partial host evidence only: no install, phone, real Simulator,
+runtime, rendering, streaming, audio or memory claim.
 
 ## First commands
 ```bash
@@ -132,13 +127,13 @@ phone for this host-only M6 evidence.
 ## Still pending
 
 - M6: authorized tester, legal boundary, signed-update data preservation and remote release; App Store excluded.
-- Phone lighting A/B, more content/QuickLoad/transition, and IOS-P1-002 lifecycle/audio acceptance.
+- Phone lighting A/B, more content/QuickLoad/transition, lock/held-touch and dedicated-helper audio acceptance.
 - Frame pacing, 30-minute memory/thermal budget, dense UI/texture/SSR frames and remote CI miss/hit.
 
 ## Next slice
 
-1. Phase 2B: add profile separation and a conservative affected planner; unknown/global input selects full, runtime claims cannot close affected-only, and external build-tree/Simulator/device locks remain before further concurrency.
-2. After Phase 2A/2B checkpoint closeout, explicitly promote IOS-P1-010 and IOS-P1-002 before their lifecycle batches with controlled lighting.
+1. Phase 2B: its baseline is 56 entrypoints (historical 53 + three lifecycle additions, 8/16/5 cases) and 18 exclusions. Add profile separation and a conservative affected planner; unknown/global input selects full. No planner is integrated; the external prototype remains outside the repo.
+2. Keep remaining lock/held-touch/audio work deferred until explicitly promoted; do not repeat the accepted five-cycle app-switch proof.
 3. Keep M6 active; the cache is not legal distribution or device transfer/save-preservation evidence.
 
 ## Safety

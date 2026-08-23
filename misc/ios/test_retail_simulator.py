@@ -62,6 +62,118 @@ STAMP_PATHS = (
 )
 
 
+_MOCK_CAPTURE_V2_PRODUCER_CODE = """\
+import json
+import os
+import pathlib
+import signal
+import sys
+import time
+root = pathlib.Path(sys.argv[1])
+pid = int(sys.argv[2])
+mode = sys.argv[3]
+capture_root = pathlib.Path(sys.argv[4])
+stderr_path = pathlib.Path(sys.argv[5])
+control = pathlib.Path(sys.argv[6])
+nonce = sys.argv[7]
+if len(nonce) != 32 or any(character not in '0123456789abcdef' for character in nonce):
+    raise SystemExit(91)
+session = '0123456789abcdef0123456789abcdef'
+deadline = time.monotonic() + float(os.environ['MOCK_CAPTURE_HANDSHAKE_TIMEOUT'])
+transcript = capture_root / 'mock-capture-v2-transcript.jsonl'
+status = capture_root / 'mock-capture-v2-status.json'
+event_index = 0
+loading_modes = ('loading-t0-t1', 'persistent-loading', 'omit-13-after-retry', 'early-13-before-retry')
+def record(event):
+    global event_index
+    event_index += 1
+    transcript.parent.mkdir(parents=True, exist_ok=True)
+    transcript.open('a').write(json.dumps({'index': event_index, 'event': event}, sort_keys=True, separators=(',', ':')) + chr(10))
+def finish(value):
+    status.write_text(json.dumps({'schema': 'openxray.mock-capture-v2-status.v1', 'terminal': value, 'event_count': event_index}, sort_keys=True, separators=(',', ':')) + chr(10))
+def cleanup_requested():
+    try:
+        return bool(json.loads(control.read_text()).get('cleanup'))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return False
+def stop(_signum, _frame):
+    record('cleanup:signal')
+    finish('cleanup-signal')
+    raise SystemExit(0)
+signal.signal(signal.SIGTERM, stop)
+def wait_for(label, predicate):
+    while time.monotonic() < deadline:
+        if cleanup_requested():
+            record('cleanup:requested')
+            finish('cleanup-requested')
+            return False
+        if predicate():
+            record('ack:' + label)
+            return True
+        time.sleep(0.001)
+    record('timeout:' + label)
+    finish('deadline:' + label)
+    return False
+def capture_ack(path, sequence, require_pid):
+    try:
+        value = json.loads(path.read_text())
+        capture = value['capture']
+        return (capture['token'] == f'{session}:{sequence}' and capture['session'] == session and (not require_pid or capture['pid'] == pid))
+    except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+def retry_ack(offset):
+    try:
+        lines = stderr_path.read_bytes()[offset:].splitlines(keepends=True)
+    except OSError:
+        return False
+    return any(line == b'RETRY: live capture is still loading' + bytes([10]) for line in lines)
+def publish(sequence):
+    loading = mode in loading_modes and (mode == 'persistent-loading' or sequence < 13)
+    value = {'schema': 'openxray.capture.v2', 'capture': {'token': f'{session}:{sequence}', 'session': session, 'sequence': sequence, 'pid': pid if mode != 'wrong-pid' else pid + 1, 'frame': sequence * 10, 'continual_ms': sequence * 5000, 'width': 1864, 'height': 860, 'period_ms': 5000, 'scene': 'loading' if loading else 'gameplay', 'paused': loading}, 'view': {'position': [0.0, 0.0, 0.0], 'direction': [0.0, 0.0, 1.0], 'fov': 67.5}, 'world': None if loading else {'level': 'zaton', 'epoch': 1, 'sector': 0}, 'environment': None if loading else {'game_time_ms': sequence * 50000, 'day_time_s': 43200.0, 'time_factor': 10.0, 'cycle': 'default', 'weather': 'default', 'weather_fx': False, 'descriptor0': '12:00:00', 'descriptor1': '13:00:00', 'weight': 0.1, 'ambient': [0.1, 0.2, 0.3], 'hemi': [0.4, 0.5, 0.6, 0.7], 'sun': [0.8, 0.9, 1.0], 'sun_direction': [0.0, -1.0, 0.0]}, 'input': {'generation': 0, 'state': 'none', 'request_id': None, 'key': None, 'scancode': None, 'duration_ms': 0, 'accepted': None, 'released': None}}
+    if mode == 'jupiter':
+        value['world']['level'] = 'jupiter'
+    meta = root / 'xr_shot_meta.txt'
+    ppm = root / 'xr_shot.ppm'
+    newline = bytes([10])
+    data = b'P6' + newline + b'# openxray-capture-v2 token=' + f'{session}:{sequence}'.encode() + newline + b'1864 860' + newline + b'255' + newline + bytes(1864 * 860 * 3)
+    ppm_pending = root / f'.ppm-{sequence}'
+    meta_pending = root / f'.meta-{sequence}'
+    ppm_pending.write_bytes(data)
+    os.replace(ppm_pending, ppm)
+    meta_pending.write_text(json.dumps(value, separators=(',', ':')))
+    os.replace(meta_pending, meta)
+    record(f'publish:{sequence}')
+if mode not in loading_modes:
+    time.sleep(0.2)
+    publish(10)
+    time.sleep(0.04)
+    publish(11)
+    time.sleep(0.04)
+    publish(12)
+    finish('published:12')
+    raise SystemExit(0)
+publish(10)
+if not wait_for('boundary-watermark:10', lambda: capture_ack(capture_root / 'boundary-watermark.json', 10, False)):
+    raise SystemExit(0)
+publish(11)
+if not wait_for('baseline:11', lambda: capture_ack(capture_root / 'baseline.json', 11, True)):
+    raise SystemExit(0)
+stderr_offset = stderr_path.stat().st_size
+publish(12)
+if mode == 'early-13-before-retry':
+    publish(13)
+if not wait_for('RETRY', lambda: retry_ack(stderr_offset)):
+    raise SystemExit(0)
+if mode in ('persistent-loading', 'omit-13-after-retry'):
+    finish('retry-ack-without-gameplay')
+    raise SystemExit(0)
+if mode != 'early-13-before-retry':
+    publish(13)
+finish('published:13')
+"""
+
+
+
 def digest(path: Path) -> str:
     result = hashlib.sha256()
     result.update(path.read_bytes())
@@ -825,13 +937,22 @@ class RetailSimulatorTests(unittest.TestCase):
 
     def _xcrun_mock_content(self) -> str:
         return textwrap.dedent("""
-            import json, os, pathlib, subprocess, sys, time
+            import json, os, pathlib, secrets, subprocess, sys, time
             log=os.environ['MOCK_LOG']; args=sys.argv[1:]; open(log,'a').write('xcrun '+ ' '.join(args)+'\\n')
             def schedule_delayed_lifecycle(phase, pid, root, marker):
                 event_dir=pathlib.Path(os.environ['MOCK_LIFECYCLE_EVENT_DIR'])
                 event_dir.mkdir(parents=True, exist_ok=True)
                 payload={'pid':pid, 'log':str(root/'xr_boot.log'), 'marker':marker}
                 (event_dir/(phase+'.pending.json')).write_text(json.dumps(payload, sort_keys=True))
+            def capture_producer_identity(pid, control, nonce):
+                probe=subprocess.run(
+                    ('/bin/ps','-ww','-p',str(pid),'-o','command='), check=False,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                )
+                if probe.returncode != 0 or not probe.stdout.strip():
+                    return 'absent'
+                expected_suffix=f' {control} {nonce}'
+                return 'matching' if probe.stdout.strip().endswith(expected_suffix) else 'different'
             if args[:2] == ['vtool','-show-build']:
                 mode=os.environ.get('MOCK_VTOOL_MODE','normal')
                 if mode == 'mixed': print('cmd LC_BUILD_VERSION\\nplatform IOSSIMULATOR\\nminos 16.4\\ncmd LC_BUILD_VERSION\\nplatform IOS\\nminos 16.4')
@@ -985,22 +1106,26 @@ class RetailSimulatorTests(unittest.TestCase):
                 state_file.write_text(str(child.pid))
                 if os.environ.get('MOCK_CAPTURE_V2'):
                     capture_mode=os.environ.get('MOCK_CAPTURE_V2_MODE','normal')
-                    capture_code=(
-                        "import json,os,pathlib,sys,time; root=pathlib.Path(sys.argv[1]); pid=int(sys.argv[2]); mode=sys.argv[3]; "
-                        "session='0123456789abcdef0123456789abcdef';\\n"
-                        "loading_mode=mode in ('loading-t0-t1','persistent-loading')\\n"
-                        "def publish(seq):\\n"
-                        " v={'schema':'openxray.capture.v2','capture':{'token':f'{session}:{seq}','session':session,'sequence':seq,'pid':pid if mode!='wrong-pid' else pid+1,'frame':seq*10,'continual_ms':seq*5000,'width':1864,'height':860,'period_ms':5000,'scene':'gameplay','paused':False},'view':{'position':[0.0,0.0,0.0],'direction':[0.0,0.0,1.0],'fov':67.5},'world':{'level':'zaton','epoch':1,'sector':0},'environment':{'game_time_ms':seq*50000,'day_time_s':43200.0,'time_factor':10.0,'cycle':'default','weather':'default','weather_fx':False,'descriptor0':'12:00:00','descriptor1':'13:00:00','weight':0.1,'ambient':[0.1,0.2,0.3],'hemi':[0.4,0.5,0.6,0.7],'sun':[0.8,0.9,1.0],'sun_direction':[0.0,-1.0,0.0]},'input':{'generation':0,'state':'none','request_id':None,'key':None,'scancode':None,'duration_ms':0,'accepted':None,'released':None}}; "
-                        "\\n if loading_mode and (mode=='persistent-loading' or seq<13): v['capture']['scene']='loading'; v['capture']['paused']=True; v['world']=None; v['environment']=None\\n"
-                        " if mode=='jupiter': v['world']['level']='jupiter'\\n"
-                        " meta=root/'xr_shot_meta.txt'; ppm=root/'xr_shot.ppm'; nl=bytes([10]); data=(b'P6'+nl+b'# openxray-capture-v2 token='+f'{session}:{seq}'.encode()+nl+b'1864 860'+nl+b'255'+nl+bytes(1864*860*3)); ptmp=root/f'.ppm-{seq}'; mtmp=root/f'.meta-{seq}'; ptmp.write_bytes(data); os.replace(ptmp,ppm); mtmp.write_text(json.dumps(v,separators=(',',':'))); os.replace(mtmp,meta)\\n"
-                        "time.sleep(0 if loading_mode else 0.2); publish(10); time.sleep(0.08 if loading_mode else 0.04); publish(11); time.sleep(0.08 if loading_mode else 0.04); publish(12); (time.sleep(0.08),publish(13)) if loading_mode else None"
-                    )
-                    producer=subprocess.Popen([sys.executable, '-c', capture_code, str(root), str(child.pid), capture_mode],
+                    stderr_arguments=[value for value in args if value.startswith('--stderr=')]
+                    if len(stderr_arguments) != 1:
+                        print('fixture launch requires one exact --stderr= argument', file=sys.stderr)
+                        sys.exit(87)
+                    stderr_path=pathlib.Path(stderr_arguments[0].split('=',1)[1])
+                    capture_root=stderr_path.parent/'capture-v2'
+                    documents=pathlib.Path(os.environ['MOCK_SIM_DATA'])/'Documents'
+                    control=documents/'mock-capture-v2-control.json'
+                    capture_code=__MOCK_CAPTURE_V2_PRODUCER_CODE__
+                    producer_nonce=secrets.token_hex(16)
+                    producer=subprocess.Popen(
+                        [sys.executable, '-c', capture_code, str(documents), str(child.pid),
+                         capture_mode, str(capture_root), str(stderr_path), str(control),
+                         producer_nonce],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True)
-                    if capture_mode in ('loading-t0-t1','persistent-loading'):
-                        deadline=time.monotonic()+1
-                        while not (root/'xr_shot_meta.txt').exists() and time.monotonic()<deadline: time.sleep(0.001)
+                    control.write_text(json.dumps(
+                        {'schema':'openxray.mock-capture-v2-control.v1',
+                         'capture_root':str(capture_root),'cleanup':False,
+                         'producer_pid':producer.pid,'producer_nonce':producer_nonce},
+                        sort_keys=True))
                 if not autoload and not os.environ.get('MOCK_NO_BOOT_LOG'):
                     marker_mode=os.environ.get('MOCK_MENU_MARKER_MODE','normal')
                     lifecycle_seq=int(os.environ.get('MOCK_INITIAL_LIFECYCLE_SEQ','1'))
@@ -1049,11 +1174,53 @@ class RetailSimulatorTests(unittest.TestCase):
                         time.sleep(0.001)
             elif args[1] == 'terminate':
                 mutation=os.environ.get('MOCK_POST_CAPTURE_MUTATION','')
+                control=pathlib.Path(os.environ['MOCK_SIM_DATA'])/'Documents/mock-capture-v2-control.json'
+                capture_control=None
+                if control.exists():
+                    try:
+                        capture_control=json.loads(control.read_text())
+                    except (OSError,ValueError,json.JSONDecodeError):
+                        sys.exit(88)
+                    if (not isinstance(capture_control,dict)
+                            or set(capture_control) != {'schema','capture_root','cleanup',
+                                'producer_pid','producer_nonce'}
+                            or capture_control.get('schema') != 'openxray.mock-capture-v2-control.v1'
+                            or not isinstance(capture_control.get('capture_root'),str)
+                            or type(capture_control.get('producer_pid')) is not int
+                            or capture_control['producer_pid'] <= 0
+                            or not isinstance(capture_control.get('producer_nonce'),str)
+                            or len(capture_control['producer_nonce']) != 32
+                            or any(character not in '0123456789abcdef'
+                                   for character in capture_control['producer_nonce'])):
+                        sys.exit(88)
+                    capture_control['cleanup']=True
+                    control.write_text(json.dumps(capture_control,sort_keys=True))
                 if mutation:
-                    capture_root=next(pathlib.Path(os.environ['MOCK_WORK_BASE']).glob('simulator-work-*/capture-v2'))
+                    if capture_control is None:
+                        sys.exit(88)
+                    capture_root=pathlib.Path(capture_control['capture_root'])
                     if mutation == 'ppm': (capture_root/'capture.ppm').open('ab').write(b'mutated')
                     elif mutation == 'proof': (capture_root/'capture-proof.json').write_text('{}\\n')
                     else: sys.exit(2)
+                if capture_control is not None:
+                    producer_pid=capture_control['producer_pid']
+                    producer_nonce=capture_control['producer_nonce']
+                    identity=capture_producer_identity(producer_pid,control,producer_nonce)
+                    if identity == 'matching':
+                        try:
+                            os.kill(producer_pid,15)
+                        except ProcessLookupError:
+                            identity='absent'
+                    cleanup_deadline=time.monotonic()+0.5
+                    while identity == 'matching' and time.monotonic()<cleanup_deadline:
+                        time.sleep(0.001)
+                        identity=capture_producer_identity(producer_pid,control,producer_nonce)
+                    if identity == 'matching':
+                        print('fixture capture producer survived bounded cleanup',file=sys.stderr)
+                        sys.exit(89)
+                    capture_control['cleanup_terminal']=(
+                        'producer-gone' if identity == 'absent' else 'producer-identity-not-live')
+                    control.write_text(json.dumps(capture_control,sort_keys=True))
                 mode=os.environ.get('MOCK_POST_LAUNCH_LOG_MODE','')
                 if mode:
                     pid=int(pathlib.Path(os.environ['MOCK_LAUNCH_PID_FILE']).read_text())
@@ -1078,7 +1245,8 @@ class RetailSimulatorTests(unittest.TestCase):
                 manifest.replace(old)
                 manifest.write_text('{"replacement":true}\\n')
             sys.exit(0)
-        """)
+        """).replace(
+            "__MOCK_CAPTURE_V2_PRODUCER_CODE__", repr(_MOCK_CAPTURE_V2_PRODUCER_CODE))
 
     def _ensure_xcrun_mock(self) -> None:
         self._ensure_component(
@@ -1207,6 +1375,7 @@ class RetailSimulatorTests(unittest.TestCase):
         if capture_v2_mode is not None:
             environment["MOCK_CAPTURE_V2"] = "1"
             environment["MOCK_CAPTURE_V2_MODE"] = capture_v2_mode
+            environment["MOCK_CAPTURE_HANDSHAKE_TIMEOUT"] = launch_timeout
         if post_capture_mutation is not None:
             environment["MOCK_POST_CAPTURE_MUTATION"] = post_capture_mutation
         if mutate_selected_save:

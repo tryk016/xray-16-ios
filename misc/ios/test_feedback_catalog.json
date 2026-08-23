@@ -1197,6 +1197,135 @@
       "timeout_seconds": 1200
     },
     {
+      "entrypoint_id": "python::misc/ios/ui_automation/test_devicectl_contract.py",
+      "expected_case_count": 8,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/ui_automation/test_devicectl_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/ui_automation/devicectl_contract.py"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "host-contract",
+        "ui-automation"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/ui_automation/test_runner_contract.py",
+      "expected_case_count": 16,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/ui_automation/test_runner_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/ui_automation/run.sh"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/ui_automation/devicectl_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/ui_automation/log_oracles.sh"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/device_lease.sh"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/command_timeout.py"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "host-contract",
+        "ui-automation"
+      ],
+      "resources": [
+        "host",
+        "filesystem",
+        "subprocess"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/ui_automation/test_xctest_contract.py",
+      "expected_case_count": 5,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/ui_automation/test_xctest_contract.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/ui_automation/OpenXRayUITests.m"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/ui_automation/xctest_contract.py"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 0A lists direct and known broad inputs only; transitive dependency closure is not yet proven.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "host-contract",
+        "ui-automation"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
       "entrypoint_id": "python::misc/ios/ui_automation/test_prepare_scheme.py",
       "expected_case_count": 2,
       "explicit_inputs": [

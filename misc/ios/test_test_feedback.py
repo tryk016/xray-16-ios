@@ -208,8 +208,8 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
         catalog = feedback.read_catalog()
         records = feedback.catalog_entrypoint_ids(catalog)
         self.assertEqual(records, feedback.expected_entrypoints())
-        self.assertEqual(len(records), 53)
-        self.assertEqual(sum(item.startswith("python::") for item in records), 32)
+        self.assertEqual(len(records), 56)
+        self.assertEqual(sum(item.startswith("python::") for item in records), 35)
         self.assertEqual(sum(item.startswith("cpp:") for item in records), 9)
         by_id = {entry["entrypoint_id"]: entry for entry in catalog["entrypoints"]}
         all_five = ["engine", "shaders", "device", "full", "fast"]
@@ -1076,7 +1076,7 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
 
         def dispatcher_targets(value: str) -> set[str]:
             return set(re.findall(
-                r'misc/ios/(?:test_[A-Za-z0-9_]+\.py|shadercheck/(?:glsl_es_check|link_check)\.py|'
+                r'misc/ios/(?:(?:ui_automation/)?test_[A-Za-z0-9_]+\.py|shadercheck/(?:glsl_es_check|link_check)\.py|'
                 r'ui_automation/test_log_oracles\.sh)', value))
 
         self.assertEqual(dispatcher_targets(dispatcher), expected_targets)

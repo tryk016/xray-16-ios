@@ -29,11 +29,17 @@ CATALOG_PATH = Path(__file__).with_name("test_feedback_catalog.json")
 SCHEMA = "openxray.test-feedback-catalog.v1"
 RUNTIME_SCHEMA = "openxray.test-feedback.v1"
 PYTHON_COMMAND = re.compile(
-    r'^\s*(?:feedback_stage\s+"stage::python::misc/ios/test_[^\"]+\.py"\s+)?'
-    r"(?:python3|feedback_selected_python)\s+(misc/ios/test_(?!feedback\.py)[^\s\\]+\.py)"
+    r'^\s*(?:feedback_stage\s+"stage::python::misc/ios/(?:ui_automation/)?test_[^\"]+\.py"\s+)?'
+    r"(?:python3|feedback_selected_python)\s+"
+    r"(misc/ios/(?:ui_automation/)?test_(?!feedback\.py)[^\s\\]+\.py)"
 )
 HOST_FEEDBACK_TOOLING_PATH = "misc/ios/test_retail_test_profiles.py"
 HOST_FEEDBACK_SUPPORT_PATH = "misc/ios/test_retail_fixture_contract.py"
+UI_AUTOMATION_CONTRACT_PATHS = {
+    "misc/ios/ui_automation/test_devicectl_contract.py",
+    "misc/ios/ui_automation/test_runner_contract.py",
+    "misc/ios/ui_automation/test_xctest_contract.py",
+}
 CASE_RANGE = re.compile(r"^([A-Z]+)-\{index:02d\}$")
 EXPECTED_BUILD_STAGE_EXCLUSIONS = frozenset({
     "build-stage::artifact-input-hash-after",
@@ -1686,7 +1692,7 @@ def parse_build_check_python(root: Path = ROOT) -> tuple[list[str], list[str]]:
         match = PYTHON_COMMAND.match(line)
         if match:
             shader_only.append(match.group(1))
-    if (len(unconditional) != 24 or len(shader_only) != 4
+    if (len(unconditional) != 27 or len(shader_only) != 4
             or unconditional.count(HOST_FEEDBACK_TOOLING_PATH) != 1):
         raise CatalogError(
             f"build_check Python inventory drift: unconditional={len(unconditional)} shader={len(shader_only)}"
@@ -1849,7 +1855,8 @@ def validate_build_stage_exclusions(catalog: dict[str, Any], root: Path = ROOT) 
             position = match.start() + match.group(0).index("python3")
             covered_lines.add(text.count("\n", 0, position) + 1)
     for pattern in (
-        r'^\s*(?:feedback_stage\s+"[^"]+"\s+)?(?:python3|feedback_selected_python)\s+misc/ios/test_[^\s\\]+\.py',
+        r'^\s*(?:feedback_stage\s+"[^"]+"\s+)?(?:python3|feedback_selected_python)\s+'
+        r'misc/ios/(?:ui_automation/)?test_[^\s\\]+\.py',
         r'^\s+openal_fields=\$\(feedback_stage "[^"]+" python3 "\$REPO_ROOT/misc/ios/openal_provider_contract\.py" (?:configured|artifact)',
         r'^feedback_stage "[^"]+" python3 misc/ios/ui_contract_check\.py',
         r'^\s+feedback_stage "[^"]+" python3 misc/ios/shadercheck/glsl_es_check\.py --macro-contract',
@@ -1984,7 +1991,7 @@ def profile_ids(root: Path = ROOT) -> dict[str, list[str]]:
         # This entrypoint is executed unconditionally by build_check, but its
         # five Phase 1A contract cases intentionally remain outside the frozen
         # historical central-python/legacy-python aggregates.
-        if item == HOST_FEEDBACK_TOOLING_PATH:
+        if item == HOST_FEEDBACK_TOOLING_PATH or item in UI_AUTOMATION_CONTRACT_PATHS:
             continue
         path = root / item
         if item.endswith("test_archive_completed_artifacts.py"):

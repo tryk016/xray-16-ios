@@ -29,7 +29,7 @@
     "RetailSimulatorTests.tearDown": "6ac7fa0ff5dd7500a82d28030c38daee589d6b8090878ff7dfd034f9bf5b3678"
   },
   "runner_fixture": {
-    "canonical_json_sha256": "c0db5732e2545c8ef11be1f882aa867eaf6533777c7ddeddea0305643687a8c3",
+    "canonical_json_sha256": "f5ec63d1ec5217236576a4836e458fdd7c3e0ec434179e3bdf020ef7e8a28ad5",
     "fixture_pc": {
       "normalized_bytes": 98,
       "normalized_sha256": "633bac2001469a73608ca7461f6ba9b02dd8a9927415cdf8288dbf3214a2c43d"
@@ -341,10 +341,10 @@
         "type": "file"
       },
       {
-        "bytes": 19532,
+        "bytes": 26161,
         "mode": "0755",
         "path": "mocks/xcrun",
-        "sha256": "3886d4b2e7fdc4eeebb10433127ea947f7ed72b930187b12cd22b46db35b8481",
+        "sha256": "400baef9be40e9e6b16544f7f06acf95adb6eaf5f2ae6bdde3c1b36093204acb",
         "type": "file"
       },
       {

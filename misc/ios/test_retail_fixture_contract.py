@@ -12,6 +12,7 @@ import hashlib
 import json
 from pathlib import Path
 import stat
+import subprocess
 import unittest
 
 from test_retail_simulator import RetailSimulatorTests
@@ -240,6 +241,111 @@ class RetailFixtureContract(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "previously failed"):
                     case._ensure_runner_fixture()
                 self.assertEqual(node_signature(target), mutated_signature)
+
+        def capture_transcript(work: Path) -> tuple[list[str], dict[str, object]]:
+            capture_root = work / "capture-v2"
+            records = [
+                json.loads(line)
+                for line in (capture_root / "mock-capture-v2-transcript.jsonl").read_text().splitlines()
+            ]
+            self.assertEqual(
+                [record["index"] for record in records],
+                list(range(1, len(records) + 1)),
+            )
+            return [record["event"] for record in records], json.loads(
+                (capture_root / "mock-capture-v2-status.json").read_text())
+
+        def require_producer_cleanup(case: RetailSimulatorTests) -> None:
+            control_path = case.sim_data / "Documents/mock-capture-v2-control.json"
+            control = json.loads(control_path.read_text())
+            self.assertTrue(control["cleanup"])
+            self.assertIn(control["cleanup_terminal"], {
+                "producer-gone", "producer-identity-not-live",
+            })
+            producer_pid = control["producer_pid"]
+            producer_nonce = control["producer_nonce"]
+            probe = subprocess.run(
+                ("/bin/ps", "-ww", "-p", str(producer_pid), "-o", "command="),
+                check=False, capture_output=True, text=True,
+            )
+            expected_suffix = f" {control_path} {producer_nonce}"
+            self.assertFalse(
+                probe.returncode == 0 and probe.stdout.strip().endswith(expected_suffix),
+                f"identity-bound capture producer remains live: pid={producer_pid}",
+            )
+
+        capture_arguments = (
+            "--with-saves", "--autoload-save", "save", "--capture-v2", "--runtime", "27.0",
+        )
+        with self.subTest(mock="xcrun", handshake="loading-t0-t1"):
+            case = self.fixture()
+            result = case.run_runner(
+                *capture_arguments, autoload_mode="normal", capture_v2_mode="loading-t0-t1",
+                launch_timeout="1.5",
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            work = next(case.work_base.glob("simulator-work-*"))
+            events, status = capture_transcript(work)
+            self.assertEqual(events, [
+                "publish:10", "ack:boundary-watermark:10", "publish:11",
+                "ack:baseline:11", "publish:12", "ack:RETRY", "publish:13",
+            ])
+            self.assertEqual(status["terminal"], "published:13")
+            require_producer_cleanup(case)
+            self.assertEqual(case.commands.read_text().count("simctl launch --stdout="), 1)
+            self.assertIn("xcrun simctl delete", case.commands.read_text())
+
+        with self.subTest(mock="xcrun", handshake="missing-gameplay-after-retry"):
+            case = self.fixture()
+            result = case.run_runner(
+                *capture_arguments, autoload_mode="normal",
+                capture_v2_mode="omit-13-after-retry", launch_timeout="0.5",
+            )
+            self.assertNotEqual(result.returncode, 0)
+            work = next(case.work_base.glob("simulator-work-*"))
+            events, status = capture_transcript(work)
+            self.assertEqual(events, [
+                "publish:10", "ack:boundary-watermark:10", "publish:11",
+                "ack:baseline:11", "publish:12", "ack:RETRY",
+            ])
+            self.assertEqual(status["terminal"], "retry-ack-without-gameplay")
+            capture_root = work / "capture-v2"
+            for path in (
+                capture_root / "capture.json", capture_root / "capture.ppm",
+                capture_root / "capture-proof.json", work / "report.txt",
+                work / ".report.pending",
+            ):
+                self.assertFalse(path.exists(), path)
+            self.assertNotIn(
+                "PASS — isolated retail Simulator workflow:",
+                result.stdout + result.stderr,
+            )
+            self.assertFalse(
+                any(path.name.startswith("report") for path in work.iterdir()),
+                "runner failure left a report or pending report behind",
+            )
+            require_producer_cleanup(case)
+            self.assertEqual(case.commands.read_text().count("simctl launch --stdout="), 1)
+            self.assertIn("xcrun simctl delete", case.commands.read_text())
+
+        with self.subTest(mock="xcrun", handshake="gameplay-before-retry"):
+            case = self.fixture()
+            result = case.run_runner(
+                *capture_arguments, autoload_mode="normal",
+                capture_v2_mode="early-13-before-retry", launch_timeout="1.5",
+            )
+            work = next(case.work_base.glob("simulator-work-*"))
+            events, status = capture_transcript(work)
+            self.assertIn("publish:13", events)
+            causal_order = [
+                event for event in events if event in {"publish:13", "ack:RETRY"}
+            ]
+            self.assertIn(causal_order, (["publish:13"], ["publish:13", "ack:RETRY"]))
+            self.assertIn(status["terminal"], {
+                "published:13", "cleanup-requested", "cleanup-signal", "deadline:RETRY",
+            })
+            require_producer_cleanup(case)
+            self.assertIn("xcrun simctl delete", case.commands.read_text())
 
     def test_shared_xcrun_and_lipo_ownership_is_inode_stable_across_composition(self) -> None:
         case = self.fixture()

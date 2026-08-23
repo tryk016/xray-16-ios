@@ -1,6 +1,6 @@
 # OpenXRay iOS — deferred backlog
 
-**Last synchronized:** 2026-08-13
+**Last synchronized:** 2026-08-14
 
 **Canonical contract:** [iOS-Port.md](iOS-Port.md)
 
@@ -79,13 +79,13 @@ no stale texture and no redundant full cache flush.
 **Priority:** P1 deferred behind the current startup, presentation and
 lifecycle/device-interruption validation.
 
-**Evidence level:** a real device warning selected 47 stale surfaces and
-released 262,143 KiB of decoded texture storage. Current physical footprint
-fell from 3,262,723 to 2,998,051 KiB. PDA, world, HUD and inventory rendered
-afterward; a scripted five-second walk and a later foreground cycle also passed.
-The Activity Monitor parser passes twenty positive/negative fixtures, the
-FastDevice/full gates and final Sol xhigh review. The 30-minute budget and
-lower-memory target remain device-untested.
+**Evidence level:** current device warning is an open P1 signal, not an
+eviction result: texture storage 2,000,569 KiB; physical current/peak
+2,777,234/2,781,330 KiB at warning; eviction 0 surfaces/0 KiB; after-load
+current/peak 3,310,899/3,314,995 KiB. The Activity Monitor parser passes twenty
+positive/negative fixtures, the FastDevice/full gates and final Sol xhigh
+review, but no soak or device-budget acceptance exists. Older successful
+eviction evidence remains historical Journal context only.
 
 **Remaining device actions:**
 
@@ -102,45 +102,24 @@ the 30-minute run remains inside an explicit device budget.
 
 ### IOS-P1-002: finish iOS lifecycle
 
-**Priority:** P1 deliberately deferred behind Phase 2A/2B checkpoint closeout;
-restore it to the active Plan before the next physical lifecycle batch.
+**Priority:** P1 deliberately deferred behind Phase 2B checkpoint closeout;
+restore it to the active Plan before the remaining lock/held-touch batch.
 
 **Evidence level:** the local frame gate, lifecycle inbox, persistence ordering,
-input cancellation, GL detach/rebind, LOWMEMORY path and corrected Safari/audio
-harness pass their deterministic contracts and reviews. Four diagnostic device
-cycles and one held-W cycle pass. The UIScene backport also preserves one PID
-through one Simulator recovery cycle on both iOS 26.5 and 27.0. Normal Safari
-cycles, lock/held-touch and a real audio interruption remain physical-device
-untested.
+input cancellation, GL detach/rebind and LOWMEMORY path pass deterministic
+contracts and reviews. Four diagnostic cycles, one held-W cycle and a separate
+five-cycle system-browser/OpenXRay run pass on device; the latter retained PID
+`13645`, the exact drawable and five correct recovery frames. The UIScene
+backport also preserves one PID through one Simulator recovery on iOS 26.5 and
+27.0. Autonomous startup now rejects direct or indented duplicate config
+autoload and uses the exact engine `-start`; a physical mechanism probe reached
+resolved Zaton on PID `13788`. Lock/held-touch and a real audio interruption
+remain untested.
 
-**Remaining acceptance:** five normal Safari/background cycles, one separate
-lock/unlock cycle with held touch and one real OpenAL Soft interruption recover
-in the same process without stuck input, black output, lost audio or lost
-settings/saves.
-
-### IOS-P1-010: adopt UIKit scene lifecycle for iOS 27
-
-**Priority:** P1 deliberately deferred behind Phase 2A/2B checkpoint closeout;
-promote it back to the active Plan before a physical-device lifecycle batch.
-
-**Evidence level:** the hash-pinned SDL2 2.32.10 UIScene backport,
-deterministic oracle, iOS 26.5/27.0 Simulator runs and final Sol xhigh approval
-are complete. The delayed lifecycle fixture uses a PID-validated
-`pending -> armed -> released` handshake; 50 sequential, 200 eight-way parallel
-and the full 84-test retail suite pass without changing production guards.
-Physical-device acceptance remains untested.
-
-The app declares one scene, uses `SDLUIKitSceneDelegate`, starts `SDL_main`
-once, binds iOS 13+ windows to a connected `UIWindowScene`, and preserves one
-PID across one ordered Simulator recovery cycle. This is bootstrap and
-menu-boundary evidence only, not physical-device, pixel, audio or soak proof.
-
-**Remaining acceptance:** five physical-device Safari/background cycles plus
-one separate lock/unlock and one audio-interruption cycle must preserve the same
-PID, input, audio, drawable and saves without replacing the process.
-
-**Acceptance:** five physical-device foreground cycles plus one lock/unlock and
-audio-interruption cycle preserve PID, input, audio, drawable and saves.
+**Remaining acceptance:** one separate lock/unlock cycle with held touch and one
+real OpenAL Soft interruption recover in the same process without stuck input,
+black output, lost audio or lost settings/saves. The accepted five app-switch
+cycles must not be repeated merely to close these independent edges.
 
 ## P2 — product and maintenance debt
 
@@ -179,7 +158,10 @@ promoted back to the active Plan.
 **Evidence level:** the project-owned static OpenAL Soft 1.25.2 selection,
 per-Core exact-scene interruption registry, strict/ASan/UBSan policy tests and
 final Sol xhigh review are proven locally. Physical iPhone interruption
-recovery is untested.
+recovery is untested. The latest reliability bundle was 0/1 because the XCTest
+helper failed AVAudioSession activation `561015905` before OpenXRay was
+interrupted, so it is neither a product failure nor audio evidence.
+A dedicated normal helper application with audio background mode is required.
 
 The provider contract selects only the exact prefix archive and rejects Apple
 OpenAL, dynamic/alternate/duplicate archives and forwarded linker forms. The

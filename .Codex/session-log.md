@@ -972,3 +972,93 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   and matched origin immediately after its own push. Next: active Phase 2B
   profiles plus conservative planner; unknown/global => full, retain external
   locks, defer sharding.
+
+## 2026-08-14 — Physical lifecycle accepted; audio helper deferred
+
+- Standalone lifecycle XCTest passed 1/1: PID 13645 survived five Firefox/
+  OpenXRay switches, exact engine groups seq2–11 retained drawable 1864×860,
+  and five recovery frames were correct. Evidence:
+  `OpenXRay-lifecycle-20260814-0256.xcresult`; log SHA `db2cb8ae…7db3`.
+- Initial overall runner status failed only because SIGTERM left the exact PID
+  alive; a fresh exact-PID SIGKILL/query closed it. Runner now fail-closes on
+  cleanup, escalates same PID, releases its exact lease token last and emits
+  `PASS` only after cleanup/release success.
+- Audio is unproven: backgrounded XCTest helper failed `!pla` before OpenXRay
+  interruption. Use a dedicated background-audio helper. At this checkpoint,
+  transient config autoload remained known harness debt; the later `-start`
+  entry records its closure.
+- Focused PASS: devicectl 8/8, runner 16/16, XCTest source 5/5, shell IDs 12/12,
+  catalog validate, signed generic build, Bash/ShellCheck/diff. Sol xhigh:
+  `APPROVE — brak P0/P1/P2`; lifecycle accepted without rerun, audio deferred.
+
+## 2026-08-14 — Physical Options and cleanup proof
+
+- `OpenXRay-options-20260814-0336.xcresult`: 1/1 PASS in 47.945 s; three
+  launch/tap/terminate attempts and six inspected frames show complete main menu
+  plus Video Options, `Optimal` and exact `1864x860`.
+- Log SHA `7e209f99…7b03`, PID 13765 and expected Options resources. Trace SHA
+  `24fd2d55…a9b8` ends at lease release; final success printed afterward. A
+  fresh exact-lease query found no `xr_3da`; lock is free.
+- Final-code `fast` receipt `gate-1786674041497733000-68048-0.json` PASS in
+  834.015 s, unchanged before/after, retail 102/102, archive 131/131, shaders/
+  links PASS and FastDevice 68 TUs/UUID `4A5C8C5B…E29B`; now pre-document only.
+
+## 2026-08-14 — Autonomous `-start` mechanism
+
+- Runner now rejects direct or whitespace-indented config autoload and launches
+  autonomous scenarios with the exact engine `-start`; Options remains
+  runner-launch-free. Stable contract 16/16, catalog 711 IDs and signed generic
+  build pass.
+- First Sol xhigh review found the leading-whitespace semantic P2; the fixed
+  guard plus mutation received `APPROVE — brak P0/P1/P2` on re-review.
+- Physical mechanism probe used PID 13788 and reached exact resolved Zaton at
+  frame 34. Log SHA `59134434…fc4d`; launch-record SHA `84aa6778…9b62`.
+  Outer status was nonzero only from local post-device `/usr/bin/unlink` after
+  cleanup/release; a fresh lease proved the PID gone. This is not runner E2E or
+  new lifecycle/audio acceptance.
+
+## 2026-08-14 — Lifecycle/UI documentation closeout
+
+- Latest Options `OpenXRay-options-20260814-0519.xcresult` passed 1/1: three
+  attempts/six readable complete frames, no Multiplayer, `Optimal`, 1864×860;
+  log `accbd3c04…16cb`. Latest lifecycle
+  `OpenXRay-lifecycle-20260814-0521.xcresult` passed 1/1 plus log oracle: PID
+  13920, seq2–11, five recoveries at 1864×860 and cleanup
+  SIGTERM→SIGKILL→gone→release; log `5ee26c83…30a6`.
+- Reliability was 0/1 before an OpenXRay interruption because the XCTest helper
+  failed AVAudioSession activation 561015905; no audio claim/regression. Memory
+  remains open P1 (2,000,569 KiB texture storage, eviction 0/0 KiB, after-load
+  physical 3,310,899/3,314,995 KiB); no soak/budget acceptance.
+- Exact-state Fast PASS `gate-1786677112155290000-17291-0.json`: 912.823 s,
+  HEAD `d3be0f0…`, matching before/after including five untracked files, status
+  `9d7ecbea…3433`, diff `9b61f94e…9924`, log `31880143…3626`, stamp
+  `e6821f26…58e1`. It is pre-document only; no phone, gate, commit or push.
+
+## 2026-08-23 — deterministic capture-v2 loading fixture closeout
+
+- Exact gate `gate-1787483189290018000-97845-0` exposed only the mocked
+  loading-t0-t1 scheduler flake (historical 33/34); the production monotonic
+  deadline was correct. The fixture now uses its causal ACK handshake only for
+  the exact four loading modes. Normal/jupiter/wrong-pid retain historical
+  timing and T0 null; exact stderr binding, ordered transcript, fail-closed
+  mutations and nonce-bound bounded producer cleanup are covered. Production
+  hashes are byte-identical.
+- Exact-state stress passed 50/50 (`capture-v2-handshake-exact-50x-20260823-141413.log`,
+  SHA `0c49abf7…33c4`) and 20/20 under two CPU workers plus continuous reads
+  (`capture-v2-handshake-exact-load-20x-20260823-142325.log`, SHA
+  `e562c04f…47c1`); cleanup was verified.
+- First corrected Fast receipt `gate-1787489460135495000-78059-0` failed only
+  because the handshake had also changed normal T0 from null. The disjoint
+  non-loading branch restored historical semantics. Focused normal/loading/
+  persistent/jupiter/wrong-pid/mutation/snapshot/AST/support checks pass; 102
+  retail bodies and 13 support IDs remain stable.
+- Final exact-state pre-document Fast receipt
+  `gate-1787491750981592000-67197-0.json` passed in 1050.721 s: retail 102/102
+  in 735.357 s, archive 131/131, macros 30/30, resources 13/13, links 137/137,
+  FastDevice UUID `4A5C8C5B-BEF6-3A30-A173-FD5E22D6E29B`; log
+  `f3d20d23…dc1f`, receipt `3bebedcc…b61f`, stamp `d4fbb93a…967d`.
+- Sol xhigh final code/evidence review returned exact
+  `APPROVE — brak P0/P1/P2` and authorized this docs-only append without a new
+  gate. This is partial host evidence only. Options/lifecycle remain closed;
+  audio and memory remain open. HEAD/origin remain `d3be0f0`; no commit/push,
+  install, phone, Simulator or new runtime/rendering/streaming claim.
