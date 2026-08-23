@@ -68,10 +68,11 @@ Phase 2A remains host-complete: immutable per-key shader cache with kernel
 `flock`, fail-closed recovery and certified MISS/HIT replay; `full` is uncached.
 Natural MISS/HIT passed in 820.149/802.981 s with identical 1,183 IDs and 50
 stages; the 17.168 s saving remains retail-dominated. Phase 2B is next.
-Current HEAD and `origin/ios-port` remain
-`d3be0f0efb8f94caff4833d03a08d460abbd3b82`; commit/push are pending. The latest
-Fast receipt is partial host evidence only: no install, phone, real Simulator,
-runtime, rendering, streaming, audio or memory claim.
+Approved checkpoint `628ddf0148c2476a5e0686d2cf824aff6ed114d3` was pushed as
+`origin/ios-port d3be0f0ef..628ddf014`; the worktree was clean immediately
+afterward. Its source gate remains the documented pre-document exact Fast
+receipt. This publication update is docs-only and adds no install, phone, real
+Simulator, runtime, rendering, streaming, audio or memory claim.
 
 ## First commands
 ```bash

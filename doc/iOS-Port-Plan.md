@@ -71,16 +71,22 @@ close from affected-only evidence. Existing external build-tree, Simulator and
 device locks remain mandatory before any concurrency beyond per-key cache locks;
 retail sharding is later work.
 
+**Published checkpoint:** approved commit
+`628ddf0148c2476a5e0686d2cf824aff6ed114d3` (`ios: harden lifecycle automation
+and evidence`) was pushed as `origin/ios-port d3be0f0ef..628ddf014`; the
+worktree was clean immediately afterward. Its source gate remains the documented
+pre-document exact Fast receipt. This publication follow-up is docs-only and
+does not change checkpoint code, active-task scope or evidence boundaries.
+
 **Historical clean full-gate checkpoint:** exact clean code commit
 `5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` received a clean post-commit full
 PASS and matched `origin/ios-port` immediately after push
-(`9aad5df0a..5b0bc5ba0`). Current `HEAD` and `origin/ios-port` remain
-`d3be0f0efb8f94caff4833d03a08d460abbd3b82`.
+(`9aad5df0a..5b0bc5ba0`).
 Receipt `gate-1786642077179447000-182-0.json` records 1,164 cases/58 stages,
 zero errors/skips, profile 13/13, retail 102/102, uncached shader compile/link
 137/137 and Release 68 TUs in 914.847 s. It authorizes only that historical
-push; the current uncommitted lifecycle checkpoint has no matching install
-stamp. No phone, installation or runtime proof was produced.
+push and creates no install stamp for later checkpoints. No phone, installation
+or runtime proof was produced.
 
 This file intentionally contains no more than five active tasks. Historical
 evidence belongs in [iOS-Port-Journal.md](iOS-Port-Journal.md). Work not listed

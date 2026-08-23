@@ -680,11 +680,8 @@ This is host-only fixture and test-feedback evidence. It makes no claim about
 production behavior, real Simulator, device, rendering, streaming, distribution
 or FastDevice speed. Historical commit
 `5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` matched `origin/ios-port`
-immediately after its push. Before the current uncommitted lifecycle checkpoint,
-current `HEAD` and `origin/ios-port` are
-`d3be0f0efb8f94caff4833d03a08d460abbd3b82`. The code receipt authorizes only
-the historical code push; the current uncommitted checkpoint has no matching
-install stamp.
+immediately after its push. That receipt authorizes only its historical code
+push and creates no install stamp for later checkpoints.
 
 ### Phase 2A immutable shader cache — host-complete
 
@@ -750,12 +747,10 @@ and full-stamp SHA-256 is
 
 Push succeeded as `origin/ios-port 9aad5df0a..5b0bc5ba0`; immediately afterward
 local HEAD and origin matched exactly. This remains a historical clean full-gate
-receipt. Before the current uncommitted lifecycle checkpoint, current `HEAD` and
-`origin/ios-port` are `d3be0f0efb8f94caff4833d03a08d460abbd3b82`. This is
-host/build evidence only: no phone, installation, real Simulator runtime,
-rendering, streaming or distribution evidence was produced. The receipt
-authorizes only that historical code/docs commit push; it does not create a
-matching install stamp for the current uncommitted checkpoint.
+receipt. This is host/build evidence only: no phone, installation, real
+Simulator runtime, rendering, streaming or distribution evidence was produced.
+The receipt authorizes only that historical code/docs commit push; it does not
+create an install stamp for later checkpoints.
 
 ### Phase 1A pushed full-gate artifact
 
@@ -978,6 +973,14 @@ Retail passed 102/102 in 735.357 s, archive policy 131/131, numeric macros
 `4A5C8C5B-BEF6-3A30-A173-FD5E22D6E29B`. It is a pre-document partial host Fast
 receipt, not an install, runtime, rendering, streaming, audio, memory, commit or
 push authorization.
+
+The approved checkpoint was subsequently committed as
+`628ddf0148c2476a5e0686d2cf824aff6ed114d3` with message
+`ios: harden lifecycle automation and evidence` and pushed successfully as
+`origin/ios-port d3be0f0ef..628ddf014`; the worktree was clean immediately
+afterward. The source gate remains the exact pre-document Fast receipt above.
+This publication-receipt follow-up is documentation-only, does not alter the
+checkpoint code and adds no runtime or evidence claim.
 
 The latest pre-document full gate also passed with identical before/after state:
 `/Users/patryk/openxray-handoff/gate-logs/gate-1786563440297027000-96172-0.log`

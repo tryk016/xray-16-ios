@@ -1060,5 +1060,17 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
 - Sol xhigh final code/evidence review returned exact
   `APPROVE — brak P0/P1/P2` and authorized this docs-only append without a new
   gate. This is partial host evidence only. Options/lifecycle remain closed;
-  audio and memory remain open. HEAD/origin remain `d3be0f0`; no commit/push,
-  install, phone, Simulator or new runtime/rendering/streaming claim.
+  audio and memory remain open. At that pre-publication closeout HEAD/origin
+  were `d3be0f0` and commit/push had not occurred; the receipt below supersedes
+  only that publication status.
+
+## 2026-08-23 — lifecycle/evidence checkpoint publication
+
+- Approved checkpoint commit `628ddf0148c2476a5e0686d2cf824aff6ed114d3`
+  (`ios: harden lifecycle automation and evidence`) was pushed successfully as
+  `origin/ios-port d3be0f0ef..628ddf014`; the worktree was clean immediately
+  afterward.
+- Its source gate remains the documented pre-document exact Fast receipt. This
+  publication-receipt update is docs-only and does not alter checkpoint code or
+  add an install, phone, Simulator, runtime, rendering, streaming, audio or
+  memory claim. Phase 2B remains next.

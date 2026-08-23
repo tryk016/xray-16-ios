@@ -5523,3 +5523,22 @@ streaming, audio or memory claim. Existing physical Options and app-switch
 lifecycle acceptance remains closed; audio and memory remain open under their
 documented boundaries. Current HEAD and `origin/ios-port` remain
 `d3be0f0efb8f94caff4833d03a08d460abbd3b82`; commit and push have not occurred.
+
+## 2026-08-23 — lifecycle/evidence checkpoint publication receipt
+
+This append supersedes only the publication status in the immediately preceding
+entry; it does not rewrite that entry or its exact `d3be0f0` source-gate facts.
+The approved checkpoint was committed as
+`628ddf0148c2476a5e0686d2cf824aff6ed114d3` with message
+`ios: harden lifecycle automation and evidence`. Push succeeded as
+`origin/ios-port d3be0f0ef..628ddf014`, and the worktree was clean immediately
+afterward.
+
+The checkpoint's source gate remains the documented pre-document exact Fast
+receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1787491750981592000-67197-0.json`.
+This follow-up publication receipt changes documentation only; it does not alter
+the published checkpoint code and adds no gate, install, phone, real-Simulator,
+runtime, rendering, streaming, audio or memory claim. Existing Options and
+app-switch lifecycle acceptance remains closed, audio and memory remain open,
+and Phase 2B remains the next active focus.
