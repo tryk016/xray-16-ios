@@ -769,9 +769,25 @@ Retail passed 102/102, archive 131/131, compile 279/279, low 2/2, SSAO 6/6,
 SSR 9/9, numeric 30/30, resources 13/13 and links 137/137. Sol xhigh
 pre-review returned `APPROVE — brak P0/P1/P2`.
 
-This receipt is partial host Fast evidence only. It is not a full gate, commit,
-push, installation, real Simulator, phone, runtime, rendering, streaming,
-audio, memory or distribution result. The rejected complex external prototype
+The Fast receipt is partial host evidence only and is not installation, real
+Simulator, phone, runtime, rendering, streaming, audio, memory or distribution
+evidence. The approved checkpoint was committed as
+`559817b375be1f34fff47fdfd2f1bf5f1a1631f8` and its exact clean post-commit
+`full` receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1787534168767500000-52860-0.json`
+passed in 969.618545 s. It records identical clean HEAD before/after, telemetry
+`COMPLETE`, 1,244/1,244 direct cases and 63/63 stages PASS, zero errors,
+uncached shader checks and links 137/137. Log SHA-256 is
+`158c2001e36123fd86eb2f8132cf6c71f6af12068104bc8c31af8bcb47e864da`,
+receipt SHA-256 is
+`4d2ddb0c234e0a36b5609eddc67d9e279f0bd6d5c30bffdad50867c1fdc1ea20`,
+full-stamp SHA-256 is
+`427f9938606ba1b5a0005fcf8834a53e82dbc630d298139e6d5b5f4b6adfb834`,
+and dSYM UUID is `FA8745D7-D795-38B0-8CF7-D8128E904457` with 513,889,238
+`__debug_info` bytes. Push succeeded and local HEAD equals
+`origin/ios-port` at that commit. This remains host/build evidence only.
+
+The rejected complex external prototype
 `/Users/patryk/openxray-handoff/phase2b-prototype-20260814-Eq40aS` is marked
 `SUPERSEDED/REJECTED` and was never integrated. The approved pure reference is
 `/Users/patryk/openxray-handoff/phase2b-pure-prototype-20260823-v1`, freeze

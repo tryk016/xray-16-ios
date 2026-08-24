@@ -73,12 +73,13 @@ lifecycle, memory and streaming claims remain outside affected-only evidence.
 Existing external build-tree, Simulator and device locks remain mandatory;
 retail sharding is later work.
 
-**Published checkpoint:** approved commit
-`628ddf0148c2476a5e0686d2cf824aff6ed114d3` (`ios: harden lifecycle automation
-and evidence`) was pushed as `origin/ios-port d3be0f0ef..628ddf014`; the
-worktree was clean immediately afterward. Its source gate remains the documented
-pre-document exact Fast receipt. This publication follow-up is docs-only and
-does not change checkpoint code, active-task scope or evidence boundaries.
+**Published checkpoint:** Phase 2B commit
+`559817b375be1f34fff47fdfd2f1bf5f1a1631f8` (`ios: add shadow-only affected
+test planner`) passed the exact clean post-commit `full` gate in 969.618545 s
+and was pushed to `origin/ios-port`; local and remote matched immediately.
+Receipt `gate-1787534168767500000-52860-0.json` records 1,244/1,244 direct
+cases, 63/63 stages, zero errors and uncached shaders. This is host/build
+evidence only and does not promote IOS-P2-007 or create a runtime/device claim.
 
 **Historical clean full-gate checkpoint:** exact clean code commit
 `5b0bc5ba0d61959f8fd79ff6b99c9467f34a5249` received a clean post-commit full

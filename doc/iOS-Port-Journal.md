@@ -5605,3 +5605,31 @@ IOS-P2-007 is deferred for an authenticated complete manifest producer and any
 future pruning; it requires fail-closed completeness, zero false negatives on
 real/mutation diffs, complete shader-uncached full-release, runtime boundaries
 and then 20 warm host-fast p50/p95 measurements.
+
+## 2026-08-24 — Phase 2B publication receipt
+
+The Sol xhigh final complete code/evidence/documentation review returned exact
+`APPROVE — brak P0/P1/P2` and authorized commit, matching post-commit `full`,
+then push with no intervening source change. The checkpoint was committed as
+`559817b375be1f34fff47fdfd2f1bf5f1a1631f8` with message
+`ios: add shadow-only affected test planner`.
+
+Exact clean receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1787534168767500000-52860-0.json`
+passed in 969.618545 s. Before/after HEAD are the same clean commit with empty
+status and binary-diff hashes. Telemetry is `COMPLETE`: 1,244/1,244 direct
+cases and 63/63 stages PASS, zero errors, retail 102/102, archive 131/131,
+numeric macros 30/30, resources 13/13, uncached shader compile and links
+137/137. Log SHA-256 is
+`158c2001e36123fd86eb2f8132cf6c71f6af12068104bc8c31af8bcb47e864da`,
+receipt SHA-256 is
+`4d2ddb0c234e0a36b5609eddc67d9e279f0bd6d5c30bffdad50867c1fdc1ea20`,
+full-stamp SHA-256 is
+`427f9938606ba1b5a0005fcf8834a53e82dbc630d298139e6d5b5f4b6adfb834`,
+and dSYM UUID is `FA8745D7-D795-38B0-8CF7-D8128E904457` with 513,889,238
+`__debug_info` bytes.
+
+Push succeeded as `origin/ios-port 4edd85a04..559817b37`; local HEAD and remote
+matched immediately afterward. This is host/build and publication evidence
+only: no install, phone, real Simulator, runtime, rendering, streaming, audio,
+memory or distribution claim is added. IOS-P2-007 remains deferred.

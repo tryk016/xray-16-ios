@@ -69,12 +69,13 @@ Phase 2B now has a pure shadow-only explicit-manifest mapper: an unconditional h
 
 The post-integration inventory is 57 entrypoints/18 exclusions. Mapper 32/32, telemetry 24/24 and exact Fast receipt `gate-1787531806677934000-26322-0.json` passed in 899.248371 s at unchanged HEAD `4edd85a04fee02df5a0330a8b737c00847a837a5`.
 It recorded 811 direct PASS/63 stages; retail 102/102, archive 131/131, compile 279/279, low 2/2, SSAO 6/6, SSR 9/9, numeric 30/30, resources 13/13 and links 137/137.
-Sol xhigh pre-review: `APPROVE — brak P0/P1/P2`. This is partial host Fast only; full, commit and push remain pending. IOS-P2-007 owns future pruning.
-Approved checkpoint `628ddf0148c2476a5e0686d2cf824aff6ed114d3` was pushed as
-`origin/ios-port d3be0f0ef..628ddf014`; the worktree was clean immediately
-afterward. Its source gate remains the documented pre-document exact Fast
-receipt. This publication update is docs-only and adds no install, phone, real
-Simulator, runtime, rendering, streaming, audio or memory claim.
+Sol xhigh pre-review and final review returned `APPROVE — brak P0/P1/P2`.
+Checkpoint `559817b375be1f34fff47fdfd2f1bf5f1a1631f8` passed matching clean
+post-commit `full` in 969.618545 s: 1,244 direct PASS, 63/63 stages, zero
+errors, uncached shaders and links 137/137; dSYM UUID
+`FA8745D7-D795-38B0-8CF7-D8128E904457`. It was pushed and matches
+`origin/ios-port`. This is host/build evidence only; IOS-P2-007 owns future
+pruning and no install, phone, real Simulator or runtime claim follows.
 
 ## First commands
 ```bash
@@ -137,7 +138,7 @@ phone for this host-only M6 evidence.
 
 1. Do not treat the Phase 2B mapper as selection authority. IOS-P2-007 is deferred until an authenticated complete manifest, real/mutation zero-false-negative corpus and full-release completeness proof exist.
 2. Resume active IOS-P0-003/M6 or another explicitly promoted Plan task; keep lock/held-touch/audio deferred until promoted, without repeating the accepted five-cycle app-switch proof.
-3. Before publishing this dirty checkpoint: complete Sol xhigh review, commit, run a matching full gate, then push. The cache is not legal distribution or device transfer/save-preservation evidence.
+3. The Phase 2B checkpoint is published. Keep the prepared cache distinct from legal distribution and device transfer/save-preservation evidence.
 
 ## Safety
 

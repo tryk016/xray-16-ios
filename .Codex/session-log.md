@@ -1093,3 +1093,14 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   push are pending. IOS-P2-007 is deferred for authenticated complete manifest
   production and any affected pruning/speedup; the rejected complex prototype
   was never integrated.
+
+## 2026-08-24 — Phase 2B publication
+
+- Final Sol xhigh review: `APPROVE — brak P0/P1/P2`. Commit
+  `559817b375be1f34fff47fdfd2f1bf5f1a1631f8` passed matching clean `full`
+  receipt `gate-1787534168767500000-52860-0.json` in 969.618545 s: telemetry
+  COMPLETE, 1,244 direct PASS, 63/63 stages, zero errors and uncached shaders.
+- Log `158c2001…64da`, receipt `4d2ddb0c…ea20`, full stamp
+  `427f9938…b834`, dSYM UUID `FA8745D7-D795-38B0-8CF7-D8128E904457` with
+  513,889,238 debug bytes. Push `4edd85a04..559817b37` succeeded and local
+  HEAD matched origin. No phone, install, Simulator or runtime claim.
