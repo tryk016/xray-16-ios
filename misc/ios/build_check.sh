@@ -275,7 +275,8 @@ feedback_stage_command() {
             misc/ios/test_retail_test_profiles.py|misc/ios/test_retail_simulator.py|\
             misc/ios/test_shader_cache.py|\
             misc/ios/test_shader_macro_contract.py|\
-            misc/ios/test_shader_resource_contract.py)
+            misc/ios/test_shader_resource_contract.py|\
+            misc/ios/test_affected_test_planner.py)
                 shift
                 feedback_selected_python "$@"
                 return $?
@@ -924,6 +925,10 @@ feedback_stage "stage::python::misc/ios/test_archive_completed_artifacts.py" pyt
 echo "== iOS shader cache ownership contract gate =="
 feedback_stage "stage::python::misc/ios/test_shader_cache.py" python3 misc/ios/test_shader_cache.py \
     || fail "shader cache ownership regression tests failed"
+
+echo "== iOS Phase 2B shadow-only affected-test planner gate =="
+feedback_stage "stage::python::misc/ios/test_affected_test_planner.py" python3 misc/ios/test_affected_test_planner.py \
+    || fail "Phase 2B shadow-only affected-test planner regression tests failed"
 
 if [ "$run_shaders" = 1 ]; then
     echo "== iOS Locator registration contract gate =="

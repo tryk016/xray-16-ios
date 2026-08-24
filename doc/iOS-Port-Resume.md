@@ -1,6 +1,6 @@
 # OpenXRay iOS — operational handoff
 
-**Updated:** 2026-08-23. **Docs:** [canonical](iOS-Port.md), [active](iOS-Port-Plan.md), [deferred](iOS-Port-Backlog.md).
+**Updated:** 2026-08-24. **Docs:** [canonical](iOS-Port.md), [active](iOS-Port-Plan.md), [deferred](iOS-Port-Backlog.md).
 
 Read this file completely, then the relevant active task/canonical section; search the Journal by task ID or exact symptom, never in full.
 
@@ -64,10 +64,12 @@ resources 13/13, links 137/137, UUID `4A5C8C5B-BEF6-3A30-A173-FD5E22D6E29B`.
 Sol xhigh returned exact `APPROVE — brak P0/P1/P2` and authorized this docs-only
 append without another gate. Production is byte-identical.
 
-Phase 2A remains host-complete: immutable per-key shader cache with kernel
-`flock`, fail-closed recovery and certified MISS/HIT replay; `full` is uncached.
-Natural MISS/HIT passed in 820.149/802.981 s with identical 1,183 IDs and 50
-stages; the 17.168 s saving remains retail-dominated. Phase 2B is next.
+Phase 2A remains host-complete: its force-direct, shader-uncached `full` contract and 1,183-ID MISS/HIT evidence are unchanged.
+Phase 2B now has a pure shadow-only explicit-manifest mapper: an unconditional host stage whose production result is `full-release` fallback with execution/runtime authority false and selection/cache authority `NONE`; it has no discovery, process/network, runner, pruning, cache or build-semantic authority.
+
+The post-integration inventory is 57 entrypoints/18 exclusions. Mapper 32/32, telemetry 24/24 and exact Fast receipt `gate-1787531806677934000-26322-0.json` passed in 899.248371 s at unchanged HEAD `4edd85a04fee02df5a0330a8b737c00847a837a5`.
+It recorded 811 direct PASS/63 stages; retail 102/102, archive 131/131, compile 279/279, low 2/2, SSAO 6/6, SSR 9/9, numeric 30/30, resources 13/13 and links 137/137.
+Sol xhigh pre-review: `APPROVE — brak P0/P1/P2`. This is partial host Fast only; full, commit and push remain pending. IOS-P2-007 owns future pruning.
 Approved checkpoint `628ddf0148c2476a5e0686d2cf824aff6ed114d3` was pushed as
 `origin/ios-port d3be0f0ef..628ddf014`; the worktree was clean immediately
 afterward. Its source gate remains the documented pre-document exact Fast
@@ -133,9 +135,9 @@ phone for this host-only M6 evidence.
 
 ## Next slice
 
-1. Phase 2B: its baseline is 56 entrypoints (historical 53 + three lifecycle additions, 8/16/5 cases) and 18 exclusions. Add profile separation and a conservative affected planner; unknown/global input selects full. No planner is integrated; the external prototype remains outside the repo.
-2. Keep remaining lock/held-touch/audio work deferred until explicitly promoted; do not repeat the accepted five-cycle app-switch proof.
-3. Keep M6 active; the cache is not legal distribution or device transfer/save-preservation evidence.
+1. Do not treat the Phase 2B mapper as selection authority. IOS-P2-007 is deferred until an authenticated complete manifest, real/mutation zero-false-negative corpus and full-release completeness proof exist.
+2. Resume active IOS-P0-003/M6 or another explicitly promoted Plan task; keep lock/held-touch/audio deferred until promoted, without repeating the accepted five-cycle app-switch proof.
+3. Before publishing this dirty checkpoint: complete Sol xhigh review, commit, run a matching full gate, then push. The cache is not legal distribution or device transfer/save-preservation evidence.
 
 ## Safety
 

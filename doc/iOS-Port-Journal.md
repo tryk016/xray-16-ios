@@ -5542,3 +5542,66 @@ the published checkpoint code and adds no gate, install, phone, real-Simulator,
 runtime, rendering, streaming, audio or memory claim. Existing Options and
 app-switch lifecycle acceptance remains closed, audio and memory remain open,
 and Phase 2B remains the next active focus.
+
+## 2026-08-24 — Phase 2B shadow-only explicit-manifest mapper closeout
+
+### Scope and mechanism
+
+Phase 2B adds a pure versioned mapper, mapping, inventory and catalogue as an
+unconditional ordinary host test stage. It is deliberately non-authoritative:
+production always returns `profile: full-release`, `fallback: true`,
+`execution_allowed: false`, `runtime_claims_allowed: false`,
+`selection_authority: NONE` and `cache_authority: NONE`. The external explicit
+manifest is bounded and untrusted and is never evaluated as authority.
+
+The integration performs no Git/worktree/submodule discovery, process,
+subprocess or network operation. It does not select a runner, prune tests, use
+or publish a cache, or change build-system semantics. The specialised mapping
+API is internal test support and unavailable through the CLI. Consequently this
+slice creates no affected-selection or speedup claim.
+
+### Frozen inventory and host evidence
+
+The post-integration catalogue has 57 entrypoints and 18 exclusions. The 32 new
+mapper IDs hash to
+`9745ef4d6d3b2a52eeea138a8511ce81b81a15bc094e33d94a887277c23e1d49`.
+Advisory inventories are full-release 1,361 IDs/63 stages, engine-affected
+658/53, host-fast 877/56, retail-integration 924/56 and shader-affected 527/54.
+Runtime-fast 1,244/63 and legacy-full advisory 1,282 are not the complete
+full-release set. Mapping, inventory and catalogue SHA-256 values are
+`15928ad02ce2939e61f42e4ef4ce32f251f3a3b89f43f34f63b91d997319203f`,
+`064596dc006986aa895b7c5a592b4fd699c59aaeecce02dd4612a0d8c5007036` and
+`2ca736499fb6c49189ccf3a22243e4a1accd68afdbac6142603bedd673b681e3`.
+
+Focused checks passed: mapper 32/32, telemetry 24/24, catalogue validation,
+injected stage failure nonzero before shaders/build, Bash syntax and diff
+checks. Exact pre-document Fast receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1787531806677934000-26322-0.json`
+passed in 899.248371 s. Before/after HEAD are
+`4edd85a04fee02df5a0330a8b737c00847a837a5`; status SHA-256 is
+`023bf099e99be89285478ab8594420b4153f62a4deab50ad5ca103d02b93963b`, binary
+diff SHA-256 `3f4597938a5b7a65e7215ac948d1d86aa0cd80f9773e03a428ce53b101900df3`,
+log SHA-256 `773282a25244609f32b991146859d144e4dad18fa0201249bec0aef5e832000d`,
+receipt SHA-256 `b04043c2e22eff0b3c6c0707077d794eefc54b7d2303c462f821492cd9d1153c`,
+stamp SHA-256 `9a56f3d1bdf352715f11d44c627a7932b89773f7d86aabd56f0b211c18d36515` and
+FastDevice UUID `68A7B79D-8881-33EC-8E4B-9D976123D37A`.
+
+Telemetry was `COMPLETE`: exit 0, errors 0, 811 direct PASS and 63/63 stages;
+runtime selection was 1,244/63 and mapper 32/32. Retail was 102/102, archive
+131/131, compile 279/279, low 2/2, SSAO 6/6, SSR 9/9, numeric 30/30, resources
+13/13 and links 137/137. Sol xhigh pre-review returned
+`APPROVE — brak P0/P1/P2`.
+
+### Boundary and next work
+
+This is a pre-document partial host Fast result only: no full gate, commit,
+push, installation, real Simulator, phone, runtime, rendering, streaming,
+audio, memory or distribution evidence is claimed. The complex external
+prototype `/Users/patryk/openxray-handoff/phase2b-prototype-20260814-Eq40aS` is
+`SUPERSEDED/REJECTED` and was never integrated. The approved pure reference is
+`/Users/patryk/openxray-handoff/phase2b-pure-prototype-20260823-v1`, freeze
+SHA-256 `56a6cf8105c6eec8dfb4555e1a8a374d283b8a395bdce45ceee7975e6a526e6e`.
+IOS-P2-007 is deferred for an authenticated complete manifest producer and any
+future pruning; it requires fail-closed completeness, zero false negatives on
+real/mutation diffs, complete shader-uncached full-release, runtime boundaries
+and then 20 warm host-fast p50/p95 measurements.

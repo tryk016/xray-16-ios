@@ -1,6 +1,6 @@
 # OpenXRay iOS — deferred backlog
 
-**Last synchronized:** 2026-08-14
+**Last synchronized:** 2026-08-24
 
 **Canonical contract:** [iOS-Port.md](iOS-Port.md)
 
@@ -122,6 +122,28 @@ black output, lost audio or lost settings/saves. The accepted five app-switch
 cycles must not be repeated merely to close these independent edges.
 
 ## P2 — product and maintenance debt
+
+### IOS-P2-007: authorize affected-test selection from a complete change manifest
+
+**Priority:** P2 deferred; do not promote from Phase 2B shadow evidence alone.
+
+**Evidence level:** the repository has a pure shadow-only mapper with frozen
+advisory inventories, but its production result is always full-release fallback
+with execution, runtime, selection and cache authority set to `false`/`NONE`.
+It cannot prune or speed up a gate.
+
+Build an authenticated, complete change-manifest producer before any affected
+selection is enabled. Its completeness contract must fail closed and cover a
+reviewed real-diff plus mutation corpus with zero false negatives. Full-release
+must remain semantically complete and shader-uncached. Renderer, lifecycle,
+memory, streaming and other runtime claims remain outside affected-only
+evidence. Preserve the external build-tree, Simulator and device locks.
+
+**Acceptance:** a separately reviewed producer and planner demonstrate exact
+stable-ID completeness, forced-failure propagation and zero false negatives on
+the real/mutation corpus; only then run 20 warm `host-fast` measurements and
+record p50/p95. This does not authorize Simulator/device/runtime conclusions or
+retail sharding.
 
 ### IOS-P2-005: harden iOS CI supply-chain provenance
 

@@ -2,7 +2,7 @@
 
 Canonical specification for the OpenXRay iOS project.
 
-**Last synchronized:** 2026-08-13
+**Last synchronized:** 2026-08-24
 
 **Status:** playable development build; affected-iPhone startup-sector, known
 SSAO and stationary Simulator startup-sector defects fixed; the later
@@ -723,12 +723,61 @@ checkpoint then received the exact Sol xhigh verdict
 
 This is host-only partial-gate evidence, not full-release, commit, push,
 installation, Simulator runtime, phone, rendering, streaming or distribution
-proof. Phase 2B is the active phone-free task: profile separation and a
-conservative affected planner
-where unknown/global input selects full; runtime claims cannot close from
-affected-only evidence. Existing external build-tree, Simulator and device locks
-remain required before any concurrency beyond the per-key cache locks; sharding
-is deferred.
+proof. Phase 2B's completed shadow foundation is described below; authenticated
+change discovery and affected pruning remain deferred as IOS-P2-007. Runtime
+claims cannot close from affected-only evidence. Existing external build-tree,
+Simulator and device locks remain required before any concurrency beyond the
+per-key cache locks; sharding is deferred.
+
+### Phase 2B pure explicit-manifest mapper — shadow foundation complete
+
+Phase 2B now has a versioned, pure mapper plus frozen mapping, inventory and
+catalogue assets. It is an unconditional ordinary host test stage: production
+always returns `profile: full-release`, `fallback: true`,
+`execution_allowed: false`, `runtime_claims_allowed: false`,
+`selection_authority: NONE` and `cache_authority: NONE`. An external explicit
+manifest is bounded and untrusted; it is recorded only as advisory input and is
+never evaluated for authority.
+
+The mapper performs no Git/worktree/submodule discovery, process/subprocess or
+network operation. It does not select a runner, prune tests, read or publish a
+cache, or change build-system semantics. Its specialised mapping API is
+internal test support and cannot be reached from the production CLI. Therefore
+the current integration does not provide affected selection, a speedup, or any
+Simulator/device/runtime claim.
+
+The frozen post-integration inventory has 57 entrypoints and 18 exclusions.
+The 32 mapper IDs hash to
+`9745ef4d6d3b2a52eeea138a8511ce81b81a15bc094e33d94a887277c23e1d49`.
+Advisory profile inventories are `full-release` 1,361 IDs/63 stages,
+`engine-affected` 658/53, `host-fast` 877/56, `retail-integration` 924/56 and
+`shader-affected` 527/54. The existing runtime-fast selection (1,244/63) and
+legacy-full advisory set (1,282) are not the complete 1,361-ID set. Mapping,
+inventory and catalogue SHA-256 values are respectively
+`15928ad02ce2939e61f42e4ef4ce32f251f3a3b89f43f34f63b91d997319203f`,
+`064596dc006986aa895b7c5a592b4fd699c59aaeecce02dd4612a0d8c5007036` and
+`2ca736499fb6c49189ccf3a22243e4a1accd68afdbac6142603bedd673b681e3`.
+
+Focused host checks passed: mapper 32/32, telemetry 24/24, catalogue validation,
+an injected mapper-stage failure before shaders/build, Bash syntax and diff
+checks. Exact pre-document Fast receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1787531806677934000-26322-0.json`
+passed in 899.248371 s at unchanged HEAD
+`4edd85a04fee02df5a0330a8b737c00847a837a5`, with telemetry `COMPLETE`:
+811 direct PASS, 63/63 stages, runtime selection 1,244/63 and mapper 32/32.
+Retail passed 102/102, archive 131/131, compile 279/279, low 2/2, SSAO 6/6,
+SSR 9/9, numeric 30/30, resources 13/13 and links 137/137. Sol xhigh
+pre-review returned `APPROVE — brak P0/P1/P2`.
+
+This receipt is partial host Fast evidence only. It is not a full gate, commit,
+push, installation, real Simulator, phone, runtime, rendering, streaming,
+audio, memory or distribution result. The rejected complex external prototype
+`/Users/patryk/openxray-handoff/phase2b-prototype-20260814-Eq40aS` is marked
+`SUPERSEDED/REJECTED` and was never integrated. The approved pure reference is
+`/Users/patryk/openxray-handoff/phase2b-pure-prototype-20260823-v1`, freeze
+SHA-256 `56a6cf8105c6eec8dfb4555e1a8a374d283b8a395bdce45ceee7975e6a526e6e`.
+Actual authenticated change discovery and pruning remain deferred as
+IOS-P2-007.
 
 ### Phase 1B pushed full-gate artifact
 

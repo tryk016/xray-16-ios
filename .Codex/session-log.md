@@ -1074,3 +1074,22 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   publication-receipt update is docs-only and does not alter checkpoint code or
   add an install, phone, Simulator, runtime, rendering, streaming, audio or
   memory claim. Phase 2B remains next.
+
+## 2026-08-24 — Phase 2B shadow-only mapper documentation closeout
+
+- Integrated state is a pure, unconditional host test stage only. Production
+  always returns full-release fallback with execution/runtime authority false
+  and selection/cache authority `NONE`; its bounded explicit manifest is
+  untrusted. It cannot discover Git/worktrees, run processes/network, select a
+  runner, prune, cache or change build semantics.
+- Frozen assets: 57 entrypoints, 18 exclusions, 32 mapper IDs SHA
+  `9745ef4d…1d49`; full-release 1,361 IDs/63 stages. Mapper 32/32, telemetry
+  24/24, catalogue validation, injected pre-build failure, Bash syntax and diff
+  checks passed. Fast receipt `gate-1787531806677934000-26322-0.json`: PASS
+  899.248371 s, 811 direct PASS, 63/63 stages; retail 102/102, archive 131/131,
+  compile 279/279, low 2/2, SSAO 6/6, SSR 9/9, numeric 30/30, resources 13/13,
+  links 137/137; Sol xhigh pre-review `APPROVE — brak P0/P1/P2`.
+- Evidence remains pre-document partial host Fast only. Full gate, commit and
+  push are pending. IOS-P2-007 is deferred for authenticated complete manifest
+  production and any affected pruning/speedup; the rejected complex prototype
+  was never integrated.

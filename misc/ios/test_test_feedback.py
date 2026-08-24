@@ -181,6 +181,10 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
         gate_hash = (feedback.ROOT / "misc/ios/gate_hash.py").read_text(encoding="utf-8")
         for path in ("misc/ios/test_feedback.py", "misc/ios/test_feedback_catalog.json",
                      "misc/ios/test_feedback_unittest.py", "misc/ios/test_test_feedback.py",
+                     "misc/ios/affected_test_planner.py",
+                     "misc/ios/affected_test_mapping_v1.json",
+                     "misc/ios/test_feedback_inventory_v1.json",
+                     "misc/ios/test_affected_test_planner.py",
                      "misc/ios/shader_cache.py", "misc/ios/test_shader_cache.py",
                      "misc/ios/retail_test_profiles.py", "misc/ios/retail_test_profiles.json",
                      "misc/ios/test_retail_test_profiles.py",
@@ -208,8 +212,8 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
         catalog = feedback.read_catalog()
         records = feedback.catalog_entrypoint_ids(catalog)
         self.assertEqual(records, feedback.expected_entrypoints())
-        self.assertEqual(len(records), 56)
-        self.assertEqual(sum(item.startswith("python::") for item in records), 35)
+        self.assertEqual(len(records), 57)
+        self.assertEqual(sum(item.startswith("python::") for item in records), 36)
         self.assertEqual(sum(item.startswith("cpp:") for item in records), 9)
         by_id = {entry["entrypoint_id"]: entry for entry in catalog["entrypoints"]}
         all_five = ["engine", "shaders", "device", "full", "fast"]
@@ -238,6 +242,23 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
         for profile in all_five:
             with self.subTest(runtime_profile=profile):
                 self.assertTrue(set(profile_contract_ids) <= set(feedback.runtime_profile_ids(profile)))
+                self.assertTrue(
+                    set(feedback.profile_ids()["phase2b-shadow-tooling"])
+                    <= set(feedback.runtime_profile_ids(profile))
+                )
+        planner = by_id["python::misc/ios/test_affected_test_planner.py"]
+        self.assertEqual(planner["expected_case_count"], 32)
+        self.assertEqual(planner["selected_profiles"], all_five)
+        self.assertEqual(
+            [item["value"] for item in planner["explicit_inputs"]],
+            [
+                "misc/ios/affected_test_planner.py",
+                "misc/ios/affected_test_mapping_v1.json",
+                "misc/ios/test_feedback_inventory_v1.json",
+                "misc/ios/test_affected_test_planner.py",
+                "misc/ios/test_feedback_catalog.json",
+            ],
+        )
         for entry in by_id.values():
             self.assertFalse(entry["input_mapping_complete"])
             self.assertTrue(entry["labels"])
@@ -283,6 +304,12 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
         )
         self.assertEqual(catalog["frozen"]["baseline"]["legacy_python_cases"], 800)
         self.assertNotIn("phase0-tooling", catalog["frozen"]["groups"])
+        phase2b = feedback.profile_ids()["phase2b-shadow-tooling"]
+        self.assertEqual(len(phase2b), 32)
+        self.assertEqual(
+            catalog["frozen"]["groups"]["phase2b-shadow-tooling"],
+            {"count": 32, "audited_sha256": feedback.digest(phase2b)},
+        )
 
     def test_static_ids_archive_semantics_and_no_import_side_effect(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1198,6 +1225,32 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
         events = [json.loads(path.read_text(encoding="utf-8"))
                   for path in (root / "case-events").glob("*.json")]
         self.assertEqual([event["test_id"] for event in events], [identifier])
+
+        # The Phase 2B mapper is a regular selected unittest entrypoint: all
+        # of its frozen 32 methods must reach the same raw-event observer.
+        planner_target = feedback.ROOT / "misc/ios/test_affected_test_planner.py"
+        planner_ids = feedback.parse_python_methods(planner_target)
+        planner_temporary, planner_root, planner_context = self._custom_runtime(
+            planner_target, planner_ids, profile="full", run_id="phase2b-observer",
+            nonce="d" * 64,
+        )
+        self.addCleanup(planner_temporary.cleanup)
+        planner_result, planner_raw = self._run_observed_target(
+            planner_target, planner_context,
+        )
+        self.assertEqual(planner_result.returncode, 0, planner_result.stderr)
+        self.assertTrue(feedback.runtime_ingest(
+            "python::misc/ios/test_affected_test_planner.py",
+            planner_raw, planner_context,
+        ))
+        planner_events = [
+            json.loads(path.read_text(encoding="utf-8"))
+            for path in (planner_root / "case-events").glob("*.json")
+        ]
+        self.assertEqual(
+            {event["test_id"] for event in planner_events}, set(planner_ids),
+        )
+        self.assertTrue(all(event["result"] == "PASS" for event in planner_events))
 
         # A startup hook or child can append raw bytes but cannot claim another
         # selected entrypoint: the trusted parent supplies the sole origin.

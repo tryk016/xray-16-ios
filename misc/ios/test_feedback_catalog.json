@@ -2124,6 +2124,53 @@
       ],
       "timeout_policy": "report-only",
       "timeout_seconds": 300
+    },
+    {
+      "entrypoint_id": "python::misc/ios/test_affected_test_planner.py",
+      "expected_case_count": 32,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/affected_test_planner.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/affected_test_mapping_v1.json"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/test_feedback_inventory_v1.json"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/test_affected_test_planner.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/test_feedback_catalog.json"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Phase 2B shadow tooling lists direct and known broad inputs only; it has no selection or cache authority.",
+      "kind": "phase2b-shadow-tooling",
+      "labels": [
+        "python",
+        "unittest",
+        "phase2b-shadow-tooling",
+        "shadow-only"
+      ],
+      "resources": [
+        "host"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
     }
   ],
   "frozen": {
@@ -2139,6 +2186,10 @@
       "retail_simulator_cases": 102
     },
     "groups": {
+      "phase2b-shadow-tooling": {
+        "audited_sha256": "9745ef4d6d3b2a52eeea138a8511ce81b81a15bc094e33d94a887277c23e1d49",
+        "count": 32
+      },
       "central-python": {
         "audited_sha256": "445de4b6c81dc03622bd664ebc56eeef2bf8751321b70c58240e52406220a1c0",
         "count": 711
@@ -2178,6 +2229,98 @@
       "xctest": {
         "audited_sha256": "2b62812c1d340f8eef901bb48cdd4d5078352f7e3ea6086c35eb116dbfd26b03",
         "count": 4
+      }
+    },
+    "post_phase2b": {
+      "schema": "openxray.test-feedback-phase2b-snapshot.v1",
+      "status": "shadow-only-non-authoritative",
+      "catalog": {
+        "entrypoints": {
+          "count": 57,
+          "sha256": "73cf7874aa1b473adf4209988165971a345c27bea6bacee81d8d09b501757551"
+        },
+        "build_stage_exclusions": {
+          "count": 18,
+          "sha256": "3d29c524c51b60723a09b8dc5a042b165de13bba8891ad1e9c7bd9205a6c7011"
+        },
+        "complete": {
+          "count": 1361,
+          "sha256": "bf53c06625e63824396e1636549f6a657c05018d88db10394e9877d883932efb"
+        }
+      },
+      "advisory_profiles": {
+        "engine-affected": {
+          "stable_ids": {
+            "count": 658,
+            "sha256": "c275cbf96aee72569b7a228aaca926f2f7efc6a17be4b5fb681e04d7c4c048f6"
+          },
+          "stage_ids": {
+            "count": 53,
+            "sha256": "f5733a788a075fe64077c887e6e258084901295811e3adc73ad57a9e184a3345"
+          }
+        },
+        "full-release": {
+          "stable_ids": {
+            "count": 1361,
+            "sha256": "bf53c06625e63824396e1636549f6a657c05018d88db10394e9877d883932efb"
+          },
+          "stage_ids": {
+            "count": 63,
+            "sha256": "9d3ad59748905510cf386f91ae5c03081b0cbb8fc39f6ad271f6e1a2320a582b"
+          }
+        },
+        "host-fast": {
+          "stable_ids": {
+            "count": 877,
+            "sha256": "68a4ceadd9f74db0962f80269810a216b271028b934d8bab9fae356fca9915bc"
+          },
+          "stage_ids": {
+            "count": 56,
+            "sha256": "feb499af0aac9ecb4d5aa58018636bd53f68086193d8a1b28c5028b805f85f83"
+          }
+        },
+        "retail-integration": {
+          "stable_ids": {
+            "count": 924,
+            "sha256": "44c3bd2781c77ea8702a360927ec7f2ce4bf9f3fd59fc2b77a7b5a046b84ac64"
+          },
+          "stage_ids": {
+            "count": 56,
+            "sha256": "feb499af0aac9ecb4d5aa58018636bd53f68086193d8a1b28c5028b805f85f83"
+          }
+        },
+        "shader-affected": {
+          "stable_ids": {
+            "count": 527,
+            "sha256": "dcc0ab427166c1b371ab5047f158332c3b1217a8c60cb732a732884f43d0decf"
+          },
+          "stage_ids": {
+            "count": 54,
+            "sha256": "ab7c872706043ec3bbd8dc2fd81a29f7e4072877e9db0ed80e928efcccc6088a"
+          }
+        }
+      },
+      "legacy_full_runner_advisory": {
+        "stable_ids": {
+          "count": 1282,
+          "sha256": "cbee47a686ec7aa7521afea643490b346f239acc5b3d46fa892bbb330ce92932"
+        },
+        "components": [
+          "runtime-full",
+          "phase0-tooling",
+          "host-infra",
+          "xctest"
+        ]
+      },
+      "runtime_full_existing_gate": {
+        "stable_ids": {
+          "count": 1244,
+          "sha256": "6b4f9d053058641e09d024747815ad4793503dd83dee6d0808642e09c76c57bb"
+        },
+        "stage_ids": {
+          "count": 63,
+          "sha256": "9d3ad59748905510cf386f91ae5c03081b0cbb8fc39f6ad271f6e1a2320a582b"
+        }
       }
     }
   },

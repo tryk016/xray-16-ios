@@ -1,0 +1,37 @@
+{
+  "global_rules": [
+    {"kind":"prefix","value":".github/"},
+    {"kind":"exact","value":"CMakeLists.txt"},
+    {"kind":"prefix","value":"cmake/"},
+    {"kind":"exact","value":"misc/ios/build_check.sh"},
+    {"kind":"exact","value":"misc/ios/build_fast_device.sh"},
+    {"kind":"prefix","value":"misc/ios/run_gate_logged"},
+    {"kind":"exact","value":"misc/ios/gate_hash.py"},
+    {"kind":"prefix","value":"misc/ios/test_feedback"},
+    {"kind":"prefix","value":"misc/ios/retail_test_profiles"},
+    {"kind":"exact","value":"misc/ios/test_feedback_catalog.json"},
+    {"kind":"exact","value":"misc/ios/affected_test_mapping_v1.json"},
+    {"kind":"exact","value":"misc/ios/test_feedback_inventory_v1.json"},
+    {"kind":"exact","value":"misc/ios/affected_test_planner.py"},
+    {"kind":"exact","value":"misc/ios/test_affected_test_planner.py"},
+    {"kind":"exact","value":"misc/ios/test_feedback.py"}
+  ],
+  "path_rules": [
+    {"kind":"prefix","name":"shader-assets","profile":"shader-affected","value":"res/gamedata/shaders/"},
+    {"kind":"prefix","name":"shader-tools","profile":"shader-affected","value":"misc/ios/shadercheck/"},
+    {"kind":"exact","name":"shader-cache-contract","profile":"shader-affected","value":"misc/ios/test_shader_cache.py"},
+    {"kind":"exact","name":"shader-macro-contract","profile":"shader-affected","value":"misc/ios/test_shader_macro_contract.py"},
+    {"kind":"exact","name":"shader-resource-contract","profile":"shader-affected","value":"misc/ios/test_shader_resource_contract.py"},
+    {"kind":"prefix","name":"retail","profile":"retail-integration","value":"misc/ios/retail_"},
+    {"kind":"prefix","name":"retail-tests","profile":"retail-integration","value":"misc/ios/test_retail_"},
+    {"kind":"exact","name":"host-openal","profile":"host-fast","value":"misc/ios/test_openal_provider_contract.py"},
+    {"kind":"exact","name":"host-sdl","profile":"host-fast","value":"misc/ios/test_sdl2_scene_contract.py"},
+    {"kind":"exact","name":"host-lighting","profile":"host-fast","value":"misc/ios/test_lighting_ab_evidence.py"},
+    {"kind":"exact","name":"host-capture-tools","profile":"host-fast","value":"misc/ios/test_capture_v2_host_tools.py"},
+    {"kind":"exact","name":"host-capture-state","profile":"host-fast","value":"misc/ios/test_capture_state_source_contract.py"},
+    {"kind":"prefix","name":"engine","profile":"engine-affected","value":"src/"},
+    {"kind":"prefix","name":"engine-library","profile":"engine-affected","value":"xr"}
+  ],
+  "projected_post_integration": {"engine-affected":658,"full-release":1361,"host-fast":877,"retail-integration":924,"shader-affected":527},
+  "schema": "openxray.affected-test-mapping.v1"
+}

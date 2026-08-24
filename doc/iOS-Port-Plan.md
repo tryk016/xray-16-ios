@@ -1,6 +1,6 @@
 # OpenXRay iOS — active roadmap
 
-**Last synchronized:** 2026-08-23
+**Last synchronized:** 2026-08-24
 
 **Canonical contract:** [iOS-Port.md](iOS-Port.md)
 
@@ -8,12 +8,13 @@
 
 **Platform scope:** iOS-only; desktop compatibility is not an acceptance gate.
 
-**Current focus:** Phase 2B host feedback optimization: explicit profile
-separation and a conservative affected-test planner. Its current pre-planner
-baseline is 56 entrypoints (historical 53 plus exactly three lifecycle additions
-with 8/16/5 cases) and 18 exclusions; no planner is integrated and the external
-prototype remains outside the repository. The M6 local importer and
-independently verified DevArchive retirement are complete; remaining M6 work is
+**Current focus:** IOS-P0-003 resumes as the first active task: broaden the
+physical content/save evidence beyond its accepted stationary branch. Phase 2B's
+safe shadow foundation is complete: its pure explicit-manifest mapper is only an
+unconditional host test stage and cannot select, prune, cache or speed up work.
+IOS-P2-007 remains deferred for an authenticated complete manifest producer.
+The M6 local importer and independently verified DevArchive retirement are
+complete; remaining M6 work is
 authorized-tester distribution, signed-update save preservation and
 remote-release acceptance. IOS-P2-005's local
 pinning/cache contract is complete and has returned to the Backlog pending two
@@ -52,8 +53,8 @@ identical 1,183/1,183 logical IDs (SHA-256
 FastDevice or runtime claim because complete retail preflight remains dominant.
 The code review and post-gate evidence review each approved their respective
 scope; the complete Phase 2A code-plus-documentation checkpoint then received
-the exact Sol xhigh verdict `APPROVE — brak P0/P1/P2`. No planner, affected
-selection or sharding exists yet.
+the exact Sol xhigh verdict `APPROVE — brak P0/P1/P2`. Phase 2B adds only its
+shadow-only mapper; no affected selection, pruning or sharding exists.
 
 The capture-v2 test fixture is now scheduler-deterministic only for its exact
 four loading modes; normal/jupiter/wrong-pid retain historical timing and the
@@ -62,13 +63,14 @@ cleanup verified. Final pre-document Fast receipt
 `gate-1787491750981592000-67197-0.json` passed in 1050.721 s with retail 102/102,
 archive 131/131, macros 30/30, resources 13/13 and links 137/137. Sol xhigh
 returned exact `APPROVE — brak P0/P1/P2`. This remains partial host evidence;
-the five active tasks and Phase 2B next focus are unchanged.
+the active P0/P1/M6 priorities remain unchanged.
 
-**Optimization next:** Phase 2B adds explicit profile separation and a
-conservative versioned affected-test planner: unknown or global input must
-select full, and renderer/lifecycle/memory/streaming or runtime claims cannot
-close from affected-only evidence. Existing external build-tree, Simulator and
-device locks remain mandatory before any concurrency beyond per-key cache locks;
+**Optimization next:** IOS-P2-007 is deferred until an authenticated complete
+change-manifest producer exists. It must prove fail-closed completeness and zero
+false negatives on real and mutation diffs before it can prune anything.
+Full-release must remain complete and shader-uncached; runtime, renderer,
+lifecycle, memory and streaming claims remain outside affected-only evidence.
+Existing external build-tree, Simulator and device locks remain mandatory;
 retail sharding is later work.
 
 **Published checkpoint:** approved commit
@@ -105,63 +107,7 @@ here is deferred and must be promoted explicitly from the Backlog.
 | M6 — Distribution | Reproducible tester package and data setup | Local importer complete; distribution acceptance remains |
 | M7 — Renderer decision | ES, ANGLE or native Metal from measurements | Deferred |
 
-## 1. IOS-P1-011: Phase 2B — separate host profiles and add a conservative affected-test planner
-
-**Priority:** P1.
-
-**Evidence level:** Phase 1's frozen retail profile contract is complete.
-Phase 2A's code review and its natural host MISS/HIT evidence review each
-approved their scopes; the complete Phase 2A code-plus-documentation checkpoint
-then received the exact Sol xhigh verdict `APPROVE — brak P0/P1/P2`. The current evidence is host-only: logical selection
-SHA-256 `4ae15fba39fb626c41f9a00ccbf1b1982338690b0b0da7b6212a23d504626f74` and
-50-stage SHA-256
-`801483ceb8b4f1bafd53720ef26f2730944920bdb571879ba89fa39cf3a5ecbf` are equal
-for the natural `shaders` MISS/HIT receipts. No affected selection, local
-sharding or runtime evidence exists.
-
-**Phase 2B execution contract:**
-
-- Freeze `openxray.test-feedback-catalog.v1` as the pre-planner oracle: 56
-  entrypoints (the historical 53 plus exactly three lifecycle additions with
-  8/16/5 cases), 18 classified build-stage exclusions, both
-  `selection_authority` and `cache_authority` `NONE`, and
-  `input_mapping_complete: false` for all 56. Preserve stable IDs and the old
-  runner selection.
-- Use one small versioned mapping from normalized repository paths/globs to
-  stable IDs and profiles. Each decision records its profile, IDs, input hash
-  and reason. Unknown or incomplete mappings; planner, catalog or config
-  changes; rename/delete; no merge base; or an ambiguous diff select
-  `full-release`.
-- `host-fast` retains every cheap host contract plus frozen retail 55;
-  `retail-integration` retains 49; `shader-affected` retains complete static,
-  compile and link coverage; `engine-affected` retains applicable host
-  contracts and the product build.
-- `full-release` executes every registered entrypoint or records an explicit
-  platform skip, forces direct uncached shaders and performs no affected
-  pruning. Simulator and device remain separate serialized runtime profiles.
-- Acceptance requires exact old/new ID parity, identical injected-failure
-  propagation, zero false negatives on reviewed real and mutation diffs, and
-  20 warm `host-fast` runs with p50/p95. Phase 2B adds neither sharding nor
-  concurrency; external locks remain mandatory.
-
-**Next actions:**
-
-1. Freeze the complete post-Phase-2A entrypoint inventory, IDs, labels,
-   timeouts, resources and explicit inputs, with per-case/per-stage JSON timing.
-2. Add versioned profile selection for `host-fast`, shader-affected,
-   engine-affected, retail-integration, full-release, sim-runtime and
-   device-runtime; unknown or global paths select full.
-3. Preserve every existing guard and fail-closed mutation case. Runtime claims
-   for renderer, lifecycle, memory or streaming stay outside affected-only
-   selection.
-
-**Acceptance:** the old and new runners select identical stable IDs before any
-profile optimization; an injected failure propagates identically; unknown/global
-inputs select full; full-release remains semantically complete and shader
-uncached. No profile or host result is presented as Simulator/device/runtime
-proof.
-
-## 2. IOS-P0-003: validate startup-sector recovery across content
+## 1. IOS-P0-003: validate startup-sector recovery across content
 
 **Priority:** P0.
 
@@ -285,7 +231,7 @@ acceptance.
   sector and visual evidence kept distinct.
 - No prefetch spike, unbounded growth or diagnostic visibility counters.
 
-## 3. IOS-P1-005: validate graphics profiles and presentation baseline
+## 2. IOS-P1-005: validate graphics profiles and presentation baseline
 
 **Priority:** P1, immediately after IOS-P0-003.
 
@@ -326,7 +272,7 @@ VSync, MSAA and postprocessing remain fixed.
 Optimal does not oscillate or change shader/resource topology; transitions do
 not corrupt the frame; and five foreground cycles retain 1864×860.
 
-## 4. IOS-P1-006: close visible UI renderer gaps
+## 3. IOS-P1-006: close visible UI renderer gaps
 
 **Priority:** P1.
 
@@ -422,7 +368,7 @@ Advanced desktop graphics controls are not part of the iOS product.
 **Acceptance:** menu, HUD, inventory, PDA/map and video surfaces are complete,
 readable and internally consistent on the supported iPhone baseline.
 
-## 5. M6: make legal retail-data import resumable and verifiable
+## 4. M6: make legal retail-data import resumable and verifiable
 
 **Priority:** P2 promoted for the current phone-free implementation window;
 remaining lock/held-touch/audio device work stays separately deferred.
