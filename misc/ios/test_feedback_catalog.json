@@ -735,6 +735,102 @@
       "timeout_seconds": 300
     },
     {
+      "entrypoint_id": "python::misc/ios/test_quickload_phase.py",
+      "expected_case_count": 16,
+      "explicit_inputs": [
+        {
+          "type": "path",
+          "value": "misc/ios/quickload_phase_oracle.py"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/test_quickload_phase.py"
+        },
+        {
+          "type": "path",
+          "value": "src/xrCore/ios_private_save_writer.cpp"
+        },
+        {
+          "type": "path",
+          "value": "src/xrCore/ios_private_save_writer.h"
+        },
+        {
+          "type": "path",
+          "value": "src/xrCore/FS_internal.h"
+        },
+        {
+          "type": "path",
+          "value": "src/xrCore/LocatorAPI.cpp"
+        },
+        {
+          "type": "path",
+          "value": "src/xrCore/LocatorAPI.h"
+        },
+        {
+          "type": "path",
+          "value": "src/xrCore/CMakeLists.txt"
+        },
+        {
+          "type": "path",
+          "value": "src/xrGame/alife_storage_manager.cpp"
+        },
+        {
+          "type": "path",
+          "value": "src/xrGame/ios_quickload_phase.cpp"
+        },
+        {
+          "type": "path",
+          "value": "src/xrGame/ios_quickload_phase.h"
+        },
+        {
+          "type": "path",
+          "value": "src/xrGame/Level_network_messages.cpp"
+        },
+        {
+          "type": "path",
+          "value": "src/xrGame/GamePersistent.cpp"
+        },
+        {
+          "type": "path",
+          "value": "src/xrGame/game_sv_single.h"
+        },
+        {
+          "type": "path",
+          "value": "src/xrGame/game_sv_single.cpp"
+        },
+        {
+          "type": "path",
+          "value": "src/xrGame/CMakeLists.txt"
+        },
+        {
+          "type": "path",
+          "value": "misc/ios/build_check.sh"
+        }
+      ],
+      "input_mapping_complete": false,
+      "input_mapping_note": "Post-baseline QuickLoad diagnostic tooling lists direct inputs only; it has no selection or cache authority.",
+      "kind": "python-unittest",
+      "labels": [
+        "python",
+        "unittest",
+        "post-baseline",
+        "quickload-diagnostic"
+      ],
+      "resources": [
+        "host",
+        "filesystem"
+      ],
+      "selected_profiles": [
+        "engine",
+        "shaders",
+        "device",
+        "full",
+        "fast"
+      ],
+      "timeout_policy": "report-only",
+      "timeout_seconds": 300
+    },
+    {
       "entrypoint_id": "python::misc/ios/test_simulator_quickload_evidence.py",
       "expected_case_count": 45,
       "explicit_inputs": [

@@ -9,6 +9,11 @@
 #include "GamePersistent.h"
 #include "xrServer.h"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "ios_quickload_phase.h"
+#include "xrEngine/defines.h"
+#endif
+
 game_sv_Single::game_sv_Single()
 {
     m_alife_simulator = NULL;
@@ -328,19 +333,47 @@ void game_sv_Single::on_death(CSE_Abstract* e_dest, CSE_Abstract* e_src)
     alife().on_death(e_dest, e_src);
 }
 
-void game_sv_Single::restart_simulator(LPCSTR saved_game_name)
+void game_sv_Single::restart_simulator(LPCSTR saved_game_name, u64 quick_load_request)
 {
+#if defined(XR_PLATFORM_APPLE_IOS)
+    if (psIOSDiagnostics == 1)
+        ios_quickload_phase_emit(quick_load_request, IosQuickLoadPhase::RestartBegin);
+#endif
     shared_str& options = *alife().server_command_line();
 
     delete_data(m_alife_simulator);
+#if defined(XR_PLATFORM_APPLE_IOS)
+    if (psIOSDiagnostics == 1)
+        ios_quickload_phase_emit(quick_load_request, IosQuickLoadPhase::OldAlifeDestroyed);
+#endif
     server().clear_ids();
+#if defined(XR_PLATFORM_APPLE_IOS)
+    if (psIOSDiagnostics == 1)
+        ios_quickload_phase_emit(quick_load_request, IosQuickLoadPhase::IdsCleared);
+#endif
 
     xr_strcpy(g_pGamePersistent->m_game_params.m_game_or_spawn, saved_game_name);
     xr_strcpy(g_pGamePersistent->m_game_params.m_new_or_load, "load");
 
     g_pGamePersistent->LoadBegin();
+#if defined(XR_PLATFORM_APPLE_IOS)
+    if (psIOSDiagnostics == 1)
+        ios_quickload_phase_emit(quick_load_request, IosQuickLoadPhase::AlifeConstructBegin);
+#endif
     m_alife_simulator = xr_new<CALifeSimulator>(&server(), &options);
+#if defined(XR_PLATFORM_APPLE_IOS)
+    if (psIOSDiagnostics == 1)
+        ios_quickload_phase_emit(quick_load_request, IosQuickLoadPhase::NewAlifeConstructed);
+#endif
     g_pGamePersistent->LoadTitle("st_client_synchronising");
     Device.PreCache(60, true);
+#if defined(XR_PLATFORM_APPLE_IOS)
+    if (psIOSDiagnostics == 1)
+        ios_quickload_phase_emit(quick_load_request, IosQuickLoadPhase::PrecacheComplete);
+#endif
     g_pGamePersistent->LoadEnd();
+#if defined(XR_PLATFORM_APPLE_IOS)
+    if (psIOSDiagnostics == 1)
+        ios_quickload_phase_emit(quick_load_request, IosQuickLoadPhase::RestartComplete);
+#endif
 }

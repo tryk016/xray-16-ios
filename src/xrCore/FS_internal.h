@@ -3,6 +3,9 @@
 #pragma once
 
 #include "lzhuf.h"
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "ios_private_save_writer.h"
+#endif
 #if defined(XR_PLATFORM_WINDOWS)
 #include <io.h>
 #endif
@@ -24,15 +27,23 @@ class CFileWriter final : public IWriter
 {
 private:
     FILE* hf;
+#if defined(XR_PLATFORM_APPLE_IOS)
+    bool m_private_save = false;
+    bool m_private_save_finalized = false;
+    bool m_private_save_result = false;
+#endif
 
 public:
-    CFileWriter(const char* name, bool exclusive)
+    CFileWriter(const char* name, bool exclusive, bool private_save = false)
     {
         R_ASSERT(name && name[0]);
         fName = name;
         VerifyPath(fName.c_str());
         pstr conv_fn = xr_strdup(name);
         convert_path_separators(conv_fn);
+#if defined(XR_PLATFORM_APPLE_IOS)
+        m_private_save = private_save;
+#endif
         if (exclusive)
         {
             const int handle = _sopen(conv_fn, _O_WRONLY | _O_TRUNC | _O_CREAT | _O_BINARY, SH_DENYWR);
@@ -45,6 +56,21 @@ public:
             }
 #endif
             hf = _fdopen(handle, "wb");
+        }
+        else if (private_save)
+        {
+#if defined(XR_PLATFORM_APPLE_IOS)
+            hf = ios_private_save_writer::open_for_rewrite(conv_fn);
+#else
+            R_ASSERT2(false, "Private save writer is iOS-only");
+            hf = nullptr;
+#endif
+            if (hf == nullptr)
+            {
+                string1024 error;
+                xr_strerror(errno, error, sizeof(error));
+                Msg("! Can't securely write save file: '%s'. Error: '%s'.", conv_fn, error);
+            }
         }
         else
         {
@@ -63,6 +89,14 @@ public:
     {
         if (0 != hf)
         {
+#if defined(XR_PLATFORM_APPLE_IOS)
+            if (m_private_save)
+            {
+                if (!close_private_save())
+                    Msg("! Can't securely finalize save file: '%s'.", fName.c_str());
+            }
+            else
+#endif
             fclose(hf);
             // release RO attrib
 #if defined(XR_PLATFORM_WINDOWS)
@@ -107,6 +141,19 @@ public:
     };
     size_t tell() override { return (0 != hf) ? ftell(hf) : 0; };
     bool valid() override { return (0 != hf); }
+
+#if defined(XR_PLATFORM_APPLE_IOS)
+    bool close_private_save()
+    {
+        R_ASSERT2(m_private_save, "Private finalization requires a private iOS save writer");
+        if (m_private_save_finalized)
+            return m_private_save_result;
+
+        m_private_save_finalized = true;
+        m_private_save_result = ios_private_save_writer::finalize(hf);
+        return m_private_save_result;
+    }
+#endif
 
     void flush() override
     {

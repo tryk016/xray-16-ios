@@ -36,6 +36,8 @@
 
 #if defined(XR_PLATFORM_APPLE_IOS)
 #include "xrEngine/ios/ios_lifecycle_state.h"
+#include "ios_quickload_phase.h"
+#include "xrEngine/defines.h"
 #endif
 
 #include "xrPhysics/IPHWorld.h"
@@ -687,6 +689,11 @@ void CGamePersistent::OnEvent(EVENT E, u64 P1, u64 P2)
 
     if (E == eQuickLoad)
     {
+#if defined(XR_PLATFORM_APPLE_IOS)
+        const u64 quick_load_request = P2;
+        if (psIOSDiagnostics == 1)
+            ios_quickload_phase_emit(quick_load_request, IosQuickLoadPhase::EventBegin);
+#endif
         if (Device.Paused())
             Device.Pause(FALSE, TRUE, TRUE, "eQuickLoad");
 
@@ -706,12 +713,18 @@ void CGamePersistent::OnEvent(EVENT E, u64 P1, u64 P2)
         pstr saved_name = (pstr)(P1);
 
         Level().remove_objects();
+#if defined(XR_PLATFORM_APPLE_IOS)
+        if (psIOSDiagnostics == 1)
+            ios_quickload_phase_emit(quick_load_request, IosQuickLoadPhase::ObjectsRemoved);
+#endif
         game_sv_Single* game = smart_cast<game_sv_Single*>(Level().Server->GetGameState());
         R_ASSERT(game);
-        game->restart_simulator(saved_name);
+        game->restart_simulator(saved_name, P2);
 #if defined(XR_PLATFORM_APPLE_IOS)
         if (GEnv.Render)
             GEnv.Render->ios_begin_quick_load_sector_startup_epoch();
+        if (psIOSDiagnostics == 1)
+            ios_quickload_phase_emit(quick_load_request, IosQuickLoadPhase::EventComplete);
 #endif
         xr_free(saved_name);
         return;

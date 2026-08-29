@@ -269,7 +269,8 @@ feedback_stage_command() {
             misc/ios/ui_automation/test_xctest_contract.py|\
             misc/ios/test_ui_state_marker_contract.py|misc/ios/test_pda_map_hotkey_contract.py|\
             misc/ios/test_simulator_ui_navigation.py|misc/ios/test_ui_capture_evidence.py|\
-            misc/ios/test_ios_quickload_input_contract.py|misc/ios/test_simulator_quickload_evidence.py|\
+            misc/ios/test_ios_quickload_input_contract.py|misc/ios/test_quickload_phase.py|\
+            misc/ios/test_simulator_quickload_evidence.py|\
             misc/ios/test_retail_import.py|misc/ios/test_retail_clone_staging.py|\
             misc/ios/test_archive_completed_artifacts.py|misc/ios/test_locator_registration_contract.py|\
             misc/ios/test_retail_test_profiles.py|misc/ios/test_retail_simulator.py|\
@@ -909,6 +910,8 @@ feedback_stage "stage::python::misc/ios/test_ui_capture_evidence.py" python3 mis
 echo "== iOS Simulator QuickSave/QuickLoad evidence gate =="
 feedback_stage "stage::python::misc/ios/test_ios_quickload_input_contract.py" python3 misc/ios/test_ios_quickload_input_contract.py \
     || fail "iOS QuickSave/QuickLoad input contract regression tests failed"
+feedback_stage "stage::python::misc/ios/test_quickload_phase.py" python3 misc/ios/test_quickload_phase.py \
+    || fail "iOS QuickLoad phase diagnostic regression tests failed"
 feedback_stage "stage::python::misc/ios/test_simulator_quickload_evidence.py" python3 misc/ios/test_simulator_quickload_evidence.py \
     || fail "iOS Simulator QuickSave/QuickLoad evidence regression tests failed"
 

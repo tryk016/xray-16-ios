@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import contextlib
 import copy
+import hashlib
 import io
 import json
 import os
@@ -236,10 +237,13 @@ class PureManifestMapperTests(unittest.TestCase):
                 with self.assertRaises(planner.MapperError): planner._validate_inventory(changed)
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
-            for name in planner.ASSET_SHA256:
+            for name in planner.FROZEN_ASSET_SHA256:
                 source = ROOT / name
                 (base / name).write_bytes(source.read_bytes())
                 os.chmod(base / name, 0o600)
+            catalog_path = base / "test_feedback_catalog.json"
+            catalog_path.write_bytes((ROOT / "test_feedback_catalog.json").read_bytes())
+            os.chmod(catalog_path, 0o600)
             inventory_path = base / "test_feedback_inventory_v1.json"
             changed = json.loads(inventory_path.read_text(encoding="utf-8"))
             changed["profiles"]["full-release"]["stable_ids"] = changed["profiles"]["full-release"]["stable_ids"][:1]
@@ -255,6 +259,19 @@ class PureManifestMapperTests(unittest.TestCase):
                 planner.__file__ = original_file
             self.assertEqual("", stdout.getvalue())
             self.assertEqual(f"pure mapper asset error: {planner.ERROR_ASSET_BINDING}\n", stderr.getvalue())
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            for name in planner.FROZEN_ASSET_SHA256:
+                source = ROOT / name
+                (base / name).write_bytes(source.read_bytes())
+                os.chmod(base / name, 0o600)
+            catalog_path = base / "test_feedback_catalog.json"
+            catalog = json.loads((ROOT / "test_feedback_catalog.json").read_text(encoding="utf-8"))
+            catalog["entrypoints"].pop()
+            catalog_path.write_text(json.dumps(catalog, sort_keys=True), encoding="utf-8")
+            os.chmod(catalog_path, 0o600)
+            with self.assertRaises(planner.MapperError):
+                planner.load_assets(base)
 
     def test_30_postintegration_inventory_parity(self) -> None:
         _, inventory = assets()
@@ -271,10 +288,20 @@ class PureManifestMapperTests(unittest.TestCase):
         self.assertEqual(57, inventory["parity"]["entrypoints"]["count"])
         self.assertEqual(18, inventory["parity"]["build_stage_exclusions"]["count"])
         self.assertEqual(1361, inventory["parity"]["catalog_complete"]["count"])
-        catalog = planner.strict_json(
-            planner.read_bound_file(ROOT / "test_feedback_catalog.json", "catalog"),
-            "catalog",
-        )
+        self.assertEqual(planner.FROZEN_CATALOG_SHA256, inventory["catalog_binding"]["sha256"])
+        self.assertEqual(planner.FROZEN_CATALOG_BINDING, inventory["catalog_binding"])
+        catalog_raw = planner.read_bound_file(ROOT / "test_feedback_catalog.json", "catalog")
+        self.assertEqual(planner.CURRENT_CATALOG_SHA256, hashlib.sha256(catalog_raw).hexdigest())
+        catalog = planner.strict_json(catalog_raw, "catalog")
+        entrypoints = planner._catalog_names(catalog, "entrypoints", "entrypoint_id")
+        exclusions = planner._catalog_names(catalog, "build_stage_exclusions", "stage_id")
+        self.assertEqual(planner.CURRENT_CATALOG_PARITY["entrypoints"],
+                         (len(entrypoints), planner.stable_id_digest(entrypoints)))
+        self.assertEqual(planner.CURRENT_CATALOG_PARITY["build_stage_exclusions"],
+                         (len(exclusions), planner.stable_id_digest(exclusions)))
+        self.assertIn("python::misc/ios/test_quickload_phase.py", entrypoints)
+        self.assertFalse(any(identifier.startswith("py:misc/ios/test_quickload_phase.py::")
+                             for identifier in inventory["profiles"]["full-release"]["stable_ids"]))
         snapshot = catalog["frozen"]["post_phase2b"]
         self.assertEqual(
             ("openxray.test-feedback-phase2b-snapshot.v1", "shadow-only-non-authoritative"),

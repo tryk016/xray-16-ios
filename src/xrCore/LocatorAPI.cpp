@@ -1740,6 +1740,62 @@ IWriter* CLocatorAPI::w_open(pcstr path, pcstr _fname)
     return W;
 }
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+IWriter* CLocatorAPI::w_open_private(pcstr path, pcstr _fname)
+{
+    string_path fname;
+    xr_strcpy(fname, _fname);
+    xr_fs_strlwr(fname); //,".$");
+
+    if (path && path[0])
+        update_path(fname, path, fname);
+    CFileWriter* W = xr_new<CFileWriter>(fname, false, true);
+    if (!W->valid())
+    {
+        xr_delete(W);
+        return nullptr;
+    }
+    return W;
+}
+
+bool CLocatorAPI::w_close_private(IWriter*& S)
+{
+    if (!S)
+        return false;
+
+    R_ASSERT(S->fName.size());
+    string_path fname;
+    xr_strcpy(fname, sizeof fname, S->fName.c_str());
+    CFileWriter* private_writer = static_cast<CFileWriter*>(S);
+    const bool finalized = private_writer->close_private_save();
+    const int finalization_error = errno;
+    xr_delete(S);
+    if (!finalized)
+    {
+        string1024 error;
+        xr_strerror(finalization_error, error, sizeof(error));
+        Msg("! Cannot securely finalize save file '%s'. Error: '%s'.", fname, error);
+        return false;
+    }
+
+    string_path filesystem_name;
+    xr_strcpy(filesystem_name, sizeof filesystem_name, fname);
+    convert_path_separators(filesystem_name);
+    struct stat st;
+    if (::stat(filesystem_name, &st) != 0)
+    {
+        const int registration_error = errno;
+        string1024 error;
+        xr_strerror(registration_error, error, sizeof(error));
+        Msg("! Cannot register securely finalized save file '%s' (filesystem path '%s'). Error: '%s'.",
+            fname, filesystem_name, error);
+        return false;
+    }
+    Register(fname, VFS_STANDARD_FILE, 0, 0, st.st_size, st.st_size, (u32)st.st_mtime);
+    return true;
+}
+#endif
+
 IWriter* CLocatorAPI::w_open_ex(pcstr path, pcstr _fname)
 {
     string_path fname;

@@ -1,6 +1,6 @@
 # OpenXRay iOS — active roadmap
 
-**Last synchronized:** 2026-08-24
+**Last synchronized:** 2026-08-29
 
 **Canonical contract:** [iOS-Port.md](iOS-Port.md)
 
@@ -8,8 +8,12 @@
 
 **Platform scope:** iOS-only; desktop compatibility is not an acceptance gate.
 
-**Current focus:** IOS-P0-003 resumes as the first active task: broaden the
-physical content/save evidence beyond its accepted stationary branch. Phase 2B's
+**Current focus:** IOS-P0-003 remains the first active task. Its exact affected
+Zaton physical QuickLoad reproduction now passes: one F5/F9 kept PID 29757,
+completed all 11 phases/seven memory markers, advanced to epoch 2
+`quick_load/retained` and preserved/restored every prior save. The active edge
+is now wider save/level and transition coverage; P1 memory remains open after a
+3,413,924 KiB after-load peak and a pre-F9 pressure event. Phase 2B's
 safe shadow foundation is complete: its pure explicit-manifest mapper is only an
 unconditional host test stage and cannot select, prune, cache or speed up work.
 IOS-P2-007 remains deferred for an authenticated complete manifest producer.
@@ -25,7 +29,7 @@ app-switch acceptance are complete under IOS-P1-010. Lock/held-touch and audio
 remain deferred under IOS-P1-002, IOS-P2-001 and IOS-P2-002; audio requires a
 dedicated background-audio helper because the hidden XCTest runner failed with
 `!pla` before interrupting OpenXRay. IOS-P0-003's
-stationary branch is corrected and its real iOS 27 capture-v2 publication
+stationary branch is corrected and the new real iOS 27 QuickLoad publication
 passes; wider save/level and physical-device evidence is now the active edge.
 
 The autonomous device runner no longer restores the non-persistent
@@ -114,105 +118,66 @@ here is deferred and must be promoted explicitly from the Backlog.
 
 **Evidence level:** affected Zaton save proven on three cold launches; v1
 startup-sector evidence oracle is host-complete (parser 17/17, marker 10/10,
-strict/ASan/UBSan PASS and final Sol xhigh approval); normal F5/F9 QuickLoad is
-proven on iOS 27 Simulator, while other saves, indoor/portal starts, transitions
-and physical-device visual proof remain untested.
-Capture-state v2 and the stationary-vs-forward A/B harness are locally complete
-(evidence parser 16/16, host-tool mocks 8/8, producer mutation contract 2/2,
-strict/sanitized C++ PASS, post-commit full Release and Sol xhigh approval), but
-have not yet produced a physical-device A/B packet. The separate isolated iOS
-27 single-capture host extension is also locally reviewed (final static PASS,
-parser 31/31, runner 84/84 and final Sol xhigh
-`APPROVE — brak P0/P1/P2`). Commit `399b7fdbb` records the stationary-branch
-correction, its real successful T2 publication and its post-commit full Release
-PASS. The earlier clean `e967a4c...` install stamp is historical/stale. The
-later source `aea7d8fb0fe4ffac1f1c002205cc9762b61ded35b241861c54ddebe5d85161b3`
-and stamp `c198b069433c092e0148ba7ecf02f1a8479e4bab25b17f909253750ef3f8e92d`
-are also historical/stale. Commit
-`8b265b07b489f1633e6be17f57fd1578adb11092` received a clean full gate with
-source `d8b2fc5d4b421c01cdf0d656d1cc02794dea49d6f8410389511f22199239f394`,
-UUID `574CACAC-E835-3E81-9919-60F8B93343DE`, bundle
-`c6dbaa33fe9101403b68969264521461160f2f43c3007ef8151f1b43a83e9a0c` and stamp
-`54c54c5c972ef34a4852189a57b2d012eeef6be6ea3634af3bb94c8b5dbb59a5`.
-It is historical after adding the exact prepared `.DS_Store` removal overlay;
-commit `727c51da` later received its own clean full receipt and used it for its
-completed push. That stamp is historical for future installation after this
-documentation change. Production equivalence remains strict, and the historical
-verifier remains read-only/non-authorizing.
+strict/ASan/UBSan PASS and final Sol xhigh approval). QuickLoad instrumentation
+and private-save publication are phone-free complete: exact request identity,
+11 ordered phases, seven memory markers, host phase/private-writer 16/16,
+Simulator evidence 45/45 and affected mapper 32/32; the frozen inventory still
+has 45 IDs. A fresh matching device gate for current `de866336…` passed; one
+signed in-place update was installed, tested and later stopped without
+uninstalling. Post-document preflight still passes, while the receipt's complete
+dirty diff/status predates the documentation closeout. A future commit requires
+a new matching install gate, and push still requires a final post-commit `full`.
+Physical A/B has one controlled
+`zaton`/`default_clear` packet: native 1864×860 stationary A/B and C after
+45.558 m, same PID 3317/session/epoch 1/sector 115, visually correct global
+lighting with no radial lit circle in that exact run. It excludes other saves,
+interiors, weather, restarts and movement/streaming causation.
 
-Real workroot `simulator-work-20260810-015703-14748` exposed and corrected an
-over-strict live-readiness classification: a valid post-T1 `loading` candidate
-must retry with CLI 75 while invariant breaches remain fatal with CLI 1 and any
-post-stop retry is fatal. Corrected workroot
-`simulator-work-20260810-024814-86404` built and reached Zaton sync/`after_load`,
-then recorded T0 `loading` sequence 23, T1 `loading` sequence 24 and candidates
-through sequence 88 still `loading` under one 600-second deadline. The startup
-marker was PID 92531, epoch 1, frame 35, `level_load`, `unresolved`/`none`,
-invalid sector `4294967295`, identical camera/probe and radius 0. Both dedicated
-Simulators were deleted and publication failed closed without T2/report output.
+Fresh isolated iOS 27 Simulator PASS is
+`/Users/patryk/openxray-handoff/simulator-work-20260827-022513-64141/report.txt`
+(report SHA-256 `58b51b671af555628ee276c50d16e61affc176acba98121564fd3b0c52af9d99`,
+manifest `bd7144713dc77918f507224ff105629d37621d422491ade27e162ac6a599e9ff`).
+Simulator `C5C45EA6-9937-4722-B8B7-8E7C9A550776` was deleted. PID 70183 records
+epoch 1 `level_load`/`exact`, sector 115, frame 35 and epoch 2
+`quick_load`/`retained`, sector 115, frame 122. The original save remains
+631235 bytes at SHA-256 `7ff0b12ee5d0a39b7a9595d7cc491cd63a32dfc2ce276e5302f74a4cdf7214cc`,
+mode 0600 and `UF_TRACKED`; live QuickSave is 650219 bytes, SHA-256
+`f022e6e6c44a1641346315db071f8dce646b9ac328effa60d71b5390973c8dd7`, mode
+0600, `UF_TRACKED`, UID 501 and nlink 1. Its evidence copy matches bytes/hash/
+mode, has flags 0 and a distinct inode. This proves Apple Software Renderer
+control flow/save permissions/publication only, not iPhone rendering, physical
+memory, performance, lighting or wider content. Sol xhigh verdict:
+`APPROVE — brak P0/P1/P2`.
 
-The corrected iOS policy preserves camera movement as an unconditional trigger
-and adds one synthetic stationary `level_load` attempt only while the epoch is
-awaiting, the sector is invalid, no report is pending and a dedicated
-post-epoch camera-generation barrier has passed. LevelLoad can no longer publish
-retained/none; QuickLoad keeps its independent barrier and no-detection path.
+The old physical F9 process-exit reproduction is closed for this exact affected
+Zaton save/build. Packet
+`/Users/patryk/openxray-handoff/ios-p0-003-phone-20260829-172509/report.txt`
+kept PID 29757 through one F5/F9, all 11 phases/seven memory markers and epoch 2
+`quick_load/retained`, sector 115. Its released-request native 1864×860 frame is
+complete and has no radial lit-circle symptom. The original save stayed
+unchanged; the prior QuickSave and `user.ltx` were restored byte-for-byte.
+Further saves, indoor/portal starts, transitions and soak remain open. Full
+prefetch remains prohibited because it caused an approximately 1.6 GB transient
+spike, and P1 memory remains open.
 
-The exact vertical query misses the affected spawn floor. The iOS-only
-nearest-floor fallback finds sector 115 at 8 m and renders the complete static
-world without movement. Full prefetch remains prohibited because it previously
-added an approximately 1.6 GB transient spike.
-
-The phone-free regression policy now proves exact-query bypass, the independent
-56-probe order, first-hit selection, unchanged camera height, no-hit metadata,
-invalid-sector commit protection, stationary exact/fallback/no-hit one-shot
-behavior and later movement recovery. v1 also validates
-`level_load`/`QuickLoad` epochs, exact/fallback/retained/unresolved/recovered
-outcomes and an anchored oracle stream. Parser 17/17, source-marker 10/10,
-strict C++ and ASan/UBSan pass. The FastDevice gate passed after rebuilding 249
-translation units. This protects the mechanism only; real CDB results across
-additional content remain device-untested.
-
-Fresh isolated workroot
-`/Users/patryk/openxray-handoff/simulator-work-20260810-041339-82601` passed on
-iOS 27. PID 90549 recorded stationary `level_load resolved/exact`, sector 115,
-at frame 35. T0/T1/T2 tokens 54/55/56 were same-session/same-PID gameplay with
-advancing frames 89/91/92 and continual time, no input and 1864x860. The five
-capture artifacts and report were published only after all guards passed and
-the dedicated Simulator was deleted. Scope remains Apple Software Renderer
-control-flow/publication evidence, not iPhone or pixel proof.
-
-Fresh hardened QuickLoad workroot
-`/Users/patryk/openxray-handoff/simulator-work-20260810-164020-71268` passed:
-single arm64 `IOSSIMULATOR`, minOS 16.4, SDK 27.0; PID 77340; epoch 1
-`level_load/exact` frame 35 then epoch 2 `quick_load/retained` method `retained`
-frame 122. Exactly B0/B1/C were 1864x860 gameplay frames 89/94/182 with tokens
-54/58/118; normal F5/F9 used scancodes 62/66. Live/private QuickSave inodes
-22482673/22482715 differ but both are 649473 bytes with SHA-256
-`eb82993bc9eb70ef64ef7830669328470fb556da69a82883a41ffc9dda5c43fe`; the original
-save is unchanged at 631235 bytes and SHA-256
-`7ff0b12ee5d0a39b7a9595d7cc491cd63a32dfc2ce276e5302f74a4cdf7214cc`.
-PASS report SHA-256 is
-`27f89f6793ec2d0f0ee6831add123ae3e54b9d83eaaa37d4326a62d052f35cb9`; manifest
-SHA-256 is `7d45f49bbe15727a1813971b958fe8c19261b32cc3426a7bfd69dffbdd418896`.
-Pending aliases were absent, protected inputs unchanged and Simulator
-`278AD2E8-7116-448F-8474-670945489415` deleted before report publication. Final
-Sol xhigh: `APPROVE — brak P0/P1/P2`. Scope is normal F5/F9 Apple Software
-Renderer control flow only, not iPhone/pixel/readability/lighting/performance or
-other-content proof; IOS-P0-003 stays active for physical and wider content
-acceptance.
+The current packet supersedes the older hardened QuickLoad workroot above. F9
+press/load-success/terminal/release ordering 956/1038/1117/1202 is correctly
+accepted; capture C uses the same request at frame 182, state `released`, release
+frame 181. F5 success/press/release 943/944/947 remains intentionally accepted
+for dispatch/log ordering. Its seven Simulator memory markers include
+`event_begin` current/peak 3,603,381/3,621,333 KiB, `objects_removed`
+3,609,893/3,629,877, `old_alife_destroyed` 3,549,621,
+`new_alife_constructed` 3,581,573, observed resident peak 4,910,544 and
+compressed 0. These markers are neither phone memory nor performance proof.
 
 **Next actions:**
 
-1. Run `lighting_ab_capture.sh` on the next outdoor phone batch into a new
-   evidence directory; accept only its A/A+3/A+6 controls and keep manual pixel
-   interpretation separate from sector and cause claims.
-2. Continue one additional outdoor save, one indoor/portal start, physical-device
-   QuickLoad and one level transition with baseline-plus-exact-batch evidence;
-   record the 30-minute controller-run memory footprint separately.
-3. Correlate any remaining dark-frame transition with the controlled stationary
-   and forward capture packet before changing rendering or streaming code.
-4. Complete the 30-minute memory/thermal run only after short correctness
-   batches pass and the phone has cooled.
+1. Extend the same baseline to another outdoor save, then an indoor/portal start
+   and one level transition with exact epoch/sector and objective frame evidence.
+2. Run the cooled 30-minute controller memory/thermal gate separately; do not
+   treat the successful one-shot QuickLoad as a memory-budget acceptance.
+3. Do not restore full prefetch; its approximately 1.6 GiB transient spike is
+   unrelated to a proven QuickLoad fix.
 
 **Acceptance:**
 
@@ -222,9 +187,14 @@ acceptance.
   This is Apple Software Renderer control-flow evidence, not iPhone or pixel
   proof.
 - Local hardened QuickLoad acceptance met: normal F5/F9 preserves one PID,
-  creates and reloads the exact QuickSave, advances to `quick_load/retained`,
-  revalidates exactly B0/B1/C, removes pending aliases and publishes only after
-  Simulator deletion. It does not close physical-device or wider-content scope.
+  records the exact ordered request phases and seven memory markers, creates the
+  private 0600 QuickSave, advances to `quick_load/retained`, revalidates capture
+  C and publishes only after Simulator deletion. It does not close physical-
+  device or wider-content scope.
+- Physical QuickLoad acceptance is met for the exact affected Zaton save/build:
+  one F9 preserved process continuity, completed epoch 2 `quick_load/retained`
+  and all 11 phases/seven memory markers, and retained/restored protected saves.
+  This does not accept other content or the P1 memory budget.
 - Three cold launches and two save/level combinations record the baseline epoch,
   exact expected batch, resolved classification and objective complete-world
   frame without a movement workaround.

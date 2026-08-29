@@ -189,7 +189,11 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
                      "misc/ios/retail_test_profiles.py", "misc/ios/retail_test_profiles.json",
                      "misc/ios/test_retail_test_profiles.py",
                      "misc/ios/test_retail_fixture_contract.py",
-                     "misc/ios/retail_fixture_contract.json"):
+                "misc/ios/retail_fixture_contract.json",
+                "misc/ios/quickload_phase_oracle.py",
+                     "misc/ios/test_quickload_phase.py",
+                     "src/xrCore/ios_private_save_writer.cpp",
+                     "src/xrCore/ios_private_save_writer.h"):
             with self.subTest(path=path):
                 self.assertIn(f'"{path}"', gate_hash)
 
@@ -212,8 +216,8 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
         catalog = feedback.read_catalog()
         records = feedback.catalog_entrypoint_ids(catalog)
         self.assertEqual(records, feedback.expected_entrypoints())
-        self.assertEqual(len(records), 57)
-        self.assertEqual(sum(item.startswith("python::") for item in records), 36)
+        self.assertEqual(len(records), 58)
+        self.assertEqual(sum(item.startswith("python::") for item in records), 37)
         self.assertEqual(sum(item.startswith("cpp:") for item in records), 9)
         by_id = {entry["entrypoint_id"]: entry for entry in catalog["entrypoints"]}
         all_five = ["engine", "shaders", "device", "full", "fast"]
@@ -239,6 +243,38 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
         ):
             self.assertEqual(by_id[identifier]["selected_profiles"], [])
         profile_contract_ids = feedback.profile_ids()["host-feedback-tooling"]
+        quickload_phase_ids = feedback.profile_ids()["post-baseline-tooling"]
+        quickload_phase = by_id["python::misc/ios/test_quickload_phase.py"]
+        self.assertEqual(quickload_phase["expected_case_count"], len(quickload_phase_ids))
+        self.assertEqual(quickload_phase["selected_profiles"], all_five)
+        self.assertEqual(
+            [item["value"] for item in quickload_phase["explicit_inputs"]],
+            [
+                "misc/ios/quickload_phase_oracle.py",
+                "misc/ios/test_quickload_phase.py",
+                "src/xrCore/ios_private_save_writer.cpp",
+                "src/xrCore/ios_private_save_writer.h",
+                "src/xrCore/FS_internal.h",
+                "src/xrCore/LocatorAPI.cpp",
+                "src/xrCore/LocatorAPI.h",
+                "src/xrCore/CMakeLists.txt",
+                "src/xrGame/alife_storage_manager.cpp",
+                "src/xrGame/ios_quickload_phase.cpp",
+                "src/xrGame/ios_quickload_phase.h",
+                "src/xrGame/Level_network_messages.cpp",
+                "src/xrGame/GamePersistent.cpp",
+                "src/xrGame/game_sv_single.h",
+                "src/xrGame/game_sv_single.cpp",
+                "src/xrGame/CMakeLists.txt",
+                "misc/ios/build_check.sh",
+            ],
+        )
+        historical_ids = (
+            feedback.profile_ids()["central-python"]
+            + feedback.profile_ids()["ci-contract"]
+            + feedback.profile_ids()["host-infra"]
+        )
+        self.assertTrue(set(quickload_phase_ids).isdisjoint(historical_ids))
         for profile in all_five:
             with self.subTest(runtime_profile=profile):
                 self.assertTrue(set(profile_contract_ids) <= set(feedback.runtime_profile_ids(profile)))
@@ -246,6 +282,7 @@ class TestFeedbackPhase0ATests(unittest.TestCase):
                     set(feedback.profile_ids()["phase2b-shadow-tooling"])
                     <= set(feedback.runtime_profile_ids(profile))
                 )
+                self.assertTrue(set(quickload_phase_ids) <= set(feedback.runtime_profile_ids(profile)))
         planner = by_id["python::misc/ios/test_affected_test_planner.py"]
         self.assertEqual(planner["expected_case_count"], 32)
         self.assertEqual(planner["selected_profiles"], all_five)

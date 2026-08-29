@@ -51,7 +51,7 @@ public:
     virtual void sls_default();
     virtual shared_str level_name(const shared_str& server_options) const;
     virtual void on_death(CSE_Abstract* e_dest, CSE_Abstract* e_src);
-    void restart_simulator(LPCSTR saved_game_name);
+    void restart_simulator(LPCSTR saved_game_name, u64 quick_load_request);
 
     IC xrServer& server() const
     {

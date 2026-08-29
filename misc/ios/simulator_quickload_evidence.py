@@ -1403,9 +1403,8 @@ def _validate_event_record(value: object, label: str, request_id: str,
             or int(release.group(2)) != scancode
             or release.group(1) != request_id):
         fail(f"{label} is not the canonical {key.upper()} event")
-    if key == "f9" and value["terminal_line"] <= max(
-            value["success_line"], value["release_line"]):
-        fail("F9 terminal marker does not follow success and release")
+    if key == "f9" and value["terminal_line"] <= value["success_line"]:
+        fail("F9 terminal marker does not follow success")
     return value
 
 

@@ -253,7 +253,7 @@ def contract_errors(sources: dict[str, str]) -> list[str]:
     ):
         errors.append("level unload must disarm both barriers and clear pending before deactivation")
 
-    restart = event.find("game->restart_simulator(saved_name);")
+    restart = event.find("game->restart_simulator(saved_name, P2);")
     hook = event.find("GEnv.Render->ios_begin_quick_load_sector_startup_epoch();")
     release = event.find("xr_free(saved_name);")
     if min(restart, hook, release) < 0 or not restart < hook < release:
@@ -382,6 +382,8 @@ class SectorMarkerContractTests(unittest.TestCase):
             "#if defined(XR_PLATFORM_APPLE_IOS)\n"
             "        if (GEnv.Render)\n"
             "            GEnv.Render->ios_begin_quick_load_sector_startup_epoch();\n"
+            "        if (psIOSDiagnostics == 1)\n"
+            "            ios_quickload_phase_emit(quick_load_request, IosQuickLoadPhase::EventComplete);\n"
             "#endif\n"
         )
         for replacement in ("", hook_block.replace("#if", "xr_free(saved_name);\n#if")):

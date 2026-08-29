@@ -4,6 +4,20 @@ This is the compact recent operational log. Older entries are preserved in
 [archive/session-log-through-2026-07-24.md](archive/session-log-through-2026-07-24.md).
 Canonical facts, active tasks and evidence remain in the iOS documents.
 
+## 2026-08-26 — IOS-P0-003 physical packet
+
+- Clean current HEAD `de866336…` passed matching device gate
+  `gate-1787773297792508000-27477-0.json` before install.
+- One controlled Zaton/default_clear A/B/C packet at native 1864×860 was visually
+  globally lit with no radial circle in that exact run only; it does not prove
+  wider content, weather, restarts or movement/streaming causation.
+- Physical F5→F9 is P0: F5 created retained QuickSave; F9 ACKed, then PID 3317
+  disappeared with no frame/epoch 2/`quick_load` marker. Cause unresolved.
+- Earlier Jetsam killed `StickerPickerService`, not OpenXRay, but logged `xr_3da`
+  at about 3.158 GiB under compressor pressure (P1 memory evidence). LLDB setup
+  attempts stopped before F9 and provide no causal result. Lock free; no saves
+  deleted; QuickSave intentionally retained.
+
 ## 2026-07-26 — context bootstrap optimization
 
 - Preserved the existing dirty graphics-profile/menu implementation and did not
@@ -1104,3 +1118,52 @@ Canonical facts, active tasks and evidence remain in the iOS documents.
   `427f9938…b834`, dSYM UUID `FA8745D7-D795-38B0-8CF7-D8128E904457` with
   513,889,238 debug bytes. Push `4edd85a04..559817b37` succeeded and local
   HEAD matched origin. No phone, install, Simulator or runtime claim.
+
+## 2026-08-27 — QuickLoad phone-free checkpoint
+
+- At dirty HEAD `de866336…`, exact-request QuickLoad telemetry (11 phases, seven
+  memory markers), iOS private 0600 ALife writer and Locator post-close separator
+  normalization passed host 16/16, Simulator 45/45 and mapper 32/32; inventory
+  remains 45 IDs. The private writer rejects symlink/hardlink targets, preserves
+  `UF_TRACKED` and propagates final flush/close failure.
+- Fresh isolated iOS 27 Simulator PASS:
+  `simulator-work-20260827-022513-64141/report.txt`, PID 70183 epoch 1
+  `level_load/exact` sector 115 frame 35 → epoch 2 `quick_load/retained` frame
+  122; report `58b51b67…d99`, manifest `bd714471…9ff`; dedicated Simulator
+  deleted. Original save is unchanged; live 650219-B QuickSave and private copy
+  meet the documented 0600/inode contract. This is Apple Software Renderer
+  control-flow/save-permission/publication evidence only.
+- Matching Fast/full/device gates passed (800.6279/837.9106/789.6168 s); device
+  artifact is safe to install. After the matching device gate,
+  `./misc/ios/install_device.sh --preflight` passed hermetic signing validation
+  for the current artifact/profile and explicitly reported no device lease and
+  no device command. No install occurred. Sol xhigh:
+  `APPROVE — brak P0/P1/P2`.
+- The old physical F9 process exit remains unresolved. Next is exactly one
+  shortest-lease guarded physical F5→F9 with current artifact, all saves
+  preserved and process continuity + 11 phase/seven memory markers + epoch 2
+  collected. Do not restore full prefetch.
+
+## 2026-08-29 — physical QuickLoad closes the exact Zaton reproduction
+
+- Fresh device gate `gate-1788021668218642000-90104-0.json` passed in 923.548 s
+  after an inode-mismatched migrated shader cache was quarantined; real MISS
+  compile/link passed 279/279 and 137/137. No phone use occurred during gates.
+- Packet `ios-p0-003-phone-20260829-172509` used one F5/F9 on PID 29757. All 11
+  phases/seven memory markers completed; epoch 2 is `quick_load/retained`, sector
+  115. Native 1864×860 capture frame 3724 is exact-request `released`, complete
+  gameplay/HUD and has no radial lit circle in that exact frame.
+- Original save stayed `a4ef4adc…c153`; prior QuickSave `8d80ccba…c21` and
+  `user.ltx` were restored/read back byte-for-byte. Cleanup was
+  SIGTERM→SIGKILL→gone; app closed and phone lock free.
+- Phase physical peak was 3,355,476 KiB; after-load peak was 3,413,924 KiB. A
+  pre-F9 JetsamEvent did not kill `xr_3da`; P1 memory and wider content remain
+  open. Terra high evidence audit: PASS after two P2 wording corrections.
+- Post-doc installer preflight remains PASS without device access: the artifact
+  stamp is content-valid, but the device receipt's full dirty diff/status is
+  pre-doc only. A future commit needs a new matching install gate; push needs a
+  final post-commit `full`.
+- Final Sol xhigh corrected-state verdict: `APPROVE — brak P0/P1/P2`.
+- Post-checkpoint Simulator cleaner retained the three newest summarized
+  workroots and deleted five older eligible roots, reclaiming 6,463,960,384
+  approximate bytes; free space rose from 60 GiB to 66 GiB.

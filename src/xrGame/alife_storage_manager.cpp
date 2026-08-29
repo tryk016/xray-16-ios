@@ -81,14 +81,34 @@ void CALifeStorageManager::save(LPCSTR save_name_no_check, bool update_name)
 
     string_path temp;
     FS.update_path(temp, "$game_saves$", m_save_name);
+#if defined(XR_PLATFORM_APPLE_IOS)
+    IWriter* writer = FS.w_open_private(temp);
+#else
     IWriter* writer = FS.w_open(temp);
+#endif
+    if (!writer)
+    {
+        xr_free(dest_data);
+        Msg("! Cannot securely create saved game '%s'", temp);
+        xr_strcpy(m_save_name, saveBackup);
+        return;
+    }
     writer->w_u32(u32(-1));
     writer->w_u32(ALIFE_VERSION);
 
     writer->w_u32(source_count);
     writer->w(dest_data, dest_count);
     xr_free(dest_data);
+#if defined(XR_PLATFORM_APPLE_IOS)
+    if (!FS.w_close_private(writer))
+    {
+        Msg("! Cannot securely finalize saved game '%s'", temp);
+        xr_strcpy(m_save_name, saveBackup);
+        return;
+    }
+#else
     FS.w_close(writer);
+#endif
 #ifdef DEBUG
     Msg("* Game %s is successfully saved to file '%s' (%d bytes compressed to %d)", m_save_name, temp, source_count,
         dest_count + 4);

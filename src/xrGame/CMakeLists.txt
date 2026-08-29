@@ -613,6 +613,8 @@ target_sources(xrGame PRIVATE
     HairsZone.cpp
     HairsZone.h
     HairsZone_script.cpp
+    ios_quickload_phase.cpp
+    ios_quickload_phase.h
     HangingLamp.cpp
     HangingLamp.h
     Helicopter2.cpp

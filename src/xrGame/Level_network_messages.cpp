@@ -17,6 +17,11 @@
 #include "Message_Filter.h"
 #include "xrPhysics/IPHWorld.h"
 
+#if defined(XR_PLATFORM_APPLE_IOS)
+#include "ios_quickload_phase.h"
+#include "xrEngine/defines.h"
+#endif
+
 extern LPCSTR map_ver_string;
 pstr remove_version_option(LPCSTR opt_str, pstr new_opt_str, u32 new_opt_str_size)
 {
@@ -321,7 +326,14 @@ void CLevel::ClientReceive()
                     CSavedGameWrapper wrapper(saved_name);
                     if (wrapper.level_id() == ai().level_graph().level_id())
                     {
+#if defined(XR_PLATFORM_APPLE_IOS)
+                        const u64 quick_load_request = ios_quickload_phase_begin_request();
+                        Engine.Event.Defer("Game:QuickLoad", size_t(xr_strdup(saved_name)), quick_load_request);
+                        if (psIOSDiagnostics == 1)
+                            ios_quickload_phase_emit(quick_load_request, IosQuickLoadPhase::Deferred);
+#else
                         Engine.Event.Defer("Game:QuickLoad", size_t(xr_strdup(saved_name)), 0);
+#endif
 
                         break;
                     }

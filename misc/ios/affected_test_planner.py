@@ -25,18 +25,30 @@ MAX_PATH_BYTES = 1024
 STATUSES = frozenset({"A", "M", "D", "R", "T", "U"})
 SPECIALIZED = frozenset({"host-fast", "shader-affected", "engine-affected", "retail-integration"})
 
-# This shadow-only integration is intentionally bound to one reviewed
-# post-integration catalog snapshot. These are byte hashes, not self-declared
-# manifest fields.
-ASSET_SHA256 = {
+# The frozen Phase2B inventory is intentionally bound to its reviewed catalog
+# snapshot.  The additive catalog below is a later, separately reviewed input:
+# it must never be mistaken for the frozen snapshot that produced the inventory.
+# These are byte hashes, not self-declared manifest fields.
+FROZEN_ASSET_SHA256 = {
     "affected_test_mapping_v1.json": "15928ad02ce2939e61f42e4ef4ce32f251f3a3b89f43f34f63b91d997319203f",
     "test_feedback_inventory_v1.json": "064596dc006986aa895b7c5a592b4fd699c59aaeecce02dd4612a0d8c5007036",
-    "test_feedback_catalog.json": "2ca736499fb6c49189ccf3a22243e4a1accd68afdbac6142603bedd673b681e3",
+}
+FROZEN_CATALOG_SHA256 = "2ca736499fb6c49189ccf3a22243e4a1accd68afdbac6142603bedd673b681e3"
+CURRENT_CATALOG_SHA256 = "b0282f11bfed488e906103ad162a14537badfc7901e8500605898c8a31c1d9b2"
+FROZEN_CATALOG_BINDING = {
+    "path": "misc/ios/test_feedback_catalog.json",
+    "sha256": FROZEN_CATALOG_SHA256,
+    "selection_authority": "NONE",
+    "cache_authority": "NONE",
 }
 EXPECTED_PARITY = {
     "entrypoints": (57, "73cf7874aa1b473adf4209988165971a345c27bea6bacee81d8d09b501757551"),
     "build_stage_exclusions": (18, "3d29c524c51b60723a09b8dc5a042b165de13bba8891ad1e9c7bd9205a6c7011"),
     "catalog_complete": (1361, "bf53c06625e63824396e1636549f6a657c05018d88db10394e9877d883932efb"),
+}
+CURRENT_CATALOG_PARITY = {
+    "entrypoints": (58, "c1cd042615e60bd38d6899271f429c974fdb59712312b770ed15e58cce59feac"),
+    "build_stage_exclusions": EXPECTED_PARITY["build_stage_exclusions"],
 }
 EXPECTED_PROFILES = {
     "host-fast": (877, "68a4ceadd9f74db0962f80269810a216b271028b934d8bab9fae356fca9915bc", 56, "feb499af0aac9ecb4d5aa58018636bd53f68086193d8a1b28c5028b805f85f83"),
@@ -311,9 +323,9 @@ def _validate_catalog(catalog: Any) -> dict[str, Any]:
         raise MapperError("CATALOG_CONTRACT_DRIFT")
     entrypoints = _catalog_names(catalog, "entrypoints", "entrypoint_id")
     exclusions = _catalog_names(catalog, "build_stage_exclusions", "stage_id")
-    if (len(entrypoints), stable_id_digest(entrypoints)) != EXPECTED_PARITY["entrypoints"]:
+    if (len(entrypoints), stable_id_digest(entrypoints)) != CURRENT_CATALOG_PARITY["entrypoints"]:
         raise MapperError("CATALOG_ENTRYPOINT_DRIFT")
-    if (len(exclusions), stable_id_digest(exclusions)) != EXPECTED_PARITY["build_stage_exclusions"]:
+    if (len(exclusions), stable_id_digest(exclusions)) != CURRENT_CATALOG_PARITY["build_stage_exclusions"]:
         raise MapperError("CATALOG_EXCLUSION_DRIFT")
     return catalog
 
@@ -416,25 +428,33 @@ def build_report(mapping: dict[str, Any], inventory: dict[str, Any], manifest_ra
     return report
 
 
-def _bound_asset(base: Path, name: str) -> Any:
+def _bound_frozen_asset(base: Path, name: str) -> Any:
     raw = read_bound_file(base / name, "asset")
-    if hashlib.sha256(raw).hexdigest() != ASSET_SHA256[name]:
+    if hashlib.sha256(raw).hexdigest() != FROZEN_ASSET_SHA256[name]:
+        raise MapperError(ERROR_ASSET_BINDING)
+    return strict_json(raw, "asset")
+
+
+def _bound_current_catalog(base: Path) -> Any:
+    raw = read_bound_file(base / "test_feedback_catalog.json", "asset")
+    if hashlib.sha256(raw).hexdigest() != CURRENT_CATALOG_SHA256:
         raise MapperError(ERROR_ASSET_BINDING)
     return strict_json(raw, "asset")
 
 
 def load_assets(base: Path) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Load only the three byte-pinned, post-integration shadow assets.
+    """Load frozen Phase2B assets and the separately pinned additive catalog.
 
-    Any binding or metadata drift returns no plan: the frozen full-release IDs
-    themselves are no longer trustworthy in that state.
+    The inventory's frozen binding and the current catalog are deliberately
+    different snapshots. Any drift returns no plan: the frozen full-release
+    IDs or the additive entrypoint catalog are no longer trustworthy.
     """
     try:
-        mapping = _validate_mapping(_bound_asset(base, "affected_test_mapping_v1.json"))
-        inventory = _validate_inventory(_bound_asset(base, "test_feedback_inventory_v1.json"))
-        catalog = _validate_catalog(_bound_asset(base, "test_feedback_catalog.json"))
+        mapping = _validate_mapping(_bound_frozen_asset(base, "affected_test_mapping_v1.json"))
+        inventory = _validate_inventory(_bound_frozen_asset(base, "test_feedback_inventory_v1.json"))
+        catalog = _validate_catalog(_bound_current_catalog(base))
         binding = inventory.get("catalog_binding")
-        if not isinstance(binding, dict) or binding.get("sha256") != ASSET_SHA256["test_feedback_catalog.json"]:
+        if binding != FROZEN_CATALOG_BINDING:
             raise MapperError("CATALOG_BINDING_DRIFT")
         # Keep the validated catalog local to this function; public reports do
         # not expose its source path or mutable filesystem metadata.

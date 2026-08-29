@@ -5633,3 +5633,173 @@ Push succeeded as `origin/ios-port 4edd85a04..559817b37`; local HEAD and remote
 matched immediately afterward. This is host/build and publication evidence
 only: no install, phone, real Simulator, runtime, rendering, streaming, audio,
 memory or distribution claim is added. IOS-P2-007 remains deferred.
+
+## 2026-08-26 — IOS-P0-003 physical lighting and QuickLoad packet
+
+The clean matching `device` gate passed before installation at current HEAD
+`de86633634964d36f6362874ba1480868997eff4`: receipt
+`/Users/patryk/openxray-handoff/gate-logs/gate-1787773297792508000-27477-0.json`
+has identical clean before/after source and exit 0.
+
+`/Users/patryk/openxray-handoff/ios-p0-003-phone-20260826-210300/lighting-outdoor/report.json`
+records one controlled physical `zaton`/`default_clear` run. A/B were stationary;
+C followed 45.558471 m. PID 3317, session
+`bbe890df665046e304b5ec9c003e3651`, level, epoch 1 and sector 115 remained the
+same; all captures are native 1864×860. Visual review found globally correct
+lighting and no radial lit circle in this exact run. Its A/A+3/A+6 controls are
+correlation controls only: the packet excludes other saves, interiors, weather,
+restarts and any movement/streaming causation.
+
+The physical F5/F9 packet
+`quickload/f5-f9-20260826-211444/summary.json` is `FAIL_PROCESS_EXIT_AFTER_F9`
+and is P0. One F5 created a stable `mobile user - quicksave.scop`, 655726 B,
+SHA-256 `8d80ccba75e1d980017307afafaac0e90706448618e925f16375c2f345c41c21`,
+without changing the original save (SHA-256 `a4ef4a…153`). One F9 was
+acknowledged at approximately 21:15:54–56 Europe/London. No post-F9 frame,
+epoch 2 or `quick_load` marker was published; PID 3317 was absent by 21:17:37.
+The anchored oracle correctly failed: expected epoch 2, got none. F9 ACK proves
+only that `IR_OnKeyboardPress` returned, not that deferred QuickLoad completed.
+No device save was deleted; the new QuickSave intentionally remains.
+
+Cause remains unresolved: memory-pressure SIGKILL/jetsam, watchdog, crash/assert
+or another termination are all live possibilities. The fresh nearby JetsamEvent
+is timestamped 21:13:06.39, before F9, and killed `StickerPickerService`, not
+`xr_3da`. It nevertheless records PID 3317 active/frontmost and largest at
+206996 × 16 KiB = 3.158508 GiB amid `vm-compressor-thrashing`; this is P1 memory
+evidence, not attribution of the later F9 exit. Three LLDB setup packets
+(`-213351`, `-213745`, `-213929`) stopped safely before F9 because no remote
+module/process and resolved breakpoints were established, and therefore add no
+causal evidence. All their PIDs ended and the shared phone lock was free.
+Temporary `user.ltx` restoration commands passed each time; later attempts
+indirectly re-read the same original SHA-256 `768b2a…258`, but the third final
+restore lacks a post-restore readback hash. This is a P2 evidence boundary, not
+a claim that the restore failed.
+
+Reviewer classification: P0 physical QuickLoad release blocker, P1 memory
+headroom, P2 timestamp correction and final `user.ltx` readback boundary. This
+does not close IOS-P0-003 and is not an `APPROVE` checkpoint. Next work is
+phone-free deterministic LLDB attach/symbol preparation or minimal symbolized
+QuickLoad phase/memory probes, followed by exactly one guarded F9 reproduction;
+full prefetch must not be restored.
+
+## 2026-08-27 — IOS-P0-003 QuickLoad instrumentation/private-save checkpoint
+
+The phone-free checkpoint is complete at dirty-source HEAD
+`de86633634964d36f6362874ba1480868997eff4`; no commit, push or install occurred.
+The iOS-only private ALife writer guarantees final mode `0600` independently of
+umask, uses `O_NOFOLLOW`, requires current UID/regular file/nlink 1, preserves
+`UF_TRACKED`, rejects symlink and hardlink targets, and propagates final
+flush/close failure. Foreign UID remains a source-level contract only. Locator
+normalizes filesystem separators before post-close `stat`/`Register`.
+
+QuickLoad telemetry binds exact request identity and ordered phases: `deferred`,
+`event_begin`, `objects_removed`, `restart_begin`, `old_alife_destroyed`,
+`ids_cleared`, `alife_construct_begin`, `new_alife_constructed`,
+`precache_complete`, `restart_complete`, `event_complete`; memory is recorded at
+seven phases. Host phase/private-writer passed 16/16, Simulator evidence 45/45
+and affected mapper 32/32. The existing inventory remains frozen at 45 IDs.
+
+Fresh isolated iOS 27 Simulator formal PASS is
+`/Users/patryk/openxray-handoff/simulator-work-20260827-022513-64141/report.txt`,
+report SHA-256 `58b51b671af555628ee276c50d16e61affc176acba98121564fd3b0c52af9d99`
+and manifest SHA-256
+`bd7144713dc77918f507224ff105629d37621d422491ade27e162ac6a599e9ff`.
+Simulator `C5C45EA6-9937-4722-B8B7-8E7C9A550776` was deleted. PID 70183 records
+epoch 1 `level_load`/`exact`, sector 115, frame 35, then epoch 2
+`quick_load`/`retained`, sector 115, frame 122. F9 real-log
+press/load-success/terminal/release ordering 956/1038/1117/1202 is correctly
+accepted; capture C frame 182 uses that request, state `released`, release frame
+181. F5 success/press/release 943/944/947 remains intentionally accepted for
+dispatch/log order.
+
+The original save is unchanged: 631235 bytes, SHA-256
+`7ff0b12ee5d0a39b7a9595d7cc491cd63a32dfc2ce276e5302f74a4cdf7214cc`, mode
+0600 and `UF_TRACKED`. Live QuickSave is 650219 bytes, SHA-256
+`f022e6e6c44a1641346315db071f8dce646b9ac328effa60d71b5390973c8dd7`, mode
+0600, `UF_TRACKED`, UID 501 and nlink 1. Private evidence copy has identical
+bytes/hash/mode, flags 0 and a distinct inode. Simulator memory markers are:
+`event_begin` physical current/peak 3,603,381/3,621,333 KiB; `objects_removed`
+3,609,893/3,629,877; `old_alife_destroyed` 3,549,621;
+`new_alife_constructed` 3,581,573; observed resident peak 4,910,544 KiB and
+compressed 0.
+
+Matching gates on the same dirty state all passed before this documentation
+closeout: Fast `gate-1787796682836313000-32939-0.json`, 800.6279 s, before=after,
+status SHA-256 `76587db6b043001f6fba121c62c3cccfaf525c8c0ee07db84242269c12e18dc2`,
+diff `9743597615ce184c04c44d469c7cdfdeffae61d802b2151f8074d696127b68bc`, log
+`ebb99654818800df085d0a9f216887c27e7f06447826c733a0e799e885ac04e0`, stamp
+`932429d6ff7d771ea1c6effb7c20ba502dada18c76e89e107d0ac00043d85d01`.
+Full `gate-1787798799978402000-71077-0.json` passed in 837.9106 s, same state,
+retail 102/102, stages 279/279, links 137/137, log
+`15d7e6af37541997b919109f50c25839727de77272e087326e660b4916af2015`, stamp
+`17272f59cf89ce6c9c154b2156412ce80e11afdec441ffb3a71716e054e0a409`, dSYM
+`__debug_info` 513,910,528 bytes, UUID `CBAF9E4B-CCDC-34F9-85A5-6594A3148597`.
+Device `gate-1787799656607407000-94186-0.json` passed in 789.6168 s, same state,
+log `aead5de65c5736701f3399bef13b71cb2988edb0927f8133cd70320cd8403aab`, device
+stamp `bdd1fcfda0115de8002ee41c66a3c5230baf82a156e6763e54a72a306243d822`.
+After the matching device gate, `./misc/ios/install_device.sh --preflight`
+passed hermetic signing validation for the current artifact/profile and
+explicitly reported that no device lease and no device command were issued. No
+install occurred. Sol xhigh final code/evidence verdict:
+`APPROVE — brak P0/P1/P2`.
+
+Evidence boundary: Simulator proves Apple Software Renderer control flow, save
+permissions and publication only. It is not iPhone rendering, physical memory,
+performance, lighting or wider-content proof. The old physical F9 process exit
+is unresolved and is not claimed fixed. Next is exactly one guarded physical
+F5→F9 with the current device artifact and shortest shared lease, preserving all
+saves while collecting process continuity, the 11 phase/seven memory markers and
+epoch 2. Do not restore full prefetch.
+
+## 2026-08-29 — IOS-P0-003 guarded physical QuickLoad PASS
+
+The exact affected Zaton physical reproduction is now closed. The packet is
+`/Users/patryk/openxray-handoff/ios-p0-003-phone-20260829-172509`; its final
+`report.txt` and 260-entry `evidence.sha256` bind the artifacts. Their SHA-256
+values are respectively `80a55fc1…0271` and `a53a2587…c941`. The first fresh
+device gate correctly failed before any phone use because a migrated shader
+cache entry disagreed with its immutable inode-bound receipt. The 484 KiB cache
+was quarantined with a SHA-256 manifest. A clean namespace then produced real
+compile/link MISS results and device gate
+`gate-1788021668218642000-90104-0.json` passed in 923.548 s at unchanged dirty
+HEAD `de866336…`: retail 102/102, shader compile 279/279 and links 137/137, log
+SHA-256 `91cbe6a4…4349`.
+
+The current signed update preserved the stable bundle/container. One F5 request
+`6c82140b-b565-409e-b9af-14ab54864e96` on PID 29757 produced a stable
+635674-byte QuickSave, SHA-256 `64f9306e…24ee`, in two reads while the original
+save remained `a4ef4adc…c153`. Exactly one F9 request
+`ce0a4564-5cba-45b7-86e7-b35681c03f78` completed internal request 1 through
+all 11 ordered phases and seven memory markers. Epoch 2 is
+`quick_load/retained`, sector 115, frame 2732.
+
+Capture `d613e5968658983b38b87a264db4ac16:28` is native 1864×860 gameplay on
+the same PID at frame 3724, after the exact F9 request reached `released`.
+Metadata and PNG revalidate; visual inspection shows a complete scene/HUD with
+global lighting and no radial lit-circle symptom in this exact frame. The
+post-F9 QuickSave still matched F5, and the original save remained unchanged.
+
+After collection, SIGTERM left PID 29757 bound; the existing bounded cleanup
+escalated only that PID to SIGKILL and verified `gone`. The previous QuickSave
+`8d80ccba…c21` and original `user.ltx` were restored, read back byte-for-byte,
+and exactly two saves remained. The app was closed and the shared lock was
+released; final lock state was free.
+
+The seven QuickLoad phases peaked at 3,355,476 KiB physical footprint; a later
+after-load marker reached 3,413,924 KiB. JetsamEvent `17:57:30` was already in
+the pre-F9 inventory. It lists `xr_3da` PID 29757 as active/frontmost/largest
+without a reason and names `visualintelligenced` with
+`vm-compressor-thrashing`; the game survived F9. This is memory-pressure context,
+not attribution to OpenXRay or a memory PASS. P1 memory, additional saves,
+interiors, transitions and soak remain open. Full prefetch remains prohibited.
+
+After the documentation closeout, hermetic installer preflight still passed and
+explicitly issued no device lease or command. Therefore the artifact/source
+install stamp remains content-valid. The device receipt's complete dirty
+diff/status is pre-document evidence only; it does not gate these prose changes.
+A future commit changes HEAD and requires a new matching install gate, and the
+project still requires a final post-commit `full` before push.
+
+Terra high independently revalidated the 260-entry packet and returned PASS
+after two P2 wording corrections. Sol xhigh re-reviewed the corrected live
+filesystem state and returned exactly `APPROVE — brak P0/P1/P2`.

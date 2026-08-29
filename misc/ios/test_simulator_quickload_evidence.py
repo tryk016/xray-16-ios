@@ -215,7 +215,7 @@ class QuickLoadEvidenceTests(unittest.TestCase):
             "qsave": self.qsave,
             "qload": self.qload,
             "f5_events": events(self.qsave, "f5", 1, 3, 4, 2),
-            "f9_events": events(self.qload, "f9", 5, 7, 8, 6, 9),
+            "f9_events": events(self.qload, "f9", 5, 7, 9, 6, 8),
             "original_save": transition("original.scop", 1),
             "quicksave": transition(MODULE.PHYSICAL_QUICKSAVE, 2,
                                     final_flags=MODULE.UF_TRACKED),
@@ -304,8 +304,8 @@ class QuickLoadEvidenceTests(unittest.TestCase):
                         f"'{engine_path(quicksave)}' (0.001s)\n"
                     )
                     out.write(f"* iOS diag: autoinput request {self.qload} press/hold 'f9' (scancode 66) for 100 ms\n")
-                    out.write(f"* iOS diag: autoinput request {self.qload} released scancode 66\n")
                     out.write(marker(self.pid, 2, 60, "quick_load") + "\n")
+                    out.write(f"* iOS diag: autoinput request {self.qload} released scancode 66\n")
                 self._write_capture(capture_value(self.pid, 3, 80, 2, 115, released_input(self.qload, "f9", 66, 50, 55)))
             else:
                 self.fail(f"unexpected trigger {payload!r}")
@@ -321,6 +321,14 @@ class QuickLoadEvidenceTests(unittest.TestCase):
         self.assertEqual(pre["qsave"], self.qsave)
         self.assertEqual(pre["qload"], self.qload)
         self.assertEqual(pre["captures"]["c"]["frame"], 80)
+        self.assertGreater(
+            pre["f9_events"]["terminal_line"],
+            pre["f9_events"]["success_line"],
+        )
+        self.assertLess(
+            pre["f9_events"]["terminal_line"],
+            pre["f9_events"]["release_line"],
+        )
         MODULE.finalize(self._run_args())
         pending = self.root / "manifest.pending.json"
         self.assertTrue(pending.is_file())
@@ -1434,6 +1442,14 @@ class QuickLoadEvidenceTests(unittest.TestCase):
             ("epoch-order", lambda value: value["quickload_epoch"].update({"epoch": 3})),
             ("event-uuid", lambda value: value["f9_events"].update(
                 {"request_id": value["qsave"]})),
+            ("terminal-equals-success", lambda value: value["f9_events"].update(
+                {"terminal_line": value["f9_events"]["success_line"]})),
+            ("terminal-before-success", lambda value: value["f9_events"].update(
+                {"terminal_line": value["f9_events"]["success_line"] - 1})),
+            ("release-equals-press", lambda value: value["f9_events"].update(
+                {"release_line": value["f9_events"]["press_line"]})),
+            ("release-before-press", lambda value: value["f9_events"].update(
+                {"release_line": value["f9_events"]["press_line"] - 1})),
             ("capture-order", lambda value: value["captures"]["c"].update({"frame": 30})),
             ("capture-token", lambda value: value["captures"]["b1"].update(
                 {"token": f"{'b' * 32}:2"})),

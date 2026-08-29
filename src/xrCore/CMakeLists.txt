@@ -184,6 +184,8 @@ target_sources_grouped(
     FS.h
     FS_impl.h
     FS_internal.h
+    ios_private_save_writer.cpp
+    ios_private_save_writer.h
     LocatorAPI.cpp
     LocatorAPI.h
     LocatorAPI_auth.cpp

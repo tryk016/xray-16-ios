@@ -36,6 +36,7 @@ PYTHON_COMMAND = re.compile(
 HOST_FEEDBACK_TOOLING_PATH = "misc/ios/test_retail_test_profiles.py"
 HOST_FEEDBACK_SUPPORT_PATH = "misc/ios/test_retail_fixture_contract.py"
 PHASE2B_SHADOW_TOOLING_PATH = "misc/ios/test_affected_test_planner.py"
+POST_BASELINE_TOOLING_PATH = "misc/ios/test_quickload_phase.py"
 UI_AUTOMATION_CONTRACT_PATHS = {
     "misc/ios/ui_automation/test_devicectl_contract.py",
     "misc/ios/ui_automation/test_runner_contract.py",
@@ -667,6 +668,8 @@ def runtime_profile_ids(profile: str) -> list[str]:
             selected.extend(host_feedback_tooling_ids(ROOT))
         elif path == PHASE2B_SHADOW_TOOLING_PATH:
             selected.extend(groups["phase2b-shadow-tooling"])
+        elif path == POST_BASELINE_TOOLING_PATH:
+            selected.extend(groups["post-baseline-tooling"])
         else:
             selected.extend(parse_archive_generated_methods(ROOT / path)
                             if path.endswith("test_archive_completed_artifacts.py")
@@ -1695,7 +1698,7 @@ def parse_build_check_python(root: Path = ROOT) -> tuple[list[str], list[str]]:
         match = PYTHON_COMMAND.match(line)
         if match:
             shader_only.append(match.group(1))
-    if (len(unconditional) != 28 or len(shader_only) != 4
+    if (len(unconditional) != 29 or len(shader_only) != 4
             or unconditional.count(HOST_FEEDBACK_TOOLING_PATH) != 1):
         raise CatalogError(
             f"build_check Python inventory drift: unconditional={len(unconditional)} shader={len(shader_only)}"
@@ -1991,10 +1994,10 @@ def profile_ids(root: Path = ROOT) -> dict[str, list[str]]:
     unconditional, shader_only = parse_build_check_python(root)
     python_ids: list[str] = []
     for item in unconditional + shader_only:
-        # This entrypoint is executed unconditionally by build_check, but its
-        # five Phase 1A contract cases intentionally remain outside the frozen
-        # historical central-python/legacy-python aggregates.
+        # These post-baseline entrypoints execute normally, but their cases
+        # intentionally remain outside frozen historical aggregates.
         if (item == HOST_FEEDBACK_TOOLING_PATH or item == PHASE2B_SHADOW_TOOLING_PATH
+                or item == POST_BASELINE_TOOLING_PATH
                 or item in UI_AUTOMATION_CONTRACT_PATHS):
             continue
         path = root / item
@@ -2009,6 +2012,7 @@ def profile_ids(root: Path = ROOT) -> dict[str, list[str]]:
     )
     phase0 = parse_python_methods(root / "misc/ios/test_test_feedback.py")
     phase2b = parse_python_methods(root / PHASE2B_SHADOW_TOOLING_PATH)
+    post_baseline = parse_python_methods(root / POST_BASELINE_TOOLING_PATH)
     retail_profiles = host_feedback_tooling_ids(root)
     baseline, variants, links = parse_shader_cases(root)
     return {
@@ -2017,6 +2021,7 @@ def profile_ids(root: Path = ROOT) -> dict[str, list[str]]:
         "host-infra": host,
         "phase0-tooling": phase0,
         "phase2b-shadow-tooling": phase2b,
+        "post-baseline-tooling": post_baseline,
         "host-feedback-tooling": retail_profiles,
         "cpp": parse_cpp_executions(root),
         "shell": parse_shell_cases(root),
@@ -2142,6 +2147,8 @@ def validate(catalog: dict[str, Any], root: Path = ROOT) -> dict[str, Any]:
         raise CatalogError("retail profile tooling tests missing")
     if len(groups["phase2b-shadow-tooling"]) != 32:
         raise CatalogError("Phase 2B shadow tooling count drift")
+    if not groups["post-baseline-tooling"]:
+        raise CatalogError("post-baseline tooling tests missing")
     all_python = groups["central-python"] + groups["ci-contract"] + groups["host-infra"]
     if len(all_python) != 800:
         raise CatalogError(f"legacy Python total drift: {len(all_python)}")

@@ -12,6 +12,8 @@ import sys
 
 IOS_ARTIFACT_INPUTS = (
     "src",
+    "src/xrCore/ios_private_save_writer.cpp",
+    "src/xrCore/ios_private_save_writer.h",
     "res",
     "Externals",
     "CMakeLists.txt",
@@ -74,6 +76,8 @@ IOS_ARTIFACT_INPUTS = (
     "misc/ios/simulator_quickload_evidence.py",
     "misc/ios/test_simulator_quickload_evidence.py",
     "misc/ios/test_ios_quickload_input_contract.py",
+    "misc/ios/quickload_phase_oracle.py",
+    "misc/ios/test_quickload_phase.py",
     "misc/ios/simulator_ui_navigation.py",
     "misc/ios/test_simulator_ui_navigation.py",
     "misc/ios/ui_capture_evidence.py",

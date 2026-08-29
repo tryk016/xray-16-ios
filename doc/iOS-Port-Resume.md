@@ -1,6 +1,6 @@
 # OpenXRay iOS — operational handoff
 
-**Updated:** 2026-08-24. **Docs:** [canonical](iOS-Port.md), [active](iOS-Port-Plan.md), [deferred](iOS-Port-Backlog.md).
+**Updated:** 2026-08-29. **Docs:** [canonical](iOS-Port.md), [active](iOS-Port-Plan.md), [deferred](iOS-Port-Backlog.md).
 
 Read this file completely, then the relevant active task/canonical section; search the Journal by task ID or exact symptom, never in full.
 
@@ -9,37 +9,21 @@ Read this file completely, then the relevant active task/canonical section; sear
 The M3 Pro host runs macOS/Xcode/SDK 27.0 beta and CMake 4.4.0; device and
 Simulator engines build arm64 for iOS 16.4+. Team `RMJWWPF379` signs stable
 `io.github.tryk016.openxray.RMJWWPF379`, preserving the device data container.
-The physical-device baseline is GLES 3.0 at a real 1864×860 drawable with 1:1 presentation and Bluetooth controller. Sector fallback and SSAO value-macro fixes are proven; a later dark-frame smoke remains unresolved.
+The physical-device baseline is GLES 3.0 at a real 1864×860 drawable with 1:1 presentation and Bluetooth controller. Sector fallback and SSAO value-macro fixes are proven. Current dirty checkpoint is at HEAD `de866336…`; its code state passed Fast/full and a fresh device gate, then one signed in-place update was installed and tested. The app remains installed but is closed. There was no commit or push. Post-document preflight still passes without a device, so the artifact/install stamp remains content-valid; the device-gate receipt's full dirty diff/status predates this documentation closeout. A future commit changes HEAD and requires a new matching gate before another install, and a final post-commit `full` remains mandatory before push.
 
-IOS-P0-003's hardened iOS 27 F5/F9 Simulator packet passed: workroot
-`simulator-work-20260810-164020-71268`, report
-`27f89f6793ec2d0f0ee6831add123ae3e54b9d83eaaa37d4326a62d052f35cb9`, manifest
-`7d45f49bbe15727a1813971b958fe8c19261b32cc3426a7bfd69dffbdd418896`, PID 77340.
-It records `level_load/exact` frame 35 then `quick_load/retained` frame 122; B0/B1/C are 1864×860 frames 89/94/182, tokens 54/58/118 and F5/F9 scancodes 62/66. This is Apple Software Renderer control-flow evidence only, not iPhone, pixels, readability, lighting or performance proof.
+IOS-P0-003 has one [controlled physical Zaton/default_clear lighting packet](/Users/patryk/openxray-handoff/ios-p0-003-phone-20260826-210300/lighting-outdoor/report.json): stationary A/B, C after 45.558 m, fixed PID 3317/session/epoch 1/sector 115 and native 1864×860. Global lighting is visually correct without a radial lit circle in that exact run only—not other saves, interiors, weather, restarts or a movement/streaming cause.
 
-M6-local importer is complete but M6 remains active as Plan task 5. Standalone
-stdlib `misc/ios/retail_import.py` passes 21/21 mutation/recovery tests:
-descriptor-relative confinement, immutable all-file SHA plan, byte-range prefix
-resume (real 600 MiB sparse fixture at an interior offset), nonblocking lock,
-private permissions, exclusive rename, fsync/recovery and exact final/legacy
-guard verification. The reviewed full source and independent manifest are now
-on exact-UUID APFS `DevArchive` as transactions `5beca2ef…bdba` and
-`8039f433…81ae`; both verify PASS and their local sources are receipt-bound
-zero tombstones. Prepared root with saves
-`/Users/patryk/openxray-handoff/retail-prepared-20260810-211114` is verify and
-idempotent-prepare PASS: only `Documents`+`manifest`, 13 files and
-4,611,922,289 prepared bytes; required `resources.db0`–`resources.db4` and
-`levels.db0`–`levels.db1` exist. Its manifest digests are
-`3dcd34c5934e1bc04b8dfb91873f48e82efe514f1aaf774ad685c09d2f1ae6c8` and
-`3008f88f4b658bf0aa89b64b9701448a253ba91fddb9a4bebeb66d86afe66f18`.
-An interrupted prepare revalidates the source and existing prefix, preserves
-the valid copied prefix and transfers only the remainder. An idempotent prepare
-of an already published root avoids source validation and copying. This is not
-yet APFS clone/no-copy staging: each deliberately fresh Simulator still receives
-its own 4.3 GiB copy so evidence runs remain isolated and the source stays
-immutable. Eight completed archive retirements reclaimed 5,750,628,350 logical
-bytes; the prepared cache remains local and verifier PASS. No phone, Simulator
-or installed app container was touched.
+The phone-free QuickLoad instrumentation/private-save checkpoint is formally complete. Exact request identity has 11 ordered phases (`deferred` through `event_complete`) and seven memory markers; host phase/private-writer is 16/16, Simulator evidence 45/45 and affected mapper 32/32, with 45 frozen existing inventory IDs. The iOS-only writer forces final mode 0600 independently of umask, rejects symlink/hardlink targets, retains `UF_TRACKED`, propagates final flush/close failure and Locator normalizes separators before post-close publication.
+
+Fresh isolated iOS 27 Simulator PASS is `/Users/patryk/openxray-handoff/simulator-work-20260827-022513-64141/report.txt`: PID 70183 has epoch 1 `level_load/exact` sector 115 frame 35 and epoch 2 `quick_load/retained` sector 115 frame 122; its Simulator was deleted. Original save is unchanged (631235 B, `7ff0b12e…214cc`, 0600, `UF_TRACKED`); live QuickSave is 650219 B (`f022e6e6…c8dd7`, 0600, `UF_TRACKED`, UID 501, nlink 1), while the private evidence copy has identical bytes/hash/mode and a distinct inode. F9 press/load-success/terminal/release 956/1038/1117/1202 is accepted; F5 943/944/947 is intentionally accepted. This is Apple Software Renderer control-flow/save-permission/publication evidence only—not iPhone rendering, physical memory, performance, lighting or wider content. Sol xhigh: `APPROVE — brak P0/P1/P2`.
+
+The old physical F9 process-exit reproduction is closed for the exact affected Zaton save/build. Packet `/Users/patryk/openxray-handoff/ios-p0-003-phone-20260829-172509/report.txt` kept PID 29757 through one F5/F9, all 11 phases/seven memory markers and epoch 2 `quick_load/retained`, sector 115. Its native 1864×860 released-request frame is complete and has no radial lit circle. Original save was unchanged; prior QuickSave and `user.ltx` were restored byte-for-byte. The phase peak was 3,355,476 KiB and after-load peak 3,413,924 KiB; a pre-F9 JetsamEvent did not kill `xr_3da`, so P1 memory remains open. Do not restore full prefetch.
+
+M6-local importer is complete (mutation/recovery 21/21); authorized tester
+distribution, signed-update save preservation and remote release remain open.
+The verified prepared cache and DevArchive retirement remain local/host evidence;
+each isolated Simulator still stages its own 4.3 GiB copy. That M6 importer work
+did not touch the device container.
 
 After historical `8b265b07b`, only Finder's 6,148-byte `.DS_Store` was removed; all 13 retail files verify. Overlay `ba2e07e05` plus supplement `ab1ba7f45` are
 committed; real `HISTORICAL_PASS` remains read-only closeout work and `9aad5df0` is stale for install.
@@ -131,14 +115,14 @@ phone for this host-only M6 evidence.
 ## Still pending
 
 - M6: authorized tester, legal boundary, signed-update data preservation and remote release; App Store excluded.
-- Phone lighting A/B, more content/QuickLoad/transition, lock/held-touch and dedicated-helper audio acceptance.
+- Wider save/level and transition coverage, then lock/held-touch and dedicated-helper audio acceptance.
 - Frame pacing, 30-minute memory/thermal budget, dense UI/texture/SSR frames and remote CI miss/hit.
 
 ## Next slice
 
-1. Do not treat the Phase 2B mapper as selection authority. IOS-P2-007 is deferred until an authenticated complete manifest, real/mutation zero-false-negative corpus and full-release completeness proof exist.
-2. Resume active IOS-P0-003/M6 or another explicitly promoted Plan task; keep lock/held-touch/audio deferred until promoted, without repeating the accepted five-cycle app-switch proof.
-3. The Phase 2B checkpoint is published. Keep the prepared cache distinct from legal distribution and device transfer/save-preservation evidence.
+1. Extend IOS-P0-003 to another outdoor save, an indoor/portal start and one level transition with exact epoch/sector plus objective frames.
+2. Keep the cooled 30-minute memory/thermal gate separate; do not restore full prefetch.
+3. Phase 2B remains published and non-authoritative; keep prepared retail cache distinct from distribution and device-save evidence.
 
 ## Safety
 

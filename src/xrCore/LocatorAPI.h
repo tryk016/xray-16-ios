@@ -227,6 +227,11 @@ public:
 
     IWriter* w_open(pcstr initial, pcstr N);
     IWriter* w_open(pcstr N) { return w_open(nullptr, N); }
+#if defined(XR_PLATFORM_APPLE_IOS)
+    IWriter* w_open_private(pcstr initial, pcstr N);
+    IWriter* w_open_private(pcstr N) { return w_open_private(nullptr, N); }
+    bool w_close_private(IWriter*& S);
+#endif
     IWriter* w_open_ex(pcstr initial, pcstr N);
     IWriter* w_open_ex(pcstr N) { return w_open_ex(nullptr, N); }
     void w_close(IWriter*& S);
